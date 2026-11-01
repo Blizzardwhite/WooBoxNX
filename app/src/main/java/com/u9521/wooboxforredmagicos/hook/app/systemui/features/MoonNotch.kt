@@ -475,8 +475,10 @@ object MoonNotch : HookRegister() {
             clipCircle.reset()
             clipCircle.addCircle(d / 2f, d / 2f, d / 2f - 0.5f, Path.Direction.CW)
 
-            // 黑底圆（遮住摄像头）
-            c.drawCircle(left + d / 2f, top + d / 2f, d / 2f - 1f, bgPaint)
+            // 黑底圆：只有画剪影/月亮时才需要；彩色图标本身铺满，不再垫黑底（避免浅色背景上露出细黑边）
+            if (appIcon == null) {
+                c.drawCircle(left + d / 2f, top + d / 2f, d / 2f - 1f, bgPaint)
+            }
 
             if (icon != null) {
                 // 图标直接铺满整个圆，不留黑边（圆形裁切，方图标也不会露出四角）
