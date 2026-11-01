@@ -1,4 +1,4 @@
-﻿package com.u9521.wooboxforredmagicos.hook.app.systemui.features
+package com.u9521.wooboxforredmagicos.hook.app.systemui.features
 
 import android.annotation.SuppressLint
 import android.content.Context
@@ -159,7 +159,8 @@ object MoonNotch : HookRegister() {
                 else com.u9521.wooboxforredmagicos.activity.MoonStyle.MOON
             }
         }.getOrNull() ?: com.u9521.wooboxforredmagicos.activity.MoonStyle.MOON
-        updateContent(context, currentPkg, style)
+        // 只在需要显示时更新内容：避免回桌面淡出的那一瞬间先闪出桌面应用的图标
+        if (visible) updateContent(context, currentPkg, style)
 
         moonView?.let { view ->
             if (visible && !moonShown) {
@@ -178,9 +179,6 @@ object MoonNotch : HookRegister() {
         }
     }
 
-    /** 整个圆显示当前应用图标时，图标占窗口边长的比例 */
-    private const val ICON_SCALE = 0.80f
-
     /** 已加载内容缓存（包名|样式|尺寸|彩色/剪影 -> 位图） */
     private val iconCache = android.util.LruCache<String, android.graphics.Bitmap>(16)
     private var contentKey: String? = null
@@ -191,13 +189,18 @@ object MoonNotch : HookRegister() {
         val key = pkg + "|" + style
         if (key == contentKey) return
         contentKey = key
-        drawable.appIcon =
-            if (style == com.u9521.wooboxforredmagicos.activity.MoonStyle.MOON || pkg == null) null
-            else loadAppIcon(
-                context,
-                pkg,
-                style == com.u9521.wooboxforredmagicos.activity.MoonStyle.MONO_ICON
-            )
+
+        val moonStyle = com.u9521.wooboxforredmagicos.activity.MoonStyle
+        if (style == moonStyle.MOON || pkg == null) {
+            drawable.appIcon = null
+            drawable.monoGlyph = null
+        } else if (style == moonStyle.MONO_ICON) {
+            drawable.appIcon = null
+            drawable.monoGlyph = loadAppIcon(context, pkg, true)
+        } else {
+            drawable.monoGlyph = null
+            drawable.appIcon = loadAppIcon(context, pkg, false)
+        }
     }
 
     private fun loadAppIcon(
@@ -205,7 +208,7 @@ object MoonNotch : HookRegister() {
         pkg: String,
         mono: Boolean
     ): android.graphics.Bitmap? {
-        val size = (MOON_SIZE_PX * ICON_SCALE).toInt().coerceAtLeast(1)
+        val size = MOON_SIZE_PX
         val key = pkg + "@" + size + "@" + mono
         iconCache.get(key)?.let { return it }
         val art = runCatching {
@@ -414,6 +417,7 @@ object MoonNotch : HookRegister() {
         private val outerRect = RectF()
         private val innerRect = RectF()
         private val iconDst = RectF()
+        private val clipCircle = Path()
         private val iconPaint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
 
         override fun draw(canvas: Canvas) {
@@ -421,9 +425,6 @@ object MoonNotch : HookRegister() {
             val d = minOf(baseSizePx, b.width().toFloat(), b.height().toFloat()).toInt()
             if (d <= 0) return
 
-            // 整张图标先渲染到一张位图，再一次性贴上去。
-            // 弯月是「填充 + 描边」两次绘制，如果直接画在带透明度的画布上，
-            // 重叠处会被叠加成更亮的一圈边（淡入淡出时能看到发光轮廓）。
             val bmp = ensureBitmap(d)
             val left = b.left + (b.width() - d) / 2f
             val top = b.top + (b.height() - d) / 2f
@@ -433,7 +434,7 @@ object MoonNotch : HookRegister() {
         private var cache: android.graphics.Bitmap? = null
         private var cacheFor: android.graphics.Bitmap? = null
 
-        /** 当前应用图标；为空时退回画弯月 */
+        /** 彩色应用图标：铺满整个圆 */
         var appIcon: android.graphics.Bitmap? = null
             set(value) {
                 field = value
@@ -441,8 +442,16 @@ object MoonNotch : HookRegister() {
                 invalidateSelf()
             }
 
+        /** 单色剪影：黑底 + 白色字形 */
+        var monoGlyph: android.graphics.Bitmap? = null
+            set(value) {
+                field = value
+                cache = null
+                invalidateSelf()
+            }
+
         private fun ensureBitmap(size: Int): android.graphics.Bitmap {
-            val icon = appIcon
+            val icon = appIcon ?: monoGlyph
             cache?.let { if (it.width == size && cacheFor === icon) return it }
             val bmp = android.graphics.Bitmap.createBitmap(
                 size, size, android.graphics.Bitmap.Config.ARGB_8888
@@ -452,15 +461,19 @@ object MoonNotch : HookRegister() {
             val left = 0f
             val top = 0f
 
+            clipCircle.reset()
+            clipCircle.addCircle(d / 2f, d / 2f, d / 2f - 0.5f, Path.Direction.CW)
+
             // 黑底圆（遮住摄像头）
             c.drawCircle(left + d / 2f, top + d / 2f, d / 2f - 1f, bgPaint)
 
             if (icon != null) {
-                // 方案 A：整个圆显示当前应用图标
-                val iconSize = d * ICON_SCALE
-                val off = (d - iconSize) / 2f
-                iconDst.set(off, off, off + iconSize, off + iconSize)
+                // 图标直接铺满整个圆，不留黑边（圆形裁切，方图标也不会露出四角）
+                iconDst.set(0f, 0f, d, d)
+                val save = c.save()
+                c.clipPath(clipCircle)
                 c.drawBitmap(icon, null, iconDst, iconPaint)
+                c.restoreToCount(save)
             } else {
                 // 兜底：画弯月 + 星星
                 val moonCx = left + d * 0.5f
