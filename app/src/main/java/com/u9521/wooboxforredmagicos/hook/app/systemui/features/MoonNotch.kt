@@ -231,21 +231,25 @@ object MoonNotch : HookRegister() {
         return bmp
     }
 
+    /** 剪影在圆里占的比例（比彩色图标略小一点，留出呼吸感） */
+    private const val MONO_FILL = 0.84f
+
     /**
      * 生成单色剪影：
      * 1. 自适应图标先用前景层的 alpha（多数应用就是 logo 形状）；
      * 2. 前景层是整块实心（例如白底圆形图标）或普通图标时，改用「跟边缘底色的色差」求字形；
-     * 3. 最后按字形包围盒放大到画布大小，保证 50px 下也够大。
+     * 3. 求字形时先在 4 倍分辨率上算，再缩回目标尺寸——这样边缘是干净的抗锯齿，不会糊。
      */
     private fun monoIcon(
         icon: android.graphics.drawable.Drawable,
         size: Int
     ): android.graphics.Bitmap? {
+        val hi = size * 4
         if (icon is android.graphics.drawable.AdaptiveIconDrawable) {
-            val fg = renderToBitmap(icon.foreground, size)
+            val fg = renderToBitmap(icon.foreground, hi)
             alphaGlyph(fg)?.let { return fitGlyph(it, size) }
         }
-        val full = renderToBitmap(icon, size)
+        val full = renderToBitmap(icon, hi)
         alphaGlyph(full)?.let { return fitGlyph(it, size) }
         val luma = lumaGlyph(full) ?: return null
         return fitGlyph(luma, size)
@@ -321,7 +325,7 @@ object MoonNotch : HookRegister() {
         return out
     }
 
-    /** 按字形包围盒等比放大并居中，让 50px 下的图案尽量大 */
+    /** 按字形包围盒等比缩放并居中，让 50px 下的图案清晰且大小合适 */
     private fun fitGlyph(glyph: android.graphics.Bitmap, size: Int): android.graphics.Bitmap {
         val w = glyph.width
         val h = glyph.height
@@ -340,10 +344,11 @@ object MoonNotch : HookRegister() {
 
         val gw = (maxX - minX + 1).toFloat()
         val gh = (maxY - minY + 1).toFloat()
-        val target = size * 0.92f
+        // 高分辨率字形缩到目标尺寸，只会缩小不会放大，边缘干净
+        val target = size * MONO_FILL
         val scale = minOf(target / gw, target / gh)
-        val dw = (gw * scale)
-        val dh = (gh * scale)
+        val dw = gw * scale
+        val dh = gh * scale
         val out = android.graphics.Bitmap.createBitmap(size, size, android.graphics.Bitmap.Config.ARGB_8888)
         val canvas = Canvas(out)
         val dst = RectF(
