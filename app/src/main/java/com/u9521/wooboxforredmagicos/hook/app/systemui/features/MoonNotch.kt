@@ -147,6 +147,20 @@ object MoonNotch : HookRegister() {
         }.getOrDefault(false)
         val visible = shouldShow && !batteryOn
 
+        // 圆里显示什么：月亮 / 彩色应用图标 / 剪影应用图标
+        val style = runCatching {
+            context.contentResolver.query(
+                android.net.Uri.parse(
+                    com.u9521.wooboxforredmagicos.activity.MoonStorage.URI_STYLE
+                ),
+                null, null, null, null
+            )?.use { cursor ->
+                if (cursor.moveToFirst()) cursor.getInt(0)
+                else com.u9521.wooboxforredmagicos.activity.MoonStyle.MOON
+            }
+        }.getOrNull() ?: com.u9521.wooboxforredmagicos.activity.MoonStyle.MOON
+        updateContent(context, currentPkg, style)
+
         moonView?.let { view ->
             if (visible && !moonShown) {
                 moonShown = true
@@ -164,9 +178,186 @@ object MoonNotch : HookRegister() {
         }
     }
 
+    /** 整个圆显示当前应用图标时，图标占窗口边长的比例 */
+    private const val ICON_SCALE = 0.80f
+
+    /** 已加载内容缓存（包名|样式|尺寸|彩色/剪影 -> 位图） */
+    private val iconCache = android.util.LruCache<String, android.graphics.Bitmap>(16)
+    private var contentKey: String? = null
+
+    private fun updateContent(context: Context, pkg: String?, style: Int) {
+        val view = moonView ?: return
+        val drawable = view.drawable as? MoonDrawable ?: return
+        val key = pkg + "|" + style
+        if (key == contentKey) return
+        contentKey = key
+        drawable.appIcon =
+            if (style == com.u9521.wooboxforredmagicos.activity.MoonStyle.MOON || pkg == null) null
+            else loadAppIcon(
+                context,
+                pkg,
+                style == com.u9521.wooboxforredmagicos.activity.MoonStyle.MONO_ICON
+            )
+    }
+
+    private fun loadAppIcon(
+        context: Context,
+        pkg: String,
+        mono: Boolean
+    ): android.graphics.Bitmap? {
+        val size = (MOON_SIZE_PX * ICON_SCALE).toInt().coerceAtLeast(1)
+        val key = pkg + "@" + size + "@" + mono
+        iconCache.get(key)?.let { return it }
+        val art = runCatching {
+            val icon = context.packageManager.getApplicationIcon(pkg)
+            if (!mono) {
+                renderToBitmap(icon, size)
+            } else {
+                monoIcon(icon, size)
+            }
+        }.getOrNull() ?: return null
+        iconCache.put(key, art)
+        return art
+    }
+
+    private fun renderToBitmap(drawable: android.graphics.drawable.Drawable, size: Int): android.graphics.Bitmap {
+        val bmp = android.graphics.Bitmap.createBitmap(size, size, android.graphics.Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bmp)
+        drawable.setBounds(0, 0, size, size)
+        drawable.draw(canvas)
+        return bmp
+    }
+
+    /**
+     * 生成单色剪影：
+     * 1. 自适应图标先用前景层的 alpha（多数应用就是 logo 形状）；
+     * 2. 前景层是整块实心（例如白底圆形图标）或普通图标时，改用「跟边缘底色的色差」求字形；
+     * 3. 最后按字形包围盒放大到画布大小，保证 50px 下也够大。
+     */
+    private fun monoIcon(
+        icon: android.graphics.drawable.Drawable,
+        size: Int
+    ): android.graphics.Bitmap? {
+        if (icon is android.graphics.drawable.AdaptiveIconDrawable) {
+            val fg = renderToBitmap(icon.foreground, size)
+            alphaGlyph(fg)?.let { return fitGlyph(it, size) }
+        }
+        val full = renderToBitmap(icon, size)
+        alphaGlyph(full)?.let { return fitGlyph(it, size) }
+        val luma = lumaGlyph(full) ?: return null
+        return fitGlyph(luma, size)
+    }
+
+    /** 有足够透明区域时，直接按 alpha 上白色；实心形状返回 null */
+    private fun alphaGlyph(src: android.graphics.Bitmap): android.graphics.Bitmap? {
+        val px = IntArray(src.width * src.height)
+        src.getPixels(px, 0, src.width, 0, 0, src.width, src.height)
+        var solid = 0
+        for (p in px) if ((p ushr 24) >= 160) solid++
+        val ratio = solid.toFloat() / px.size
+        if (ratio < 0.03f || ratio > 0.55f) return null
+        // 直接二值化：只留纯白，避免半透明像素变成灰色
+        val outPx = IntArray(px.size)
+        for (i in px.indices) {
+            outPx[i] = if ((px[i] ushr 24) >= 160) Color.WHITE else 0
+        }
+        val out = android.graphics.Bitmap.createBitmap(
+            src.width, src.height, android.graphics.Bitmap.Config.ARGB_8888
+        )
+        out.setPixels(outPx, 0, src.width, 0, 0, src.width, src.height)
+        return out
+    }
+
+    /** 以边缘一圈的平均色为底色，色差大的算字形，占比过大自动反相 */
+    private fun lumaGlyph(src: android.graphics.Bitmap): android.graphics.Bitmap? {
+        val w = src.width
+        val h = src.height
+        val px = IntArray(w * h)
+        src.getPixels(px, 0, w, 0, 0, w, h)
+
+        var rs = 0L; var gs = 0L; var bs = 0L; var n = 0L
+        val ring = maxOf(1, minOf(w, h) / 8)
+        for (y in 0 until h) for (x in 0 until w) {
+            val dx = minOf(x, w - 1 - x)
+            val dy = minOf(y, h - 1 - y)
+            if (dx >= ring && dy >= ring) continue
+            val p = px[y * w + x]
+            if ((p ushr 24) < 96) continue
+            rs += (p shr 16) and 0xFF
+            gs += (p shr 8) and 0xFF
+            bs += p and 0xFF
+            n++
+        }
+        if (n == 0L) return null
+        val br = (rs / n).toInt()
+        val bg = (gs / n).toInt()
+        val bb = (bs / n).toInt()
+
+        val mask = BooleanArray(px.size)
+        var on = 0
+        for (i in px.indices) {
+            val p = px[i]
+            if ((p ushr 24) < 96) continue
+            val dr = ((p shr 16) and 0xFF) - br
+            val dg = ((p shr 8) and 0xFF) - bg
+            val db = (p and 0xFF) - bb
+            mask[i] = dr * dr + dg * dg + db * db > 60 * 60
+            if (mask[i]) on++
+        }
+        val invert = on > px.size / 2
+        val glyph = if (invert) px.size - on else on
+        if (glyph < px.size / 25) return null
+
+        val out = android.graphics.Bitmap.createBitmap(w, h, android.graphics.Bitmap.Config.ARGB_8888)
+        val outPx = IntArray(px.size)
+        for (i in px.indices) {
+            val isGlyph = if (invert) !mask[i] else mask[i]
+            outPx[i] = if (isGlyph) Color.WHITE else 0
+        }
+        out.setPixels(outPx, 0, w, 0, 0, w, h)
+        return out
+    }
+
+    /** 按字形包围盒等比放大并居中，让 50px 下的图案尽量大 */
+    private fun fitGlyph(glyph: android.graphics.Bitmap, size: Int): android.graphics.Bitmap {
+        val w = glyph.width
+        val h = glyph.height
+        val px = IntArray(w * h)
+        glyph.getPixels(px, 0, w, 0, 0, w, h)
+        var minX = w; var minY = h; var maxX = -1; var maxY = -1
+        for (y in 0 until h) for (x in 0 until w) {
+            if ((px[y * w + x] ushr 24) > 24) {
+                if (x < minX) minX = x
+                if (x > maxX) maxX = x
+                if (y < minY) minY = y
+                if (y > maxY) maxY = y
+            }
+        }
+        if (maxX < minX || maxY < minY) return glyph
+
+        val gw = (maxX - minX + 1).toFloat()
+        val gh = (maxY - minY + 1).toFloat()
+        val target = size * 0.92f
+        val scale = minOf(target / gw, target / gh)
+        val dw = (gw * scale)
+        val dh = (gh * scale)
+        val out = android.graphics.Bitmap.createBitmap(size, size, android.graphics.Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(out)
+        val dst = RectF(
+            (size - dw) / 2f, (size - dh) / 2f,
+            (size + dw) / 2f, (size + dh) / 2f
+        )
+        canvas.drawBitmap(
+            glyph,
+            android.graphics.Rect(minX, minY, maxX + 1, maxY + 1),
+            dst,
+            Paint(Paint.FILTER_BITMAP_FLAG or Paint.ANTI_ALIAS_FLAG)
+        )
+        return out
+    }
+
     private fun ensureMoonView(context: Context) {
         if (moonView != null) return
-
         val density = context.resources.displayMetrics.density
         val view = ImageView(context).apply {
             setImageDrawable(MoonDrawable(density, MOON_SIZE_PX.toFloat()))
@@ -222,6 +413,8 @@ object MoonNotch : HookRegister() {
         private val starPath = Path()
         private val outerRect = RectF()
         private val innerRect = RectF()
+        private val iconDst = RectF()
+        private val iconPaint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
 
         override fun draw(canvas: Canvas) {
             val b = bounds
@@ -238,9 +431,19 @@ object MoonNotch : HookRegister() {
         }
 
         private var cache: android.graphics.Bitmap? = null
+        private var cacheFor: android.graphics.Bitmap? = null
+
+        /** 当前应用图标；为空时退回画弯月 */
+        var appIcon: android.graphics.Bitmap? = null
+            set(value) {
+                field = value
+                cache = null
+                invalidateSelf()
+            }
 
         private fun ensureBitmap(size: Int): android.graphics.Bitmap {
-            cache?.let { if (it.width == size) return it }
+            val icon = appIcon
+            cache?.let { if (it.width == size && cacheFor === icon) return it }
             val bmp = android.graphics.Bitmap.createBitmap(
                 size, size, android.graphics.Bitmap.Config.ARGB_8888
             )
@@ -252,25 +455,34 @@ object MoonNotch : HookRegister() {
             // 黑底圆（遮住摄像头）
             c.drawCircle(left + d / 2f, top + d / 2f, d / 2f - 1f, bgPaint)
 
-            // 弯月外圆圆心与遮罩圆心重合
-            val moonCx = left + d * 0.5f
-            val moonCy = top + d * 0.5f
-            // 整体放大约 18%（0.270 * 1.18），圆心不变
-            val moonR = d * 0.3186f
+            if (icon != null) {
+                // 方案 A：整个圆显示当前应用图标
+                val iconSize = d * ICON_SCALE
+                val off = (d - iconSize) / 2f
+                iconDst.set(off, off, off + iconSize, off + iconSize)
+                c.drawBitmap(icon, null, iconDst, iconPaint)
+            } else {
+                // 兜底：画弯月 + 星星
+                val moonCx = left + d * 0.5f
+                val moonCy = top + d * 0.5f
+                // 整体放大约 18%（0.270 * 1.18），圆心不变
+                val moonR = d * 0.3186f
 
-            // ---- 弯月 ----
-            drawCrescent(c, moonCx, moonCy, moonR)
+                // ---- 弯月 ----
+                drawCrescent(c, moonCx, moonCy, moonR)
 
-            // ---- 一颗星，落在弯月缺口（右上 45°）里 ----
-            val starDir = Math.toRadians(-45.0)
-            drawStar(
-                c,
-                moonCx + (moonR * 0.62f * cos(starDir)).toFloat(),
-                moonCy + (moonR * 0.62f * sin(starDir)).toFloat(),
-                d * 0.1156f
-            )
+                // ---- 一颗星，落在弯月缺口（右上 45°）里 ----
+                val starDir = Math.toRadians(-45.0)
+                drawStar(
+                    c,
+                    moonCx + (moonR * 0.62f * cos(starDir)).toFloat(),
+                    moonCy + (moonR * 0.62f * sin(starDir)).toFloat(),
+                    d * 0.1156f
+                )
+            }
 
             cache = bmp
+            cacheFor = icon
             return bmp
         }
 

@@ -8,8 +8,8 @@ import android.net.Uri
 import java.io.File
 
 /**
- * 给 SystemUI 里的 MoonNotch 读取"自定义应用名单"用。
- * 名单写在应用私有目录的 files/moon_apps.txt，不依赖任何系统权限。
+ * 给 SystemUI 里的 MoonNotch 读取"自定义应用名单"和"显示内容样式"用。
+ * 数据写在应用私有目录的 files/ 下，不依赖任何系统权限。
  */
 class MoonProvider : ContentProvider() {
 
@@ -22,10 +22,17 @@ class MoonProvider : ContentProvider() {
         selectionArgs: Array<out String>?,
         sortOrder: String?
     ): Cursor {
-        val file = File(requireNotNull(context).filesDir, MoonStorage.FILE_NAME)
-        val value = runCatching { if (file.exists()) file.readText() else "" }.getOrDefault("")
-        return MatrixCursor(arrayOf(MoonStorage.COLUMN)).apply {
-            addRow(arrayOf<Any>(value))
+        val dir = requireNotNull(context).filesDir
+        return if (uri.lastPathSegment == "style") {
+            val file = File(dir, MoonStorage.FILE_STYLE)
+            val value = runCatching {
+                if (file.exists()) file.readText().trim().toIntOrNull() ?: MoonStyle.MOON else MoonStyle.MOON
+            }.getOrDefault(MoonStyle.MOON)
+            MatrixCursor(arrayOf(MoonStorage.COLUMN)).apply { addRow(arrayOf<Any>(value)) }
+        } else {
+            val file = File(dir, MoonStorage.FILE_NAME)
+            val value = runCatching { if (file.exists()) file.readText() else "" }.getOrDefault("")
+            MatrixCursor(arrayOf(MoonStorage.COLUMN)).apply { addRow(arrayOf<Any>(value)) }
         }
     }
 
@@ -45,7 +52,27 @@ class MoonProvider : ContentProvider() {
 
 object MoonStorage {
     const val FILE_NAME = "moon_apps.txt"
+    const val FILE_STYLE = "moon_style.txt"
     const val COLUMN = "value"
     const val AUTHORITY = "com.u9521.wooboxforredmagicos.mod.moon"
     const val URI = "content://$AUTHORITY/moon"
+    const val URI_STYLE = "content://$AUTHORITY/style"
+}
+
+/** 摄像头位置圆里显示的内容样式 */
+object MoonStyle {
+    const val MOON = 0        // 弯月 + 星星
+    const val COLOR_ICON = 1  // 应用图标（彩色）
+    const val MONO_ICON = 2   // 应用图标（单色剪影）
+
+    fun get(context: android.content.Context): Int = runCatching {
+        val file = File(context.filesDir, MoonStorage.FILE_STYLE)
+        if (file.exists()) file.readText().trim().toIntOrNull() ?: MOON else MOON
+    }.getOrDefault(MOON)
+
+    fun set(context: android.content.Context, style: Int) {
+        runCatching {
+            File(context.filesDir, MoonStorage.FILE_STYLE).writeText(style.toString())
+        }
+    }
 }

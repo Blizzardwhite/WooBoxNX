@@ -286,4 +286,9 @@
     <string name="moon_apps_done">完成</string>
     <string name="moon_apps_count">已选 %d 个</string>
     <string name="moon_apps_need_permission">需要「修改系统设置」权限，点此授予（不授予的话名单无法保存）</string>
+<string name="moon_style">摄像头位置显示内容</string>
+<string name="moon_style_tips">选择圆里画什么：弯月 + 星星、应用图标（彩色）或应用图标（剪影）。剪影只有黑白两色，暗色图标也能看清，也不会让屏下区域发绿。</string>
+<string name="moon_style_moon">弯月 + 星星</string>
+<string name="moon_style_color">应用图标（彩色）</string>
+<string name="moon_style_mono">应用图标（剪影）</string>
 </resources>

@@ -246,6 +246,31 @@ object ScopeSystemUI : MyFragment() {
         )
         TextSummaryArrow(
             TextSummaryV(
+                textId = R.string.moon_style,
+                tipsId = R.string.moon_style_tips,
+                onClickListener = {
+                    val ctx = mactivity!!
+                    val labels = arrayOf(
+                        ctx.getString(R.string.moon_style_moon),
+                        ctx.getString(R.string.moon_style_color),
+                        ctx.getString(R.string.moon_style_mono)
+                    )
+                    android.app.AlertDialog.Builder(ctx)
+                        .setTitle(R.string.moon_style)
+                        .setSingleChoiceItems(
+                            labels,
+                            com.u9521.wooboxforredmagicos.activity.MoonStyle.get(ctx)
+                        ) { dialog, which ->
+                            com.u9521.wooboxforredmagicos.activity.MoonStyle.set(ctx, which)
+                            dialog.dismiss()
+                        }
+                        .setNegativeButton(android.R.string.cancel, null)
+                        .show()
+                }
+            )
+        )
+        TextSummaryArrow(
+            TextSummaryV(
                 textId = R.string.moon_apps,
                 tipsId = R.string.moon_apps_tips,
                 onClickListener = {
