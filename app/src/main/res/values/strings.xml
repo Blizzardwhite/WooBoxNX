@@ -14,7 +14,7 @@
 
     <string name="app_coolapk_url">Come and give us five-star review</string>
     <string name="app_coolapk_url_summary">This can make us more discoverable</string>
-    <string name="app_name" translatable="false">WooBox For RedMagicOS</string>
+    <string name="app_name" translatable="false">WooBox Mod (Moon)</string>
 
     <string name="are_you_sure_reboot">Are you sure to reboot?</string>
     <string name="are_you_sure_reboot_scope">Are you sure to reboot all scope?</string>
@@ -275,4 +275,15 @@
     <string name="block_notification_sound_screen_on_tips">专为习惯类原生的宝宝制作，不用重启，立刻生效\n锁屏时也会被视为熄屏状态\n记得为重要的通知打开<b>在屏幕上弹出</b>哦</string>
     <string name="block_telemetry_service">阻止启动遥测服务</string>
     <string name="block_telemetry_service_tips">阻止系统唤醒遥测服务上传日志即com.zte.analytics</string>
+    <string name="moon_notch">摄像头位置显示弯月</string>
+    <string name="moon_notch_tips">把屏下前摄区域的遮罩从“整条全黑”改成“弯月 + 黑色底”。顶部横条会变透明，只在摄像头位置绘制一圈黑色底和一个月牙；关机重启或系统刷新后会自动重新应用。<b>仅对“隐藏顶部区域”的应用生效。</b></string>
+    <string name="moon_battery">摄像头位置显示电量</string>
+    <string name="moon_battery_tips">独立功能：在摄像头位置显示电量（黑底圆 + 进度环 + 百分比）。与弯月互不影响，同时开启时两个图形会叠在同一位置。</string>
+    <string name="moon_apps">自定义应用名单</string>
+    <string name="moon_apps_tips">指定哪些应用显示弯月。名单为空时跟随系统（深色模式下系统自带的顶部显示优化名单）；名单非空时只对勾选的应用生效。</string>
+    <string name="moon_apps_title">显示月亮的应用</string>
+    <string name="moon_apps_search">搜索应用名称或包名</string>
+    <string name="moon_apps_done">完成</string>
+    <string name="moon_apps_count">已选 %d 个</string>
+    <string name="moon_apps_need_permission">需要「修改系统设置」权限，点此授予（不授予的话名单无法保存）</string>
 </resources>

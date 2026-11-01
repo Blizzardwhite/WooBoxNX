@@ -232,6 +232,32 @@ object ScopeSystemUI : MyFragment() {
                 textId = R.string.unhide_clipboard_overlay,
             ), SwitchV("unhide_clipboard_overlay")
         )
+        TextSummaryWithSwitch(
+            TextSummaryV(
+                textId = R.string.moon_notch,
+                tipsId = R.string.moon_notch_tips
+            ), SwitchV("moon_notch")
+        )
+        TextSummaryWithSwitch(
+            TextSummaryV(
+                textId = R.string.moon_battery,
+                tipsId = R.string.moon_battery_tips
+            ), SwitchV("camera_battery")
+        )
+        TextSummaryArrow(
+            TextSummaryV(
+                textId = R.string.moon_apps,
+                tipsId = R.string.moon_apps_tips,
+                onClickListener = {
+                    mactivity!!.startActivity(
+                        android.content.Intent(
+                            mactivity,
+                            com.u9521.wooboxforredmagicos.activity.MoonAppListActivity::class.java
+                        )
+                    )
+                }
+            )
+        )
         SwitchGroupBuilder(
             this, mactivity!!,
             SwitchGroupConfig(

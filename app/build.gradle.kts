@@ -55,6 +55,7 @@ android {
     }
     defaultConfig {
         applicationId = "com.u9521.wooboxforredmagicos"
+        applicationIdSuffix = ".mod"
         minSdk = 31
         targetSdk = 34
         versionCode = 7

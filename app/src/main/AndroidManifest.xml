@@ -2,6 +2,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" />
+    <uses-permission android:name="android.permission.WRITE_SETTINGS" />
 
     <queries>
         <package android:name="com.coloros.alarmclock" />
@@ -13,6 +15,13 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/AppTheme">
+
+        <provider
+            android:name="com.u9521.wooboxforredmagicos.activity.MoonProvider"
+            android:authorities="com.u9521.wooboxforredmagicos.mod.moon"
+            android:exported="true"
+            android:grantUriPermissions="true" />
+
         <activity
             android:name="com.u9521.wooboxforredmagicos.activity.SettingsActivity"
             android:exported="true"
@@ -23,6 +32,12 @@
                 <category android:name="de.robv.android.xposed.category.MODULE_SETTINGS" />
             </intent-filter>
         </activity>
+
+        <activity
+            android:name="com.u9521.wooboxforredmagicos.activity.MoonAppListActivity"
+            android:exported="true"
+            android:label="@string/moon_apps_title"
+            android:screenOrientation="portrait" />
 
         <activity-alias
             android:name=".launcher"

@@ -1,7 +1,9 @@
 package com.u9521.wooboxforredmagicos.hook.app
 
 import com.u9521.wooboxforredmagicos.hook.app.systemui.features.AOSPSingleHandModeAdjust
+import com.u9521.wooboxforredmagicos.hook.app.systemui.features.CameraBattery
 import com.u9521.wooboxforredmagicos.hook.app.systemui.features.GestureStartDefaultDigitalAssist
+import com.u9521.wooboxforredmagicos.hook.app.systemui.features.MoonNotch
 import com.u9521.wooboxforredmagicos.hook.app.systemui.features.NoVibrateVolKeyLongPress
 import com.u9521.wooboxforredmagicos.hook.app.systemui.features.UnHideClipBoardOverlay
 import com.u9521.wooboxforredmagicos.hook.app.systemui.lockscreen.AllowAdjustVolume
@@ -50,6 +52,8 @@ object SystemUI : AppRegister() {
             NoVibrateVolKeyLongPress,//禁用长按调音量振动
             AOSPSingleHandModeAdjust,//单手模式允许下拉通知栏
             UnHideClipBoardOverlay,//显示原生剪切版浮窗
+            MoonNotch,//摄像头位置显示弯月
+            CameraBattery,//摄像头位置显示电量
 
             //锁屏界面
             AllowAdjustVolume,//锁屏允许调整音量
