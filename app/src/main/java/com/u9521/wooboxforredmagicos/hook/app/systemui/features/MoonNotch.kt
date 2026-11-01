@@ -232,7 +232,7 @@ object MoonNotch : HookRegister() {
     }
 
     /** 剪影在圆里占的比例（比彩色图标略小一点，留出呼吸感） */
-    private const val MONO_FILL = 0.78f
+    private const val MONO_FILL = 0.70f
 
     /**
      * 生成单色剪影：
