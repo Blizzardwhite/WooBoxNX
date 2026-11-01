@@ -291,4 +291,8 @@
 <string name="moon_style_moon">弯月 + 星星</string>
 <string name="moon_style_color">应用图标（彩色）</string>
 <string name="moon_style_mono">应用图标（剪影）</string>
+<string name="moon_allow_light">亮色模式也显示</string>
+<string name="moon_allow_light_tips">默认只在深色模式下显示。打开后浅色模式也会画弯月/应用图标，适合深色壁纸或想让状态栏统一隐藏的情况。</string>
+<string name="moon_apps_select_all">全选</string>
+<string name="moon_apps_clear_all">全不选</string>
 </resources>

@@ -240,6 +240,12 @@ object ScopeSystemUI : MyFragment() {
         )
         TextSummaryWithSwitch(
             TextSummaryV(
+                textId = R.string.moon_allow_light,
+                tipsId = R.string.moon_allow_light_tips
+            ), SwitchV("moon_allow_light")
+        )
+        TextSummaryWithSwitch(
+            TextSummaryV(
                 textId = R.string.moon_battery,
                 tipsId = R.string.moon_battery_tips
             ), SwitchV("camera_battery")

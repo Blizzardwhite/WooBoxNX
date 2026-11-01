@@ -44,6 +44,7 @@ class MoonAppListActivity : Activity() {
     private lateinit var prefs: SharedPreferences
     private lateinit var adapter: AppAdapter
     private lateinit var countText: TextView
+    private var selectAllText: TextView? = null
     private val allApps = ArrayList<AppEntry>()
     private val shownApps = ArrayList<AppEntry>()
     private val selected = LinkedHashSet<String>()
@@ -98,6 +99,14 @@ class MoonAppListActivity : Activity() {
             setTextSize(TypedValue.COMPLEX_UNIT_SP, 20f)
             setTypeface(typeface, Typeface.BOLD)
         }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+        selectAllText = TextView(this).apply {
+            text = getString(com.u9521.wooboxforredmagicos.R.string.moon_apps_select_all)
+            setTextColor(Color.parseColor("#4FA3FF"))
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f)
+            setPadding(dp(14), dp(10), dp(6), dp(10))
+            setOnClickListener { toggleSelectAll() }
+        }
+        titleBar.addView(selectAllText)
         root.addView(titleBar)
 
         // 搜索框
@@ -181,12 +190,38 @@ class MoonAppListActivity : Activity() {
             }.forEach { shownApps.add(it) }
         }
         adapter.notifyDataSetChanged()
+        updateSelectAllLabel()
     }
 
     private fun toggle(pkg: String, checked: Boolean) {
         if (checked) selected += pkg else selected -= pkg
         persist()
         updateCount()
+        updateSelectAllLabel()
+    }
+
+    /** 全选 / 全不选（只作用于当前搜索过滤后的列表） */
+    private fun toggleSelectAll() {
+        if (shownApps.isEmpty()) return
+        val allSelected = shownApps.all { it.pkg in selected }
+        if (allSelected) {
+            shownApps.forEach { selected -= it.pkg }
+        } else {
+            shownApps.forEach { selected += it.pkg }
+        }
+        persist()
+        updateCount()
+        adapter.notifyDataSetChanged()
+        updateSelectAllLabel()
+    }
+
+    private fun updateSelectAllLabel() {
+        val label = selectAllText ?: return
+        val allSelected = shownApps.isNotEmpty() && shownApps.all { it.pkg in selected }
+        label.text = getString(
+            if (allSelected) com.u9521.wooboxforredmagicos.R.string.moon_apps_clear_all
+            else com.u9521.wooboxforredmagicos.R.string.moon_apps_select_all
+        )
     }
 
     private fun persist() {

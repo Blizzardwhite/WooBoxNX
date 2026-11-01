@@ -135,8 +135,14 @@ object MoonNotch : HookRegister() {
             .filter { it.isNotBlank() }
             .toSet()
 
+        // 亮色模式也显示（默认只有在深色模式下才画）
+        val allowLightMode = runCatching {
+            com.u9521.wooboxforredmagicos.util.XSPUtils.getBoolean("moon_allow_light", false)
+        }.getOrDefault(false)
+
         val shouldShow = if (customApps.isNotEmpty()) {
-            inDarkMode && currentPkg in customApps && statusBarState == 0 && rotation == 0
+            (inDarkMode || allowLightMode) && currentPkg in customApps &&
+                statusBarState == 0 && rotation == 0
         } else {
             topSettings == 2 && statusBarState == 0 && rotation == 0
         }
