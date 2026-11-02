@@ -11,5 +11,6 @@
         <item>com.zte.cn.doubleapp</item>
         <item>com.zte.mifavor.launcher</item>
         <item>com.zte.zdm</item>
+        <item>com.fingerprint.sensorservice</item>
     </string-array>
 </resources>

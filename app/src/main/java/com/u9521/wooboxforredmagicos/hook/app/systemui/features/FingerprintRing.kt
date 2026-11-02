@@ -44,17 +44,25 @@ object FingerprintRing : HookRegister() {
     /** 描边在圆环两侧各加宽的尺寸，占图标边长的比例 */
     private const val OUTLINE_WIDTH_RATIO = 0.016f
 
-    override fun init() = hasEnable("fp_ring") {
+    override fun init() {
+        // 不在注入时判断开关：开关在 hook 内部实时读取，
+        // 这样打开/关闭立刻生效，不用重启常驻的指纹服务
         runCatching { hookSensorView(SENSOR_VIEW_CLASS, "mSensorView") }
         runCatching { hookSensorView(LEGACY_SENSOR_VIEW_CLASS, "sensorView") }
         runCatching { hookUdfpsDrawable() }
     }
+
+    /** 实时读取开关，关闭后不再替换图标（原来的指纹图标会自然恢复） */
+    private fun enabled(): Boolean = runCatching {
+        com.u9521.wooboxforredmagicos.util.XSPUtils.getBoolean("fp_ring", false)
+    }.getOrDefault(false)
 
     /** 指纹 UI 是独立应用，图标最终落到 ImageView 的背景资源上，这里按资源名兜底 */
     fun installImageViewHook() {
         runCatching {
             val hook = object : XC_MethodHook() {
                 override fun afterHookedMethod(param: MethodHookParam?) {
+                    if (!enabled()) return
                     val view = param?.thisObject as? ImageView ?: return
                     val id = param.args?.getOrNull(0) as? Int ?: return
                     val name = runCatching { view.resources.getResourceEntryName(id) }.getOrNull()
@@ -80,6 +88,7 @@ object FingerprintRing : HookRegister() {
         android.util.Log.i("WooBox-FPUI", "hooked $className")
         val hook = object : XC_MethodHook() {
             override fun afterHookedMethod(param: MethodHookParam?) {
+                if (!enabled()) return
                 val self = param?.thisObject ?: return
                 val view = runCatching {
                     XposedHelpers.getObjectField(self, fieldName)
@@ -116,6 +125,7 @@ object FingerprintRing : HookRegister() {
             ?: return
         XposedBridge.hookAllMethods(cls, "draw", object : XC_MethodHook() {
             override fun beforeHookedMethod(param: MethodHookParam?) {
+                if (!enabled()) return
                 val self = param?.thisObject ?: return
                 val canvas = param.args?.getOrNull(0) as? Canvas ?: return
                 if (XposedHelpers.getBooleanField(self, "isDisplayConfigured")) {
@@ -143,15 +153,17 @@ object FingerprintRing : HookRegister() {
         val radius = (size / 2f - stroke / 2f) * RING_RADIUS_SCALE
         val outlineWidth = size * OUTLINE_WIDTH_RATIO
 
-        // 圆环外圈的一层反色描边（中心不填充）
-        val outline = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            style = Paint.Style.STROKE
-            strokeCap = Paint.Cap.ROUND
-            this.color = if (color == Color.WHITE) Color.BLACK else Color.WHITE
-            strokeWidth = stroke + outlineWidth * 2
-            this.alpha = (255 * OUTLINE_ALPHA * alpha / 255f).toInt()
+        // 只有白色圆环才加反色描边（浅色/白色背景上靠它显形）
+        if (color == Color.WHITE) {
+            val outline = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                style = Paint.Style.STROKE
+                strokeCap = Paint.Cap.ROUND
+                this.color = Color.BLACK
+                strokeWidth = stroke + outlineWidth * 2
+                this.alpha = (255 * OUTLINE_ALPHA * alpha / 255f).toInt()
+            }
+            canvas.drawCircle(cx, cy, radius, outline)
         }
-        canvas.drawCircle(cx, cy, radius, outline)
 
         val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             style = Paint.Style.STROKE
@@ -184,11 +196,14 @@ object FingerprintRing : HookRegister() {
             val radius = (size / 2f - stroke / 2f) * RING_RADIUS_SCALE
             val outlineWidth = size * OUTLINE_WIDTH_RATIO
 
-            // 圆环外圈的一层反色描边：白环配黑边、深色环配白边，中心保持透明
-            outlinePaint.color = if (color == Color.WHITE) Color.BLACK else Color.WHITE
-            outlinePaint.strokeWidth = stroke + outlineWidth * 2
-            outlinePaint.alpha = (255 * OUTLINE_ALPHA * alphaFactor).toInt()
-            canvas.drawCircle(b.exactCenterX(), b.exactCenterY(), radius, outlinePaint)
+            // 只有白色圆环才需要外圈描边：浅色/白色背景上靠它显形；
+            // 深色圆环本身在浅色背景上已经清楚，不加白边
+            if (color == Color.WHITE) {
+                outlinePaint.color = Color.BLACK
+                outlinePaint.strokeWidth = stroke + outlineWidth * 2
+                outlinePaint.alpha = (255 * OUTLINE_ALPHA * alphaFactor).toInt()
+                canvas.drawCircle(b.exactCenterX(), b.exactCenterY(), radius, outlinePaint)
+            }
 
             paint.color = color
             paint.strokeWidth = stroke
