@@ -224,6 +224,10 @@ object SettingsModel {
             Row(key = "debug_log", title = "打印模块调试日志", summary = "重启作用域后生效"),
             Row(key = "block_system_server_log", title = "阻止系统输出日志", summary = "实验性功能，目前仅拦截 Telecom 日志")
         )),
+        Group("备份与恢复", listOf(
+            Row(title = "备份设置", summary = "把当前配置导出为 JSON 文件", kind = Row.ACTION, action = "backup"),
+            Row(title = "恢复配置", summary = "从备份文件恢复，会覆盖当前设置", kind = Row.ACTION, action = "restore")
+        )),
         Group(null, listOf(
             Row(title = "旧版界面", summary = "按作用域划分的原始设置页", kind = Row.ACTION, action = "legacy")
         ))
@@ -379,7 +383,7 @@ object M3Actions {
             .show()
     }
 
-    fun pill(activity: Activity, label: String, chipStyle: Boolean = false, onClick: () -> Unit): TextView {
+    fun pill(activity: Activity, label: String, chipStyle: Boolean = false, endMarginDp: Int = 0, onClick: () -> Unit): TextView {
         val tv = M3Ui.text(activity, label, if (chipStyle) 13f else 12f, M3Color.ON_SURFACE_VAR)
         if (chipStyle) {
             tv.setPadding(M3Ui.dp(activity, 14), M3Ui.dp(activity, 7), M3Ui.dp(activity, 14), M3Ui.dp(activity, 7))
@@ -393,10 +397,70 @@ object M3Actions {
         tv.background = d
         tv.isClickable = true
         tv.setOnClickListener { onClick() }
+        tv.layoutParams = LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT
+        ).apply { rightMargin = M3Ui.dp(activity, endMarginDp) }
         return tv
     }
 }
 
+/** 备份 / 恢复（走系统文件选择器） */
+class M3Backup(private val activity: AppCompatActivity) {
+
+    private val backupLauncher = activity.registerForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.CreateDocument("application/json")
+    ) { uri ->
+        if (uri == null) return@registerForActivityResult
+        runCatching {
+            val json = org.json.JSONObject(M3Prefs.sp(activity).all as Map<*, *>).toString()
+            activity.contentResolver.openOutputStream(uri)?.use { it.write(json.toByteArray()) }
+            Toast.makeText(activity, "备份成功", Toast.LENGTH_SHORT).show()
+        }.onFailure {
+            Toast.makeText(activity, "备份失败：${it.message}", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private val restoreLauncher = activity.registerForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri == null) return@registerForActivityResult
+        runCatching {
+            val text = activity.contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() }
+                ?: return@runCatching
+            val obj = org.json.JSONObject(text)
+            val edit = M3Prefs.sp(activity).edit().clear()
+            obj.keys().forEach { k ->
+                when (val v = obj[k]) {
+                    is Boolean -> edit.putBoolean(k, v)
+                    is Int -> edit.putInt(k, v)
+                    is Long -> edit.putLong(k, v)
+                    is Double -> edit.putFloat(k, v.toFloat())
+                    is String -> edit.putString(k, v)
+                    else -> edit.putString(k, v.toString())
+                }
+            }
+            edit.apply()
+            Toast.makeText(activity, "已恢复配置，建议重启作用域", Toast.LENGTH_LONG).show()
+        }.onFailure {
+            Toast.makeText(activity, "恢复失败：${it.message}", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    fun startBackup() {
+        val stamp = java.text.SimpleDateFormat("yyyyMMdd_HHmmss", java.util.Locale.getDefault())
+            .format(java.util.Date())
+        backupLauncher.launch("Woobox_backup_$stamp.json")
+    }
+
+    fun confirmRestore() {
+        MaterialAlertDialogBuilder(activity)
+            .setTitle("恢复配置")
+            .setMessage("选择一个 JSON 备份文件恢复模块设置，现有设置会被覆盖。")
+            .setPositiveButton("选择文件") { _, _ -> restoreLauncher.launch(arrayOf("application/json")) }
+            .setNegativeButton("取消", null)
+            .show()
+    }
+}
 // ---------------- 主页 ----------------
 class SettingsHomeActivity : AppCompatActivity() {
 
@@ -482,82 +546,6 @@ class SettingsHomeActivity : AppCompatActivity() {
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
             ).apply { topMargin = M3Ui.dp(this@SettingsHomeActivity, 12) })
 
-        // 底部按钮
-        val btns = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            setPadding(0, M3Ui.dp(this@SettingsHomeActivity, 20), 0, 0)
-        }
-        val b1 = tonalButton("备份设置") { startBackup() }
-        val b2 = tonalButton("恢复配置") { confirmRestore() }
-        val lp = LinearLayout.LayoutParams(0, M3Ui.dp(this, 52), 1f)
-        btns.addView(b1, lp)
-        btns.addView(b2, LinearLayout.LayoutParams(0, M3Ui.dp(this, 52), 1f).apply {
-            leftMargin = M3Ui.dp(this@SettingsHomeActivity, 12)
-        })
-        content.addView(btns)
-    }
-
-    private fun tonalButton(label: String, onClick: () -> Unit): MaterialButton =
-        MaterialButton(this).apply {
-            text = label
-            backgroundTintList = ColorStateList.valueOf(M3Color.PRIMARY_CONT)
-            setTextColor(M3Color.ON_PRIMARY_CONT)
-            cornerRadius = M3Ui.dp(this@SettingsHomeActivity, 24)
-            setOnClickListener { onClick() }
-        }
-
-    private val backupLauncher = registerForActivityResult(
-        androidx.activity.result.contract.ActivityResultContracts.CreateDocument("application/json")
-    ) { uri ->
-        if (uri == null) return@registerForActivityResult
-        runCatching {
-            val json = org.json.JSONObject(M3Prefs.sp(this).all as Map<*, *>).toString()
-            contentResolver.openOutputStream(uri)?.use { it.write(json.toByteArray()) }
-            Toast.makeText(this, "备份成功", Toast.LENGTH_SHORT).show()
-        }.onFailure {
-            Toast.makeText(this, "备份失败：${it.message}", Toast.LENGTH_SHORT).show()
-        }
-    }
-
-    private val restoreLauncher = registerForActivityResult(
-        androidx.activity.result.contract.ActivityResultContracts.OpenDocument()
-    ) { uri ->
-        if (uri == null) return@registerForActivityResult
-        runCatching {
-            val text = contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() }
-                ?: return@runCatching
-            val obj = org.json.JSONObject(text)
-            val edit = M3Prefs.sp(this).edit().clear()
-            obj.keys().forEach { k ->
-                when (val v = obj[k]) {
-                    is Boolean -> edit.putBoolean(k, v)
-                    is Int -> edit.putInt(k, v)
-                    is Long -> edit.putLong(k, v)
-                    is Double -> edit.putFloat(k, v.toFloat())
-                    is String -> edit.putString(k, v)
-                    else -> edit.putString(k, v.toString())
-                }
-            }
-            edit.apply()
-            Toast.makeText(this, "已恢复配置，建议重启作用域", Toast.LENGTH_LONG).show()
-        }.onFailure {
-            Toast.makeText(this, "恢复失败：${it.message}", Toast.LENGTH_SHORT).show()
-        }
-    }
-
-    private fun startBackup() {
-        val stamp = java.text.SimpleDateFormat("yyyyMMdd_HHmmss", java.util.Locale.getDefault())
-            .format(java.util.Date())
-        backupLauncher.launch("Woobox_backup_$stamp.json")
-    }
-
-    private fun confirmRestore() {
-        MaterialAlertDialogBuilder(this)
-            .setTitle("恢复配置")
-            .setMessage("选择一个 JSON 备份文件恢复模块设置，现有设置会被覆盖。")
-            .setPositiveButton("选择文件") { _, _ -> restoreLauncher.launch(arrayOf("application/json")) }
-            .setNegativeButton("取消", null)
-            .show()
     }
 
     private fun chip(label: String, fg: Int, bg: Int): TextView {
@@ -649,8 +637,11 @@ class SettingsHomeActivity : AppCompatActivity() {
 // ---------------- 分类详情页 ----------------
 class CategoryActivity : AppCompatActivity() {
 
+    private lateinit var backup: M3Backup
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        backup = M3Backup(this)
         M3Theme.apply(this)
 
         val cat = SettingsModel.byId(intent.getStringExtra("id") ?: "") ?: run { finish(); return }
@@ -677,7 +668,7 @@ class CategoryActivity : AppCompatActivity() {
         })
         bar.addView(M3Ui.text(this, cat.title, 22f, M3Color.ON_SURFACE, true))
         bar.addView(View(this), LinearLayout.LayoutParams(0, 1, 1f))
-        bar.addView(M3Actions.pill(this, "重启作用域") { M3Actions.restartScope(this) })
+        bar.addView(M3Actions.pill(this, "重启作用域", endMarginDp = 8) { M3Actions.restartScope(this) })
         root.addView(bar)
 
         val scroll = ScrollView(this)
@@ -850,6 +841,10 @@ class CategoryActivity : AppCompatActivity() {
                                 startActivity(Intent().setClassName(packageName,
                                     "com.u9521.wooboxforredmagicos.activity.SettingsActivity"))
                             }
+                        } else if (action == "backup") {
+                            backup.startBackup()
+                        } else if (action == "restore") {
+                            backup.confirmRestore()
                         }
                     }
                 }
@@ -950,7 +945,7 @@ class CameraSettingsActivity : AppCompatActivity() {
         })
         bar.addView(M3Ui.text(this, "屏下显示区域", 22f, M3Color.ON_SURFACE, true))
         bar.addView(View(this), LinearLayout.LayoutParams(0, 1, 1f))
-        bar.addView(M3Actions.pill(this, "重启作用域") { M3Actions.restartScope(this) })
+        bar.addView(M3Actions.pill(this, "重启作用域", endMarginDp = 8) { M3Actions.restartScope(this) })
         root.addView(bar)
 
         val scroll = ScrollView(this)
@@ -1109,7 +1104,7 @@ class AboutActivity : AppCompatActivity() {
         })
         bar.addView(M3Ui.text(this, "关于", 22f, M3Color.ON_SURFACE, true))
         bar.addView(View(this), LinearLayout.LayoutParams(0, 1, 1f))
-        bar.addView(M3Actions.pill(this, "重启作用域") { M3Actions.restartScope(this) })
+        bar.addView(M3Actions.pill(this, "重启作用域", endMarginDp = 8) { M3Actions.restartScope(this) })
         root.addView(bar)
 
         val scroll = ScrollView(this)
