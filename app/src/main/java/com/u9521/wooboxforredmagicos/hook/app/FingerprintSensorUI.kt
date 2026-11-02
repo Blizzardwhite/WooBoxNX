@@ -16,6 +16,7 @@ object FingerprintSensorUI : AppRegister() {
     override val loadDexkit: Boolean = false
 
     override fun handleLoadPackage(lpparam: XC_LoadPackage.LoadPackageParam) {
+        android.util.Log.i("WooBox-FPUI", "module loaded in " + lpparam.processName)
         autoInitHooks(lpparam, FingerprintRing)
         FingerprintRing.installImageViewHook()
     }

@@ -64,11 +64,12 @@ object FingerprintRing : HookRegister() {
     /** ZTE 浮窗里的 sensorView：把背景图换成圆环 */
     private fun hookSensorView() {
         val cls = XposedHelpers.findClass(SENSOR_VIEW_CLASS, getDefaultCL())
+        android.util.Log.i("WooBox-FPUI", "hookSensorView: class found")
         val hook = object : XC_MethodHook() {
             override fun afterHookedMethod(param: MethodHookParam?) {
                 val view = XposedHelpers.getObjectField(param?.thisObject, "sensorView") as? ImageView
                     ?: return
-                android.util.Log.d("WBRing", "sensorView -> ring")
+                android.util.Log.i("WooBox-FPUI", "sensorView -> ring (${param?.method?.name})")
                 view.background = RingDrawable(ringColor(param))
             }
         }
