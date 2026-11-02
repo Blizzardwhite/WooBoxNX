@@ -1121,13 +1121,6 @@ class AboutActivity : AppCompatActivity() {
         val appCard = M3Ui.card(this).apply {
             setContentPadding(M3Ui.dp(this@AboutActivity, 16), M3Ui.dp(this@AboutActivity, 16),
                 M3Ui.dp(this@AboutActivity, 16), M3Ui.dp(this@AboutActivity, 16))
-            isClickable = true
-            setOnClickListener {
-                runCatching {
-                    startActivity(Intent(Intent.ACTION_VIEW,
-                        android.net.Uri.parse("https://github.com/u9521/WooBoxForRedmagicOS/releases")))
-                }
-            }
         }
         val appRow = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -1140,11 +1133,9 @@ class AboutActivity : AppCompatActivity() {
         }
         appTexts.addView(M3Ui.text(this, getString(R.string.app_name), 18f, M3Color.ON_SURFACE, true))
         appTexts.addView(M3Ui.text(this,
-            com.u9521.wooboxforredmagicos.BuildConfig.VERSION_NAME + " (" +
-                com.u9521.wooboxforredmagicos.BuildConfig.BUILD_TYPE + ")",
+            com.u9521.wooboxforredmagicos.BuildConfig.VERSION_NAME,
             13f, M3Color.ON_SURFACE_VAR))
         appRow.addView(appTexts, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
-        appRow.addView(M3Ui.text(this, "›", 24f, M3Color.ON_SURFACE_VAR))
         appCard.addView(appRow)
         content.addView(appCard)
 
