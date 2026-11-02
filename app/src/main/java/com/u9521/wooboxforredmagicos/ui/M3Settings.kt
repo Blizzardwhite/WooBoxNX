@@ -1163,7 +1163,7 @@ class AboutActivity : AppCompatActivity() {
             setBackgroundColor(M3Color.OUTLINE_VAR)
             layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 1)
         })
-        devInner.addView(gifPersonRow(R.drawable.blizzard, "Blizzardwhite", "酷安 u/1636422",
+        devInner.addView(gifPersonRow(R.drawable.blizzard, "暴白bw", "Blizzardwhite",
             "coolmarket://u/1636422", "https://www.coolapk.com/u/1636422", "Owo"))
         devCard.addView(devInner)
         content.addView(devCard)
