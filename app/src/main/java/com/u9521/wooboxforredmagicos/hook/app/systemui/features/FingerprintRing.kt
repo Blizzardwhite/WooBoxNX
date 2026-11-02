@@ -35,14 +35,14 @@ object FingerprintRing : HookRegister() {
     /** 圆环半径占可用半径的比例（比原图标小一点） */
     private const val RING_RADIUS_SCALE = 0.86f
 
-    /** 浅色壁纸下用的深色圆环：跟随锁屏时钟的观感（黑色约 65% 不透明度） */
-    private val DARK_RING = Color.argb(166, 0, 0, 0)
+    /** 浅色壁纸下用的深色圆环：比原来更深一些 */
+    private val DARK_RING = Color.argb(199, 0, 0, 0)
 
-    /** 底圆：和原版指纹图标一致，用反色 10% 的圆盘垫底，保证白底上也看得见 */
-    private const val PLATE_ALPHA = 0.10f
+    /** 圆环外圈的反色描边透明度（白环配黑边、深色环配白边），中心保持透明 */
+    private const val OUTLINE_ALPHA = 0.28f
 
-    /** 底圆半径占图标边长的比例（原版是 27/60） */
-    private const val PLATE_RADIUS_RATIO = 0.45f
+    /** 描边在圆环两侧各加宽的尺寸，占图标边长的比例 */
+    private const val OUTLINE_WIDTH_RATIO = 0.016f
 
     override fun init() = hasEnable("fp_ring") {
         runCatching { hookSensorView(SENSOR_VIEW_CLASS, "mSensorView") }
@@ -140,14 +140,18 @@ object FingerprintRing : HookRegister() {
         val stroke = size * RING_STROKE_RATIO
         val cx = bounds.exactCenterX()
         val cy = bounds.exactCenterY()
+        val radius = (size / 2f - stroke / 2f) * RING_RADIUS_SCALE
+        val outlineWidth = size * OUTLINE_WIDTH_RATIO
 
-        // 反色 10% 底圆（原版指纹图标就是这么垫的）
-        val platePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            style = Paint.Style.FILL
+        // 圆环外圈的一层反色描边（中心不填充）
+        val outline = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.STROKE
+            strokeCap = Paint.Cap.ROUND
             this.color = if (color == Color.WHITE) Color.BLACK else Color.WHITE
-            this.alpha = (255 * PLATE_ALPHA * alpha / 255f).toInt()
+            strokeWidth = stroke + outlineWidth * 2
+            this.alpha = (255 * OUTLINE_ALPHA * alpha / 255f).toInt()
         }
-        canvas.drawCircle(cx, cy, size * PLATE_RADIUS_RATIO, platePaint)
+        canvas.drawCircle(cx, cy, radius, outline)
 
         val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             style = Paint.Style.STROKE
@@ -156,7 +160,7 @@ object FingerprintRing : HookRegister() {
             strokeWidth = stroke
             this.alpha = alpha
         }
-        canvas.drawCircle(cx, cy, (size / 2f - stroke / 2f) * RING_RADIUS_SCALE, paint)
+        canvas.drawCircle(cx, cy, radius, paint)
     }
 
     private class RingDrawable(private val color: Int) : Drawable() {
@@ -164,8 +168,9 @@ object FingerprintRing : HookRegister() {
             style = Paint.Style.STROKE
             strokeCap = Paint.Cap.ROUND
         }
-        private val platePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            style = Paint.Style.FILL
+        private val outlinePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.STROKE
+            strokeCap = Paint.Cap.ROUND
         }
         private var drawableAlpha = 255
 
@@ -175,24 +180,20 @@ object FingerprintRing : HookRegister() {
             val size = minOf(b.width(), b.height()).toFloat()
             if (size <= 0f) return
             val alphaFactor = drawableAlpha / 255f
-
-            // 反色 10% 底圆：白环垫黑圆、深色环垫白圆，白底/黑底都能看见
-            platePaint.color = if (color == Color.WHITE) Color.BLACK else Color.WHITE
-            platePaint.alpha = (255 * PLATE_ALPHA * alphaFactor).toInt()
-            canvas.drawCircle(
-                b.exactCenterX(), b.exactCenterY(), size * PLATE_RADIUS_RATIO, platePaint
-            )
-
             val stroke = size * RING_STROKE_RATIO
+            val radius = (size / 2f - stroke / 2f) * RING_RADIUS_SCALE
+            val outlineWidth = size * OUTLINE_WIDTH_RATIO
+
+            // 圆环外圈的一层反色描边：白环配黑边、深色环配白边，中心保持透明
+            outlinePaint.color = if (color == Color.WHITE) Color.BLACK else Color.WHITE
+            outlinePaint.strokeWidth = stroke + outlineWidth * 2
+            outlinePaint.alpha = (255 * OUTLINE_ALPHA * alphaFactor).toInt()
+            canvas.drawCircle(b.exactCenterX(), b.exactCenterY(), radius, outlinePaint)
+
             paint.color = color
             paint.strokeWidth = stroke
             paint.alpha = (Color.alpha(color) * alphaFactor).toInt()
-            canvas.drawCircle(
-                b.exactCenterX(),
-                b.exactCenterY(),
-                (size / 2f - stroke / 2f) * RING_RADIUS_SCALE,
-                paint
-            )
+            canvas.drawCircle(b.exactCenterX(), b.exactCenterY(), radius, paint)
         }
 
         override fun setAlpha(alpha: Int) {
