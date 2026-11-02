@@ -213,11 +213,15 @@ object M3Actions {
             .show()
     }
 
-    fun pill(activity: Activity, label: String, onClick: () -> Unit): TextView {
-        val tv = M3Ui.text(activity, label, 12f, M3Color.ON_SURFACE_VAR)
-        tv.setPadding(M3Ui.dp(activity, 10), M3Ui.dp(activity, 5), M3Ui.dp(activity, 10), M3Ui.dp(activity, 5))
+    fun pill(activity: Activity, label: String, chipStyle: Boolean = false, onClick: () -> Unit): TextView {
+        val tv = M3Ui.text(activity, label, if (chipStyle) 13f else 12f, M3Color.ON_SURFACE_VAR)
+        if (chipStyle) {
+            tv.setPadding(M3Ui.dp(activity, 14), M3Ui.dp(activity, 7), M3Ui.dp(activity, 14), M3Ui.dp(activity, 7))
+        } else {
+            tv.setPadding(M3Ui.dp(activity, 10), M3Ui.dp(activity, 5), M3Ui.dp(activity, 10), M3Ui.dp(activity, 5))
+        }
         val d = GradientDrawable()
-        d.cornerRadius = M3Ui.dp(activity, 14).toFloat()
+        d.cornerRadius = M3Ui.dp(activity, if (chipStyle) 16 else 14).toFloat()
         d.setColor(Color.TRANSPARENT)
         d.setStroke(M3Ui.dp(activity, 1), M3Color.OUTLINE_VAR)
         tv.background = d
@@ -267,10 +271,6 @@ class SettingsHomeActivity : AppCompatActivity() {
             gravity = Gravity.CENTER_HORIZONTAL
         }
         rightCol.addView(avatarView(), LinearLayout.LayoutParams(M3Ui.dp(this, 46), M3Ui.dp(this, 46)))
-        rightCol.addView(M3Actions.pill(this, "重启作用域") { M3Actions.restartScope(this) },
-            LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
-                topMargin = M3Ui.dp(this@SettingsHomeActivity, 6)
-            })
         header.addView(rightCol)
         header.setPadding(M3Ui.dp(this, 6), 0, M3Ui.dp(this, 6), 0)
         content.addView(header)
@@ -283,6 +283,7 @@ class SettingsHomeActivity : AppCompatActivity() {
         chips.addView(chip("● 运行中", M3Color.ON_PRIMARY_CONT, M3Color.PRIMARY_CONT))
         chips.addView(chip("作用域 2 个", M3Color.ON_SURFACE_VAR, Color.TRANSPARENT))
         chips.addView(chip("v1.0.6", M3Color.ON_SURFACE_VAR, Color.TRANSPARENT))
+        chips.addView(M3Actions.pill(this, "重启作用域", true) { M3Actions.restartScope(this) })
         content.addView(chips)
 
         // 分类卡片
@@ -799,6 +800,12 @@ class AboutActivity : AppCompatActivity() {
         })
         devInner.addView(personRow(R.drawable.u9521, "9521", "u9521", "https://github.com/u9521",
             "https://github.com/u9521", "9521：关注了也不一定更新喵"))
+        devInner.addView(View(this).apply {
+            setBackgroundColor(M3Color.OUTLINE_VAR)
+            layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 1)
+        })
+        devInner.addView(gifPersonRow(R.drawable.blizzard, "Blizzardwhite", "酷安 u/1636422",
+            "https://www.coolapk.com/u/1636422", "Owo"))
         devCard.addView(devInner)
         content.addView(devCard)
 
@@ -806,13 +813,6 @@ class AboutActivity : AppCompatActivity() {
             setPadding(M3Ui.dp(this@AboutActivity, 4), M3Ui.dp(this@AboutActivity, 20),
                 M3Ui.dp(this@AboutActivity, 4), M3Ui.dp(this@AboutActivity, 8))
         })
-        val fanCard = M3Ui.card(this)
-        val fanInner = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        fanInner.addView(personRow(0, "Blizzardwhite", "酷安 u/1636422",
-            "https://www.coolapk.com/u/1636422", "https://www.coolapk.com/u/1636422",
-            "感谢测试与反馈！"))
-        fanCard.addView(fanInner)
-        content.addView(fanCard)
 
         val linkCard = M3Ui.card(this).apply {
             setContentPadding(M3Ui.dp(this@AboutActivity, 16), M3Ui.dp(this@AboutActivity, 16),
@@ -875,6 +875,29 @@ class AboutActivity : AppCompatActivity() {
         return iv
     }
 
+    private fun gifPersonRow(resId: Int, name: String, handle: String, url: String, toast: String): View {
+        val row = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(0, M3Ui.dp(this@AboutActivity, 12), 0, M3Ui.dp(this@AboutActivity, 12))
+            isClickable = true
+            setOnClickListener {
+                Toast.makeText(this@AboutActivity, toast, Toast.LENGTH_SHORT).show()
+                runCatching { startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse(url))) }
+            }
+        }
+        row.addView(GifCircleView(this, resId, M3Ui.dp(this, 44)))
+        val texts = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(M3Ui.dp(this@AboutActivity, 14), 0, 0, 0)
+        }
+        texts.addView(M3Ui.text(this, name, 16f, M3Color.ON_SURFACE, true))
+        texts.addView(M3Ui.text(this, handle, 12f, M3Color.ON_SURFACE_VAR))
+        row.addView(texts, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+        row.addView(M3Ui.text(this, "›", 24f, M3Color.ON_SURFACE_VAR))
+        return row
+    }
+
     private fun personRow(resId: Int, name: String, handle: String, primary: String, fallback: String, toast: String): View {
         val row = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -902,5 +925,29 @@ class AboutActivity : AppCompatActivity() {
         row.addView(texts, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
         row.addView(M3Ui.text(this, "›", 24f, M3Color.ON_SURFACE_VAR))
         return row
+    }
+}
+
+/** 圆形裁切的 GIF 头像 */
+class GifCircleView(context: Context, resId: Int, sizePx: Int) : androidx.appcompat.widget.AppCompatImageView(context) {
+    init {
+        layoutParams = LinearLayout.LayoutParams(sizePx, sizePx)
+        scaleType = ScaleType.CENTER_CROP
+        runCatching {
+            val d = android.graphics.ImageDecoder.decodeDrawable(
+                android.graphics.ImageDecoder.createSource(resources, resId)
+            )
+            setImageDrawable(d)
+            if (d is android.graphics.drawable.AnimatedImageDrawable) d.start()
+        }
+    }
+
+    override fun onDraw(canvas: Canvas) {
+        val save = canvas.save()
+        canvas.clipPath(android.graphics.Path().apply {
+            addCircle(width / 2f, height / 2f, minOf(width, height) / 2f, android.graphics.Path.Direction.CW)
+        })
+        super.onDraw(canvas)
+        canvas.restoreToCount(save)
     }
 }
