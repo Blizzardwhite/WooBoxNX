@@ -1,11 +1,13 @@
 package com.u9521.wooboxforredmagicos.ui
 
 import android.content.Context
+import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.LinearGradient
 import android.graphics.Paint
 import android.graphics.Path
+import android.graphics.Rect
 import android.graphics.RectF
 import android.graphics.Shader
 import android.graphics.Typeface
@@ -91,18 +93,15 @@ class CameraPreviewView(context: Context) : View(context) {
         color = 0xFFF2F2F2.toInt()
         style = Paint.Style.FILL
     }
-    private val iconPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFF34C759.toInt() }
+    private val bitmapPaint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
+    private var iconCache: android.graphics.Bitmap? = null
+    private var monoCache: android.graphics.Bitmap? = null
     private val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = 0xFFCFCFCF.toInt()
         textSize = dp(11f)
         typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
     }
-    private val glyphPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.WHITE
-        textSize = dp(13f)
-        typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
-        textAlign = Paint.Align.CENTER
-    }
+
 
     private fun dp(v: Float) = v * resources.displayMetrics.density
 
@@ -125,12 +124,17 @@ class CameraPreviewView(context: Context) : View(context) {
         canvas.drawCircle(cx, cy, r, discPaint)
 
         when (styleProvider()) {
-            1 -> { // 彩色图标
-                canvas.drawCircle(cx, cy, r * 0.92f, iconPaint)
-                canvas.drawText("C", cx, cy + dp(5f), glyphPaint)
+            1 -> { // 彩色图标：直接用模块自身的图标铺满，效果和真机一致
+                val icon = appIconBitmap() ?: return
+                val save = canvas.save()
+                canvas.clipPath(Path().apply { addCircle(cx, cy, r, Path.Direction.CW) })
+                canvas.drawBitmap(icon, null, RectF(cx - r, cy - r, cx + r, cy + r), bitmapPaint)
+                canvas.restoreToCount(save)
             }
-            2 -> { // 剪影
-                canvas.drawText("C", cx, cy + dp(5f), glyphPaint)
+            2 -> { // 剪影：黑底 + 白色字形（模拟真实的反色字形提取）
+                val glyph = monoBitmap() ?: return
+                val t = r * 0.64f
+                canvas.drawBitmap(glyph, null, RectF(cx - t, cy - t, cx + t, cy + t), bitmapPaint)
             }
             3 -> Unit // 纯黑遮罩
             else -> { // 弯月 + 星
@@ -150,6 +154,61 @@ class CameraPreviewView(context: Context) : View(context) {
         canvas.drawRoundRect(RectF(dp(14f), cy + r + dp(52f), w - dp(14f), h - dp(14f)), dp(8f), dp(8f), content)
     }
 
+    /** 模块图标位图（用于彩色图标预览），按 4 倍预览尺寸渲染保证清晰 */
+    private fun appIconBitmap(): android.graphics.Bitmap? {
+        iconCache?.let { return it }
+        val size = 256
+        val d = context.getDrawable(com.u9521.wooboxforredmagicos.R.drawable.app_icon) ?: return null
+        val bmp = android.graphics.Bitmap.createBitmap(size, size, android.graphics.Bitmap.Config.ARGB_8888)
+        val cc = Canvas(bmp)
+        d.setBounds(0, 0, size, size)
+        d.draw(cc)
+        iconCache = bmp
+        return bmp
+    }
+
+    /**
+     * 剪影预览：直接用启动图标的白色前景矢量（Woo + 方块），
+     * 裁掉透明边后缩放，和真机上提取出的字形观感一致，也干净。
+     */
+    private fun monoBitmap(): android.graphics.Bitmap? {
+        monoCache?.let { return it }
+        val d = context.getDrawable(com.u9521.wooboxforredmagicos.R.drawable.ic_launcher_foreground) ?: return null
+        val n = 256
+        val src = Bitmap.createBitmap(n, n, Bitmap.Config.ARGB_8888)
+        val cc = Canvas(src)
+        d.setBounds(0, 0, n, n)
+        d.draw(cc)
+
+        val px = IntArray(n * n)
+        src.getPixels(px, 0, n, 0, 0, n, n)
+        var minX = n
+        var minY = n
+        var maxX = -1
+        var maxY = -1
+        for (y in 0 until n) {
+            for (x in 0 until n) {
+                if (Color.alpha(px[y * n + x]) > 16) {
+                    if (x < minX) minX = x
+                    if (x > maxX) maxX = x
+                    if (y < minY) minY = y
+                    if (y > maxY) maxY = y
+                }
+            }
+        }
+        if (maxX < 0) return null
+        val w = maxX - minX + 1
+        val h = maxY - minY + 1
+        val side = maxOf(w, h)
+        val out = Bitmap.createBitmap(side, side, Bitmap.Config.ARGB_8888)
+        val c2 = Canvas(out)
+        val dx = (side - w) / 2
+        val dy = (side - h) / 2
+        c2.drawBitmap(src, Rect(minX, minY, maxX + 1, maxY + 1),
+            Rect(dx, dy, dx + w, dy + h), bitmapPaint)
+        monoCache = out
+        return out
+    }
     private fun star(canvas: Canvas, cx: Float, cy: Float, r: Float) {
         val p = Path()
         p.moveTo(cx, cy - r)
