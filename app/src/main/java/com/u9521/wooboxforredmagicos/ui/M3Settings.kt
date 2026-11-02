@@ -35,15 +35,47 @@ import com.u9521.wooboxforredmagicos.R
 
 // ---------------- 色板 ----------------
 object M3Color {
-    const val SURFACE = 0xFF000000.toInt()
-    const val SURFACE_CONT = 0xFF16181C.toInt()
-    const val PRIMARY = 0xFFAFC6FF.toInt()
-    const val PRIMARY_CONT = 0xFF26477F.toInt()
-    const val ON_PRIMARY = 0xFF002E69.toInt()
-    const val ON_PRIMARY_CONT = 0xFFD8E2FF.toInt()
-    const val ON_SURFACE = 0xFFE2E2E9.toInt()
-    const val ON_SURFACE_VAR = 0xFFC4C6D0.toInt()
-    const val OUTLINE_VAR = 0xFF44474F.toInt()
+    var SURFACE = 0xFF000000.toInt()
+    var SURFACE_CONT = 0xFF202327.toInt()
+    var PRIMARY = 0xFF8BD5C6.toInt()
+    var PRIMARY_CONT = 0xFF1F5B52.toInt()
+    var ON_PRIMARY = 0xFF00382F.toInt()
+    var ON_PRIMARY_CONT = 0xFFA7F2E4.toInt()
+    var ON_SURFACE = 0xFFE2E4E2.toInt()
+    var ON_SURFACE_VAR = 0xFFC4C6C5.toInt()
+    var OUTLINE_VAR = 0xFF444745.toInt()
+
+    fun apply(c: Context) {
+        SURFACE = c.getColor(R.color.m3_surface)
+        SURFACE_CONT = c.getColor(R.color.m3_surface_container)
+        PRIMARY = c.getColor(R.color.m3_primary)
+        PRIMARY_CONT = c.getColor(R.color.m3_primary_container)
+        ON_PRIMARY = c.getColor(R.color.m3_on_primary)
+        ON_PRIMARY_CONT = c.getColor(R.color.m3_on_primary_container)
+        ON_SURFACE = c.getColor(R.color.m3_on_surface)
+        ON_SURFACE_VAR = c.getColor(R.color.m3_on_surface_variant)
+        OUTLINE_VAR = c.getColor(R.color.m3_outline_variant)
+    }
+}
+
+// ---------------- 主题 ----------------
+object M3Theme {
+    fun apply(activity: Activity) {
+        M3Color.apply(activity)
+        val light = !isNight(activity)
+        activity.window.statusBarColor = M3Color.SURFACE
+        activity.window.navigationBarColor = M3Color.SURFACE
+        runCatching {
+            val controller = androidx.core.view.WindowCompat.getInsetsController(
+                activity.window, activity.window.decorView)
+            controller.isAppearanceLightStatusBars = light
+            controller.isAppearanceLightNavigationBars = light
+        }
+    }
+
+    fun isNight(c: Context): Boolean =
+        (c.resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK) ==
+            android.content.res.Configuration.UI_MODE_NIGHT_YES
 }
 
 // ---------------- 偏好 ----------------
@@ -370,8 +402,7 @@ class SettingsHomeActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        window.statusBarColor = M3Color.SURFACE
-        window.navigationBarColor = M3Color.SURFACE
+        M3Theme.apply(this)
 
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -394,9 +425,9 @@ class SettingsHomeActivity : AppCompatActivity() {
             gravity = Gravity.CENTER_VERTICAL
         }
         val titleBox = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        titleBox.addView(M3Ui.text(this, "WooBox", 34f, M3Color.ON_SURFACE, true))
+        titleBox.addView(M3Ui.text(this, "WooBox NX", 34f, M3Color.ON_SURFACE, true))
         val model = (Build.MANUFACTURER + " " + Build.MODEL).replaceFirstChar { it.uppercase() }
-        titleBox.addView(M3Ui.text(this, model, 13f, M3Color.ON_SURFACE_VAR).apply {
+        titleBox.addView(M3Ui.text(this, model + "  ·  v" + com.u9521.wooboxforredmagicos.BuildConfig.VERSION_NAME, 13f, M3Color.ON_SURFACE_VAR).apply {
             setPadding(0, M3Ui.dp(this@SettingsHomeActivity, 2), 0, 0)
         })
         header.addView(titleBox, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
@@ -432,7 +463,6 @@ class SettingsHomeActivity : AppCompatActivity() {
         }.getOrDefault(0)
         chips.addView(chip("● 运行中", M3Color.ON_PRIMARY_CONT, M3Color.PRIMARY_CONT))
         chips.addView(chip("作用域 $scopeCount 个", M3Color.ON_SURFACE_VAR, Color.TRANSPARENT))
-        chips.addView(chip("v" + com.u9521.wooboxforredmagicos.BuildConfig.VERSION_NAME, M3Color.ON_SURFACE_VAR, Color.TRANSPARENT))
         chips.addView(View(this), LinearLayout.LayoutParams(0, 1, 1f))
         chips.addView(M3Actions.pill(this, "重启作用域", true) { M3Actions.restartScope(this) })
         content.addView(chips, LinearLayout.LayoutParams(
@@ -621,8 +651,7 @@ class CategoryActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        window.statusBarColor = M3Color.SURFACE
-        window.navigationBarColor = M3Color.SURFACE
+        M3Theme.apply(this)
 
         val cat = SettingsModel.byId(intent.getStringExtra("id") ?: "") ?: run { finish(); return }
         val prefs = M3Prefs.sp(this)
@@ -899,8 +928,7 @@ class CameraSettingsActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        window.statusBarColor = M3Color.SURFACE
-        window.navigationBarColor = M3Color.SURFACE
+        M3Theme.apply(this)
         val prefs = M3Prefs.sp(this)
 
         val root = LinearLayout(this).apply {
@@ -1055,8 +1083,7 @@ class AboutActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        window.statusBarColor = M3Color.SURFACE
-        window.navigationBarColor = M3Color.SURFACE
+        M3Theme.apply(this)
 
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -1120,6 +1147,12 @@ class AboutActivity : AppCompatActivity() {
         appRow.addView(M3Ui.text(this, "›", 24f, M3Color.ON_SURFACE_VAR))
         appCard.addView(appRow)
         content.addView(appCard)
+
+        content.addView(M3Ui.text(this, "本项目是基于 WooBox For RedMagicOS 开发的非官方独立演进版",
+            12f, M3Color.ON_SURFACE_VAR).apply {
+            setPadding(M3Ui.dp(this@AboutActivity, 6), M3Ui.dp(this@AboutActivity, 10),
+                M3Ui.dp(this@AboutActivity, 6), 0)
+        })
 
         content.addView(M3Ui.text(this, "开发者", 13f, M3Color.ON_SURFACE_VAR, true).apply {
             setPadding(M3Ui.dp(this@AboutActivity, 4), M3Ui.dp(this@AboutActivity, 20),

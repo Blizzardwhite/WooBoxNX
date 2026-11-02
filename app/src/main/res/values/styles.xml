@@ -15,7 +15,7 @@
     </style>
 
 <!-- MD3 主题：新的设置界面 -->
-    <style name="Theme.WooBoxM3" parent="Theme.Material3.Dark.NoActionBar">
+    <style name="Theme.WooBoxM3" parent="Theme.Material3.DayNight.NoActionBar">
         <item name="colorPrimary">@color/m3_primary</item>
         <item name="colorOnPrimary">@color/m3_on_primary</item>
         <item name="colorPrimaryContainer">@color/m3_primary_container</item>
