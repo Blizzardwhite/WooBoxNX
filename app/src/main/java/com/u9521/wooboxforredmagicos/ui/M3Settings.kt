@@ -1,6 +1,7 @@
 package com.u9521.wooboxforredmagicos.ui
 
 import android.annotation.SuppressLint
+import android.app.Activity
 import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
@@ -22,6 +23,8 @@ import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
+import android.widget.Toast
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import androidx.appcompat.app.AppCompatActivity
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.button.MaterialButtonToggleGroup
@@ -189,6 +192,41 @@ object M3Ui {
     }
 }
 
+// ---------------- 动作 ----------------
+object M3Actions {
+    fun restartScope(activity: Activity) {
+        val pkgs: List<String> = runCatching {
+            activity.resources.getStringArray(R.array.xposed_scope).filter { it != "android" }
+        }.getOrDefault(emptyList())
+        MaterialAlertDialogBuilder(activity)
+            .setTitle("重启作用域")
+            .setMessage("将对 ${pkgs.size} 个作用域应用执行 killall，需要 root 权限。")
+            .setPositiveButton("确定") { _, _ ->
+                runCatching {
+                    com.u9521.wooboxforredmagicos.util.ShellUtils.execCommand(
+                        pkgs.map { "killall $it" }, true
+                    )
+                }
+                Toast.makeText(activity, "已重启作用域", Toast.LENGTH_SHORT).show()
+            }
+            .setNegativeButton("取消", null)
+            .show()
+    }
+
+    fun pill(activity: Activity, label: String, onClick: () -> Unit): TextView {
+        val tv = M3Ui.text(activity, label, 12f, M3Color.ON_SURFACE_VAR)
+        tv.setPadding(M3Ui.dp(activity, 10), M3Ui.dp(activity, 5), M3Ui.dp(activity, 10), M3Ui.dp(activity, 5))
+        val d = GradientDrawable()
+        d.cornerRadius = M3Ui.dp(activity, 14).toFloat()
+        d.setColor(Color.TRANSPARENT)
+        d.setStroke(M3Ui.dp(activity, 1), M3Color.OUTLINE_VAR)
+        tv.background = d
+        tv.isClickable = true
+        tv.setOnClickListener { onClick() }
+        return tv
+    }
+}
+
 // ---------------- 主页 ----------------
 class SettingsHomeActivity : AppCompatActivity() {
 
@@ -224,7 +262,16 @@ class SettingsHomeActivity : AppCompatActivity() {
             setPadding(0, M3Ui.dp(this@SettingsHomeActivity, 2), 0, 0)
         })
         header.addView(titleBox, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
-        header.addView(avatarView(), LinearLayout.LayoutParams(M3Ui.dp(this, 46), M3Ui.dp(this, 46)))
+        val rightCol = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER_HORIZONTAL
+        }
+        rightCol.addView(avatarView(), LinearLayout.LayoutParams(M3Ui.dp(this, 46), M3Ui.dp(this, 46)))
+        rightCol.addView(M3Actions.pill(this, "重启作用域") { M3Actions.restartScope(this) },
+            LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+                topMargin = M3Ui.dp(this@SettingsHomeActivity, 6)
+            })
+        header.addView(rightCol)
         header.setPadding(M3Ui.dp(this, 6), 0, M3Ui.dp(this, 6), 0)
         content.addView(header)
 
@@ -392,6 +439,8 @@ class CategoryActivity : AppCompatActivity() {
             setOnClickListener { finish() }
         })
         bar.addView(M3Ui.text(this, cat.title, 22f, M3Color.ON_SURFACE, true))
+        bar.addView(View(this), LinearLayout.LayoutParams(0, 1, 1f))
+        bar.addView(M3Actions.pill(this, "重启作用域") { M3Actions.restartScope(this) })
         root.addView(bar)
 
         val scroll = ScrollView(this)
@@ -536,6 +585,8 @@ class CameraSettingsActivity : AppCompatActivity() {
             setOnClickListener { finish() }
         })
         bar.addView(M3Ui.text(this, "屏下显示区域", 22f, M3Color.ON_SURFACE, true))
+        bar.addView(View(this), LinearLayout.LayoutParams(0, 1, 1f))
+        bar.addView(M3Actions.pill(this, "重启作用域") { M3Actions.restartScope(this) })
         root.addView(bar)
 
         val scroll = ScrollView(this)
@@ -689,6 +740,8 @@ class AboutActivity : AppCompatActivity() {
             setOnClickListener { finish() }
         })
         bar.addView(M3Ui.text(this, "关于", 22f, M3Color.ON_SURFACE, true))
+        bar.addView(View(this), LinearLayout.LayoutParams(0, 1, 1f))
+        bar.addView(M3Actions.pill(this, "重启作用域") { M3Actions.restartScope(this) })
         root.addView(bar)
 
         val scroll = ScrollView(this)
@@ -753,6 +806,14 @@ class AboutActivity : AppCompatActivity() {
             setPadding(M3Ui.dp(this@AboutActivity, 4), M3Ui.dp(this@AboutActivity, 20),
                 M3Ui.dp(this@AboutActivity, 4), M3Ui.dp(this@AboutActivity, 8))
         })
+        val fanCard = M3Ui.card(this)
+        val fanInner = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        fanInner.addView(personRow(0, "Blizzardwhite", "酷安 u/1636422",
+            "https://www.coolapk.com/u/1636422", "https://www.coolapk.com/u/1636422",
+            "感谢测试与反馈！"))
+        fanCard.addView(fanInner)
+        content.addView(fanCard)
+
         val linkCard = M3Ui.card(this).apply {
             setContentPadding(M3Ui.dp(this@AboutActivity, 16), M3Ui.dp(this@AboutActivity, 16),
                 M3Ui.dp(this@AboutActivity, 16), M3Ui.dp(this@AboutActivity, 16))
@@ -776,6 +837,23 @@ class AboutActivity : AppCompatActivity() {
         linkRow.addView(M3Ui.text(this@AboutActivity, "›", 24f, M3Color.ON_SURFACE_VAR))
         linkCard.addView(linkRow)
         content.addView(linkCard)
+    }
+
+    private fun letterAvatar(letter: String, sizeDp: Int): View {
+        val size = M3Ui.dp(this, sizeDp)
+        val tv = TextView(this).apply {
+            text = letter
+            setTextColor(M3Color.ON_PRIMARY_CONT)
+            textSize = 18f
+            gravity = Gravity.CENTER
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
+        }
+        val d = GradientDrawable()
+        d.shape = GradientDrawable.OVAL
+        d.setColor(M3Color.PRIMARY_CONT)
+        tv.background = d
+        tv.layoutParams = LinearLayout.LayoutParams(size, size)
+        return tv
     }
 
     private fun circleImage(resId: Int, sizeDp: Int): ImageView {
@@ -814,7 +892,7 @@ class AboutActivity : AppCompatActivity() {
                 }
             }
         }
-        row.addView(circleImage(resId, 44))
+        if (resId == 0) row.addView(letterAvatar(name.take(1), 44)) else row.addView(circleImage(resId, 44))
         val texts = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(M3Ui.dp(this@AboutActivity, 14), 0, 0, 0)
