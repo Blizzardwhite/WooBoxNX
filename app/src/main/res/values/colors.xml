@@ -4,4 +4,16 @@
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
     <color name="red">#FF0000</color>
+
+    <!-- MD3 深色色板 -->
+    <color name="m3_surface">#FF111318</color>
+    <color name="m3_surface_container">#FF1D2024</color>
+    <color name="m3_surface_high">#FF282A2F</color>
+    <color name="m3_primary">#FFAFC6FF</color>
+    <color name="m3_on_primary">#FF002E69</color>
+    <color name="m3_primary_container">#FF26477F</color>
+    <color name="m3_on_primary_container">#FFD8E2FF</color>
+    <color name="m3_on_surface">#FFE2E2E9</color>
+    <color name="m3_on_surface_variant">#FFC4C6D0</color>
+    <color name="m3_outline_variant">#FF44474F</color>
 </resources>
