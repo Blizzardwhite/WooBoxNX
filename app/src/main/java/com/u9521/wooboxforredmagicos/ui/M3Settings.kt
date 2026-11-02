@@ -33,7 +33,7 @@ import com.u9521.wooboxforredmagicos.R
 // ---------------- 色板 ----------------
 object M3Color {
     const val SURFACE = 0xFF000000.toInt()
-    const val SURFACE_CONT = 0xFF0E0F12.toInt()
+    const val SURFACE_CONT = 0xFF16181C.toInt()
     const val PRIMARY = 0xFFAFC6FF.toInt()
     const val PRIMARY_CONT = 0xFF26477F.toInt()
     const val ON_PRIMARY = 0xFF002E69.toInt()
@@ -224,7 +224,8 @@ class SettingsHomeActivity : AppCompatActivity() {
             setPadding(0, M3Ui.dp(this@SettingsHomeActivity, 2), 0, 0)
         })
         header.addView(titleBox, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
-        header.addView(avatarView(), LinearLayout.LayoutParams(M3Ui.dp(this, 52), M3Ui.dp(this, 52)))
+        header.addView(avatarView(), LinearLayout.LayoutParams(M3Ui.dp(this, 46), M3Ui.dp(this, 46)))
+        header.setPadding(M3Ui.dp(this, 6), 0, M3Ui.dp(this, 6), 0)
         content.addView(header)
 
         // 状态 chips
@@ -335,44 +336,20 @@ class SettingsHomeActivity : AppCompatActivity() {
     }
 
     private fun avatarView(): ImageView {
-        val size = M3Ui.dp(this, 52)
+        val size = M3Ui.dp(this, 46)
         val iv = ImageView(this)
         iv.scaleType = ImageView.ScaleType.CENTER_CROP
-
-        // 优先用外部目录里的 avatar.png（可以直接 push 进去，不用重装）
-        val file = listOfNotNull(
-            getExternalFilesDir(null)?.let { java.io.File(it, "avatar.png") },
-            java.io.File(filesDir, "avatar.png")
-        ).firstOrNull { it.exists() }
-
-        var src: Bitmap? = file?.let { runCatching { android.graphics.BitmapFactory.decodeFile(it.absolutePath) }.getOrNull() }
-
-        if (src == null) {
-            val id = resources.getIdentifier("user_avatar", "drawable", packageName)
-            val resId = if (id != 0) id else R.drawable.app_icon
-            val d: Drawable? = getDrawable(resId)
-            if (d != null) {
-                val bmp = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
-                val c = Canvas(bmp)
-                c.clipPath(android.graphics.Path().apply {
-                    addCircle(size / 2f, size / 2f, size / 2f, android.graphics.Path.Direction.CW)
-                })
-                d.setBounds(0, 0, size, size)
-                d.draw(c)
-                src = bmp
-            }
+        val d: Drawable? = getDrawable(R.drawable.app_icon)
+        if (d != null) {
+            val bmp = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+            val c = Canvas(bmp)
+            c.clipPath(android.graphics.Path().apply {
+                addCircle(size / 2f, size / 2f, size / 2f, android.graphics.Path.Direction.CW)
+            })
+            d.setBounds(0, 0, size, size)
+            d.draw(c)
+            iv.setImageBitmap(bmp)
         }
-
-        val bmp = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
-        val c = Canvas(bmp)
-        c.clipPath(android.graphics.Path().apply {
-            addCircle(size / 2f, size / 2f, size / 2f, android.graphics.Path.Direction.CW)
-        })
-        if (src != null) {
-            val scaled = Bitmap.createScaledBitmap(src, size, size, true)
-            c.drawBitmap(scaled, 0f, 0f, null)
-        }
-        iv.setImageBitmap(bmp)
         return iv
     }
 

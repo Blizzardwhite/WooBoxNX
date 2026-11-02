@@ -120,7 +120,7 @@ class CameraPreviewView(context: Context) : View(context) {
 
         // 摄像头位置
         val cx = w / 2f
-        val cy = dp(44f)
+        val cy = dp(36f)
         val r = dp(19f)
         canvas.drawCircle(cx, cy, r, discPaint)
 
