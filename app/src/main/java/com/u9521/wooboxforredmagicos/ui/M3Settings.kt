@@ -270,21 +270,32 @@ class SettingsHomeActivity : AppCompatActivity() {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER_HORIZONTAL
         }
-        rightCol.addView(avatarView(), LinearLayout.LayoutParams(M3Ui.dp(this, 46), M3Ui.dp(this, 46)))
+        val avatar = avatarView()
+        rightCol.addView(avatar, LinearLayout.LayoutParams(M3Ui.dp(this, 46), M3Ui.dp(this, 46)))
         header.addView(rightCol)
         header.setPadding(M3Ui.dp(this, 6), 0, M3Ui.dp(this, 6), 0)
         content.addView(header)
+        header.post {
+            val h = titleBox.height
+            if (h > 0) {
+                avatar.layoutParams = LinearLayout.LayoutParams(h, h)
+            }
+        }
 
         // 状态 chips
         val chips = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
             setPadding(0, M3Ui.dp(this@SettingsHomeActivity, 12), 0, M3Ui.dp(this@SettingsHomeActivity, 4))
         }
         chips.addView(chip("● 运行中", M3Color.ON_PRIMARY_CONT, M3Color.PRIMARY_CONT))
         chips.addView(chip("作用域 2 个", M3Color.ON_SURFACE_VAR, Color.TRANSPARENT))
         chips.addView(chip("v1.0.6", M3Color.ON_SURFACE_VAR, Color.TRANSPARENT))
+        chips.addView(View(this), LinearLayout.LayoutParams(0, 1, 1f))
         chips.addView(M3Actions.pill(this, "重启作用域", true) { M3Actions.restartScope(this) })
-        content.addView(chips)
+        content.addView(chips, LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
+        ))
 
         // 分类卡片
         SettingsModel.categories().forEach { cat ->
