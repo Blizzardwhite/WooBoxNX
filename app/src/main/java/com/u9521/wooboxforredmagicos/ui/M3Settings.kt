@@ -278,7 +278,10 @@ class SettingsHomeActivity : AppCompatActivity() {
         header.post {
             val h = titleBox.height
             if (h > 0) {
-                avatar.layoutParams = LinearLayout.LayoutParams(h, h)
+                val min = M3Ui.dp(this, 40)
+                val max = M3Ui.dp(this, 54)
+                val size = (h * 0.78f).toInt().coerceIn(min, max)
+                avatar.layoutParams = LinearLayout.LayoutParams(size, size)
             }
         }
 
