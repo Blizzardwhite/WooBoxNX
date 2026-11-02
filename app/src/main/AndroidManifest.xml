@@ -40,6 +40,12 @@
             android:screenOrientation="portrait" />
 
         <activity
+            android:name="com.u9521.wooboxforredmagicos.ui.AboutActivity"
+            android:exported="false"
+            android:theme="@style/Theme.WooBoxM3"
+            android:screenOrientation="portrait" />
+
+        <activity
             android:name="com.u9521.wooboxforredmagicos.ui.CameraSettingsActivity"
             android:exported="false"
             android:theme="@style/Theme.WooBoxM3"

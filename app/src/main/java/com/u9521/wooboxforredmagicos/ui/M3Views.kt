@@ -65,6 +65,11 @@ class IconView(context: Context, private val type: Int) : View(context) {
                 val p = Paint(fg).apply { style = Paint.Style.FILL }
                 canvas.drawRoundRect(RectF(cx - s * 0.9f, cy - s * 0.1f, cx + s * 0.9f, cy + s * 0.9f), dp(3f), dp(3f), p)
             }
+            6 -> { // 信息
+                val p = Paint(fg).apply { style = Paint.Style.FILL }
+                canvas.drawCircle(cx, cy - s * 0.55f, dp(1.8f), p)
+                canvas.drawRoundRect(RectF(cx - dp(1.2f), cy - s * 0.15f, cx + dp(1.2f), cy + s * 0.7f), dp(1.2f), dp(1.2f), p)
+            }
             else -> { // 三个点
                 val p = Paint(fg).apply { style = Paint.Style.FILL }
                 canvas.drawCircle(cx - s, cy, dp(2.2f), p)
@@ -115,8 +120,8 @@ class CameraPreviewView(context: Context) : View(context) {
 
         // 摄像头位置
         val cx = w / 2f
-        val cy = dp(56f)
-        val r = dp(26f)
+        val cy = dp(44f)
+        val r = dp(19f)
         canvas.drawCircle(cx, cy, r, discPaint)
 
         when (styleProvider()) {

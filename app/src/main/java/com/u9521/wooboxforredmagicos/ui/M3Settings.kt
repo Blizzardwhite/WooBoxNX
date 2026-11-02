@@ -5,16 +5,20 @@ import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
 import android.content.res.ColorStateList
+import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.RectF
+import android.graphics.drawable.Drawable
 import android.graphics.drawable.GradientDrawable
+import android.os.Build
 import android.os.Bundle
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
+import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
@@ -28,8 +32,8 @@ import com.u9521.wooboxforredmagicos.R
 
 // ---------------- 色板 ----------------
 object M3Color {
-    const val SURFACE = 0xFF111318.toInt()
-    const val SURFACE_CONT = 0xFF1D2024.toInt()
+    const val SURFACE = 0xFF000000.toInt()
+    const val SURFACE_CONT = 0xFF0E0F12.toInt()
     const val PRIMARY = 0xFFAFC6FF.toInt()
     const val PRIMARY_CONT = 0xFF26477F.toInt()
     const val ON_PRIMARY = 0xFF002E69.toInt()
@@ -208,11 +212,20 @@ class SettingsHomeActivity : AppCompatActivity() {
         root.addView(scroll, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
         setContentView(root)
 
-        // 标题
-        content.addView(M3Ui.text(this, "WooBox", 34f, M3Color.ON_SURFACE, true))
-        content.addView(M3Ui.text(this, "RedMagic Z60 Ultra", 14f, M3Color.ON_SURFACE_VAR).apply {
-            setPadding(0, M3Ui.dp(this@SettingsHomeActivity, 4), 0, 0)
+        // 标题 + 头像
+        val header = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        val titleBox = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        titleBox.addView(M3Ui.text(this, "WooBox", 34f, M3Color.ON_SURFACE, true))
+        val model = (Build.MANUFACTURER + " " + Build.MODEL).replaceFirstChar { it.uppercase() }
+        titleBox.addView(M3Ui.text(this, model, 13f, M3Color.ON_SURFACE_VAR).apply {
+            setPadding(0, M3Ui.dp(this@SettingsHomeActivity, 2), 0, 0)
         })
+        header.addView(titleBox, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+        header.addView(avatarView(), LinearLayout.LayoutParams(M3Ui.dp(this, 52), M3Ui.dp(this, 52)))
+        content.addView(header)
 
         // 状态 chips
         val chips = LinearLayout(this).apply {
@@ -230,6 +243,12 @@ class SettingsHomeActivity : AppCompatActivity() {
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
             ).apply { topMargin = M3Ui.dp(this@SettingsHomeActivity, 12) })
         }
+
+        // 关于
+        content.addView(categoryCard(Category("about", "关于", "版本、开发者与致谢", 6, emptyList())),
+            LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
+            ).apply { topMargin = M3Ui.dp(this@SettingsHomeActivity, 12) })
 
         // 底部按钮
         val btns = LinearLayout(this).apply {
@@ -280,10 +299,10 @@ class SettingsHomeActivity : AppCompatActivity() {
             isClickable = true
             isFocusable = true
             setOnClickListener {
-                if (cat.id == "camera") {
-                    startActivity(Intent(this@SettingsHomeActivity, CameraSettingsActivity::class.java))
-                } else {
-                    startActivity(Intent(this@SettingsHomeActivity, CategoryActivity::class.java).apply {
+                when (cat.id) {
+                    "camera" -> startActivity(Intent(this@SettingsHomeActivity, CameraSettingsActivity::class.java))
+                    "about" -> startActivity(Intent(this@SettingsHomeActivity, AboutActivity::class.java))
+                    else -> startActivity(Intent(this@SettingsHomeActivity, CategoryActivity::class.java).apply {
                         putExtra("id", cat.id)
                     })
                 }
@@ -313,6 +332,48 @@ class SettingsHomeActivity : AppCompatActivity() {
         val v = IconView(this, type)
         v.layoutParams = LinearLayout.LayoutParams(size, size)
         return v
+    }
+
+    private fun avatarView(): ImageView {
+        val size = M3Ui.dp(this, 52)
+        val iv = ImageView(this)
+        iv.scaleType = ImageView.ScaleType.CENTER_CROP
+
+        // 优先用外部目录里的 avatar.png（可以直接 push 进去，不用重装）
+        val file = listOfNotNull(
+            getExternalFilesDir(null)?.let { java.io.File(it, "avatar.png") },
+            java.io.File(filesDir, "avatar.png")
+        ).firstOrNull { it.exists() }
+
+        var src: Bitmap? = file?.let { runCatching { android.graphics.BitmapFactory.decodeFile(it.absolutePath) }.getOrNull() }
+
+        if (src == null) {
+            val id = resources.getIdentifier("user_avatar", "drawable", packageName)
+            val resId = if (id != 0) id else R.drawable.app_icon
+            val d: Drawable? = getDrawable(resId)
+            if (d != null) {
+                val bmp = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+                val c = Canvas(bmp)
+                c.clipPath(android.graphics.Path().apply {
+                    addCircle(size / 2f, size / 2f, size / 2f, android.graphics.Path.Direction.CW)
+                })
+                d.setBounds(0, 0, size, size)
+                d.draw(c)
+                src = bmp
+            }
+        }
+
+        val bmp = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+        val c = Canvas(bmp)
+        c.clipPath(android.graphics.Path().apply {
+            addCircle(size / 2f, size / 2f, size / 2f, android.graphics.Path.Direction.CW)
+        })
+        if (src != null) {
+            val scaled = Bitmap.createScaledBitmap(src, size, size, true)
+            c.drawBitmap(scaled, 0f, 0f, null)
+        }
+        iv.setImageBitmap(bmp)
+        return iv
     }
 
     private fun openLegacy() {
@@ -448,7 +509,7 @@ class CategoryActivity : AppCompatActivity() {
                 val line = LinearLayout(this).apply {
                     orientation = LinearLayout.HORIZONTAL
                     gravity = Gravity.CENTER_VERTICAL
-                    setPadding(0, M3Ui.dp(this@CategoryActivity, 14), 0, M3Ui.dp(this@CategoryActivity, 14))
+                    setPadding(0, M3Ui.dp(this@CategoryActivity, 10), 0, M3Ui.dp(this@CategoryActivity, 10))
                 }
                 val texts = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
                 texts.addView(M3Ui.text(this, row.title, 16f, M3Color.ON_SURFACE))
@@ -610,7 +671,7 @@ class CameraSettingsActivity : AppCompatActivity() {
         val line = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            setPadding(0, M3Ui.dp(this@CameraSettingsActivity, 14), 0, M3Ui.dp(this@CameraSettingsActivity, 14))
+            setPadding(0, M3Ui.dp(this@CameraSettingsActivity, 10), 0, M3Ui.dp(this@CameraSettingsActivity, 10))
         }
         val texts = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         texts.addView(M3Ui.text(this, title, 16f, M3Color.ON_SURFACE))
@@ -621,5 +682,170 @@ class CameraSettingsActivity : AppCompatActivity() {
             setOnCheckedChangeListener { _, c -> prefs.edit().putBoolean(key, c).apply() }
         })
         return line
+    }
+}
+
+
+// ---------------- 关于 ----------------
+class AboutActivity : AppCompatActivity() {
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        window.statusBarColor = M3Color.SURFACE
+        window.navigationBarColor = M3Color.SURFACE
+
+        val root = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setBackgroundColor(M3Color.SURFACE)
+        }
+        val bar = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(M3Ui.dp(this@AboutActivity, 8), M3Ui.dp(this@AboutActivity, 16),
+                M3Ui.dp(this@AboutActivity, 16), M3Ui.dp(this@AboutActivity, 8))
+        }
+        bar.addView(TextView(this).apply {
+            text = "‹"
+            setTextColor(M3Color.ON_SURFACE)
+            textSize = 30f
+            setPadding(M3Ui.dp(this@AboutActivity, 12), 0, M3Ui.dp(this@AboutActivity, 12), M3Ui.dp(this@AboutActivity, 2))
+            setOnClickListener { finish() }
+        })
+        bar.addView(M3Ui.text(this, "关于", 22f, M3Color.ON_SURFACE, true))
+        root.addView(bar)
+
+        val scroll = ScrollView(this)
+        val content = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(M3Ui.dp(this@AboutActivity, 16), 0, M3Ui.dp(this@AboutActivity, 16),
+                M3Ui.dp(this@AboutActivity, 24))
+        }
+        scroll.addView(content)
+        root.addView(scroll, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
+        setContentView(root)
+
+        // 模块
+        val appCard = M3Ui.card(this).apply {
+            setContentPadding(M3Ui.dp(this@AboutActivity, 16), M3Ui.dp(this@AboutActivity, 16),
+                M3Ui.dp(this@AboutActivity, 16), M3Ui.dp(this@AboutActivity, 16))
+            isClickable = true
+            setOnClickListener {
+                runCatching {
+                    startActivity(Intent(Intent.ACTION_VIEW,
+                        android.net.Uri.parse("https://github.com/u9521/WooBoxForRedmagicOS/releases")))
+                }
+            }
+        }
+        val appRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        appRow.addView(circleImage(R.drawable.app_icon, 56))
+        val appTexts = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(M3Ui.dp(this@AboutActivity, 16), 0, 0, 0)
+        }
+        appTexts.addView(M3Ui.text(this, getString(R.string.app_name), 18f, M3Color.ON_SURFACE, true))
+        appTexts.addView(M3Ui.text(this,
+            com.u9521.wooboxforredmagicos.BuildConfig.VERSION_NAME + " (" +
+                com.u9521.wooboxforredmagicos.BuildConfig.BUILD_TYPE + ")",
+            13f, M3Color.ON_SURFACE_VAR))
+        appRow.addView(appTexts, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+        appRow.addView(M3Ui.text(this, "›", 24f, M3Color.ON_SURFACE_VAR))
+        appCard.addView(appRow)
+        content.addView(appCard)
+
+        content.addView(M3Ui.text(this, "开发者", 13f, M3Color.ON_SURFACE_VAR, true).apply {
+            setPadding(M3Ui.dp(this@AboutActivity, 4), M3Ui.dp(this@AboutActivity, 20),
+                M3Ui.dp(this@AboutActivity, 4), M3Ui.dp(this@AboutActivity, 8))
+        })
+        val devCard = M3Ui.card(this)
+        val devInner = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        devInner.addView(personRow(R.drawable.lt, "乌堆小透明", "LittleTurtle2333", "coolmarket://u/883441",
+            "http://www.coolapk.com/u/883441", "乌堆小透明：靓仔，点个关注吧！"))
+        devInner.addView(View(this).apply {
+            setBackgroundColor(M3Color.OUTLINE_VAR)
+            layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 1)
+        })
+        devInner.addView(personRow(R.drawable.u9521, "9521", "u9521", "https://github.com/u9521",
+            "https://github.com/u9521", "9521：关注了也不一定更新喵"))
+        devCard.addView(devInner)
+        content.addView(devCard)
+
+        content.addView(M3Ui.text(this, "致谢", 13f, M3Color.ON_SURFACE_VAR, true).apply {
+            setPadding(M3Ui.dp(this@AboutActivity, 4), M3Ui.dp(this@AboutActivity, 20),
+                M3Ui.dp(this@AboutActivity, 4), M3Ui.dp(this@AboutActivity, 8))
+        })
+        val linkCard = M3Ui.card(this).apply {
+            setContentPadding(M3Ui.dp(this@AboutActivity, 16), M3Ui.dp(this@AboutActivity, 16),
+                M3Ui.dp(this@AboutActivity, 16), M3Ui.dp(this@AboutActivity, 16))
+            isClickable = true
+            setOnClickListener {
+                runCatching {
+                    startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse(
+                        "https://github.com/u9521/WooBoxForRedmagicOS/graphs/contributors")))
+                }
+            }
+        }
+        val linkRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        linkRow.addView(LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            addView(M3Ui.text(this@AboutActivity, "贡献者名单", 16f, M3Color.ON_SURFACE))
+            addView(M3Ui.text(this@AboutActivity, "感谢每一位提交代码和反馈问题的朋友", 12f, M3Color.ON_SURFACE_VAR))
+        }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+        linkRow.addView(M3Ui.text(this@AboutActivity, "›", 24f, M3Color.ON_SURFACE_VAR))
+        linkCard.addView(linkRow)
+        content.addView(linkCard)
+    }
+
+    private fun circleImage(resId: Int, sizeDp: Int): ImageView {
+        val size = M3Ui.dp(this, sizeDp)
+        val iv = ImageView(this)
+        iv.scaleType = ImageView.ScaleType.CENTER_CROP
+        val d = getDrawable(resId)
+        if (d != null) {
+            val bmp = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+            val c = Canvas(bmp)
+            c.clipPath(android.graphics.Path().apply {
+                addCircle(size / 2f, size / 2f, size / 2f, android.graphics.Path.Direction.CW)
+            })
+            d.setBounds(0, 0, size, size)
+            d.draw(c)
+            iv.setImageBitmap(bmp)
+        }
+        iv.layoutParams = LinearLayout.LayoutParams(size, size)
+        return iv
+    }
+
+    private fun personRow(resId: Int, name: String, handle: String, primary: String, fallback: String, toast: String): View {
+        val row = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(0, M3Ui.dp(this@AboutActivity, 12), 0, M3Ui.dp(this@AboutActivity, 12))
+            isClickable = true
+            setOnClickListener {
+                android.widget.Toast.makeText(this@AboutActivity, toast, android.widget.Toast.LENGTH_SHORT).show()
+                try {
+                    startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse(primary)))
+                } catch (e: Exception) {
+                    runCatching {
+                        startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse(fallback)))
+                    }
+                }
+            }
+        }
+        row.addView(circleImage(resId, 44))
+        val texts = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(M3Ui.dp(this@AboutActivity, 14), 0, 0, 0)
+        }
+        texts.addView(M3Ui.text(this, name, 16f, M3Color.ON_SURFACE, true))
+        texts.addView(M3Ui.text(this, handle, 12f, M3Color.ON_SURFACE_VAR))
+        row.addView(texts, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+        row.addView(M3Ui.text(this, "›", 24f, M3Color.ON_SURFACE_VAR))
+        return row
     }
 }
