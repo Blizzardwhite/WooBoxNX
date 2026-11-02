@@ -1164,7 +1164,7 @@ class AboutActivity : AppCompatActivity() {
             layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 1)
         })
         devInner.addView(gifPersonRow(R.drawable.blizzard, "Blizzardwhite", "酷安 u/1636422",
-            "https://www.coolapk.com/u/1636422", "Owo"))
+            "coolmarket://u/1636422", "https://www.coolapk.com/u/1636422", "Owo"))
         devCard.addView(devInner)
         content.addView(devCard)
 
@@ -1234,7 +1234,7 @@ class AboutActivity : AppCompatActivity() {
         return iv
     }
 
-    private fun gifPersonRow(resId: Int, name: String, handle: String, url: String, toast: String): View {
+    private fun gifPersonRow(resId: Int, name: String, handle: String, primary: String, fallback: String, toast: String): View {
         val row = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
@@ -1242,7 +1242,13 @@ class AboutActivity : AppCompatActivity() {
             isClickable = true
             setOnClickListener {
                 Toast.makeText(this@AboutActivity, toast, Toast.LENGTH_SHORT).show()
-                runCatching { startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse(url))) }
+                try {
+                    startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse(primary)))
+                } catch (e: Exception) {
+                    runCatching {
+                        startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse(fallback)))
+                    }
+                }
             }
         }
         row.addView(GifCircleView(this, resId, M3Ui.dp(this, 44)))
