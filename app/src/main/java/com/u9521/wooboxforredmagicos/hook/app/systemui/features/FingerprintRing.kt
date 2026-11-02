@@ -38,6 +38,12 @@ object FingerprintRing : HookRegister() {
     /** 浅色壁纸下用的深色圆环：跟随锁屏时钟的观感（黑色约 65% 不透明度） */
     private val DARK_RING = Color.argb(166, 0, 0, 0)
 
+    /** 底圆：和原版指纹图标一致，用反色 10% 的圆盘垫底，保证白底上也看得见 */
+    private const val PLATE_ALPHA = 0.10f
+
+    /** 底圆半径占图标边长的比例（原版是 27/60） */
+    private const val PLATE_RADIUS_RATIO = 0.45f
+
     override fun init() = hasEnable("fp_ring") {
         runCatching { hookSensorView(SENSOR_VIEW_CLASS, "mSensorView") }
         runCatching { hookSensorView(LEGACY_SENSOR_VIEW_CLASS, "sensorView") }
@@ -132,6 +138,17 @@ object FingerprintRing : HookRegister() {
         val size = minOf(bounds.width(), bounds.height()).toFloat()
         if (size <= 0f) return
         val stroke = size * RING_STROKE_RATIO
+        val cx = bounds.exactCenterX()
+        val cy = bounds.exactCenterY()
+
+        // 反色 10% 底圆（原版指纹图标就是这么垫的）
+        val platePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.FILL
+            this.color = if (color == Color.WHITE) Color.BLACK else Color.WHITE
+            this.alpha = (255 * PLATE_ALPHA * alpha / 255f).toInt()
+        }
+        canvas.drawCircle(cx, cy, size * PLATE_RADIUS_RATIO, platePaint)
+
         val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             style = Paint.Style.STROKE
             strokeCap = Paint.Cap.ROUND
@@ -139,18 +156,16 @@ object FingerprintRing : HookRegister() {
             strokeWidth = stroke
             this.alpha = alpha
         }
-        canvas.drawCircle(
-            bounds.exactCenterX(),
-            bounds.exactCenterY(),
-            (size / 2f - stroke / 2f) * RING_RADIUS_SCALE,
-            paint
-        )
+        canvas.drawCircle(cx, cy, (size / 2f - stroke / 2f) * RING_RADIUS_SCALE, paint)
     }
 
     private class RingDrawable(private val color: Int) : Drawable() {
         private val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             style = Paint.Style.STROKE
             strokeCap = Paint.Cap.ROUND
+        }
+        private val platePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.FILL
         }
         private var drawableAlpha = 255
 
@@ -159,10 +174,19 @@ object FingerprintRing : HookRegister() {
             if (b.isEmpty) return
             val size = minOf(b.width(), b.height()).toFloat()
             if (size <= 0f) return
+            val alphaFactor = drawableAlpha / 255f
+
+            // 反色 10% 底圆：白环垫黑圆、深色环垫白圆，白底/黑底都能看见
+            platePaint.color = if (color == Color.WHITE) Color.BLACK else Color.WHITE
+            platePaint.alpha = (255 * PLATE_ALPHA * alphaFactor).toInt()
+            canvas.drawCircle(
+                b.exactCenterX(), b.exactCenterY(), size * PLATE_RADIUS_RATIO, platePaint
+            )
+
             val stroke = size * RING_STROKE_RATIO
             paint.color = color
             paint.strokeWidth = stroke
-            paint.alpha = Color.alpha(color) * drawableAlpha / 255
+            paint.alpha = (Color.alpha(color) * alphaFactor).toInt()
             canvas.drawCircle(
                 b.exactCenterX(),
                 b.exactCenterY(),
