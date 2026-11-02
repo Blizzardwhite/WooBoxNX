@@ -12,6 +12,69 @@ object ScopeSystemUI : MyFragment() {
     override val regKey: String = "scope_systemui"
     override val iData: InitView.ItemData.() -> Unit = {
         LsposedInactiveTip(this, mactivity!!).setViews()
+
+        // ==================== 屏下显示区域 ====================
+        TitleText(textId = R.string.section_under_display)
+        TextSummaryArrow(
+            TextSummaryV(
+                textId = R.string.moon_style,
+                tipsId = R.string.moon_style_tips,
+                onClickListener = {
+                    val ctx = mactivity!!
+                    val labels = arrayOf(
+                        ctx.getString(R.string.moon_style_moon),
+                        ctx.getString(R.string.moon_style_color),
+                        ctx.getString(R.string.moon_style_mono)
+                    )
+                    android.app.AlertDialog.Builder(ctx)
+                        .setTitle(R.string.moon_style)
+                        .setSingleChoiceItems(
+                            labels,
+                            com.u9521.wooboxforredmagicos.activity.MoonStyle.get(ctx)
+                        ) { dialog, which ->
+                            com.u9521.wooboxforredmagicos.activity.MoonStyle.set(ctx, which)
+                            dialog.dismiss()
+                        }
+                        .setNegativeButton(android.R.string.cancel, null)
+                        .show()
+                }
+            )
+        )
+        TextSummaryWithSwitch(
+            TextSummaryV(
+                textId = R.string.moon_notch,
+                tipsId = R.string.moon_notch_tips
+            ), SwitchV("moon_notch")
+        )
+        TextSummaryWithSwitch(
+            TextSummaryV(
+                textId = R.string.moon_allow_light,
+                tipsId = R.string.moon_allow_light_tips
+            ), SwitchV("moon_allow_light")
+        )
+        TextSummaryWithSwitch(
+            TextSummaryV(
+                textId = R.string.moon_battery,
+                tipsId = R.string.moon_battery_tips
+            ), SwitchV("camera_battery")
+        )
+        TextSummaryArrow(
+            TextSummaryV(
+                textId = R.string.moon_apps,
+                tipsId = R.string.moon_apps_tips,
+                onClickListener = {
+                    mactivity!!.startActivity(
+                        android.content.Intent(
+                            mactivity,
+                            com.u9521.wooboxforredmagicos.activity.MoonAppListActivity::class.java
+                        )
+                    )
+                }
+            )
+        )
+
+        // ==================== 状态栏 ====================
+        Line()
         TitleText(textId = R.string.statusbar)
         TextSummaryWithSwitch(
             TextSummaryV(
@@ -23,89 +86,9 @@ object ScopeSystemUI : MyFragment() {
                 textId = R.string.statusbar_font_restore
             ), SwitchV("statusbar_font_restore")
         )
-        SwitchGroupBuilder(
-            this, mactivity!!,
-            SwitchGroupConfig(
-                "use_aosp_notify",
-                R.string.use_apps_notify_icon,
-                R.string.aosp_notify_tips,
-                SubItemConfig.SeekBar(
-                    "aosp_icon_size_dp",
-                    0,
-                    64,
-                    16
-                )
-            )
-        ).build()
-
-        Line()
-        TitleText(textId = R.string.status_bar_clock_format)
-//        SwitchGroupBuilder(
-//            this, mactivity!!, SwitchGroupConfig(
-//                "custom_clock_switch", R.string.custom_clock_switch, listOf(
-//                    SubItemConfig.Switch(
-//                        "status_bar_time_year", R.string.status_bar_time_year
-//                    ),
-//                    SubItemConfig.Switch(
-//                        "status_bar_time_month", R.string.status_bar_time_month
-//                    ),
-//                    SubItemConfig.Switch(
-//                        "status_bar_time_day", R.string.status_bar_time_day
-//                    ),
-//                    SubItemConfig.Switch(
-//                        "status_bar_time_week", R.string.status_bar_time_week
-//                    ),
-//                    SubItemConfig.Switch(
-//                        "status_bar_time_double_hour", R.string.status_bar_time_double_hour
-//                    ),
-//                    SubItemConfig.Switch(
-//                        "status_bar_time_period", R.string.status_bar_time_period
-//                    ),
-//                    SubItemConfig.Switch(
-//                        "status_bar_time_seconds", R.string.status_bar_time_seconds
-//                    ),
-//                    SubItemConfig.Switch(
-//                        "status_bar_time_hide_space", R.string.status_bar_time_hide_space
-//                    ),
-//                    SubItemConfig.Switch(
-//                        "status_bar_time_double_line", R.string.status_bar_time_double_line
-//                    ),
-//                    SubItemConfig.Switch(
-//                        "status_bar_time_double_line_center_align",
-//                        R.string.status_bar_time_double_line_center_align
-//                    ),
-//                    SubItemConfig.Text(
-//                        R.string.status_bar_clock_size
-//                    ),
-//                    SubItemConfig.SeekBar(
-//                        "status_bar_clock_size",
-//                        0,
-//                        18,
-//                        0
-//                    ),
-//                    SubItemConfig.Text(
-//                        R.string.status_bar_clock_double_line_size,
-//                    ),
-//                    SubItemConfig.SeekBar(
-//                        "status_bar_clock_double_line_size",
-//                        0,
-//                        9,
-//                        0
-//                    ),
-//                )
-//            )
-//        ).build()
         TextWithSwitch(
             TextV(textId = R.string.dropdown_status_bar_clock_display_seconds),
             SwitchV("collapsed_status_bar_clock_display_seconds")
-        )
-        Line()
-        TitleText(textId = R.string.status_bar_icon)
-        TextSummaryWithSwitch(
-            TextSummaryV(
-                textId = R.string.align_fan_refreshrate_aosp,
-                tipsId = R.string.align_fan_refreshrate_aosp_tip
-            ), SwitchV("align_fan_refreshrate_aosp")
         )
         TextSummaryWithSwitch(
             TextSummaryV(
@@ -162,8 +145,6 @@ object ScopeSystemUI : MyFragment() {
                 tipsId = R.string.status_bar_bluetooth_icon_acts_global_tips
             ), SwitchV("status_bar_bluetooth_icon_acts_global")
         )
-        Line()
-        TitleText(textId = R.string.status_bar_network_speed)
         TextSummaryWithSwitch(
             TextSummaryV(
                 textId = R.string.status_bar_network_speed_refresh_speed,
@@ -176,7 +157,7 @@ object ScopeSystemUI : MyFragment() {
                 R.string.status_bar_dual_row_network_speed,
                 R.string.status_bar_dual_row_network_speed_summary,
                 listOf(
-                    SubItemConfig.Switch("speed_unit_hide_per_second",R.string.speed_unit_hide_per_second),
+                    SubItemConfig.Switch("speed_unit_hide_per_second", R.string.speed_unit_hide_per_second),
 
                     SubItemConfig.Text(R.string.status_bar_network_speed_dual_row_size),
                     SubItemConfig.SeekBar(
@@ -206,130 +187,37 @@ object ScopeSystemUI : MyFragment() {
                         10,
                         -1
                     )
-
                 )
             )
         ).build()
-//        Line()
-//        TitleText(textId = R.string.notification)
 
+        // ==================== 通知 ====================
         Line()
-        TitleText(textId = R.string.features)
-        TextSummaryWithSwitch(
-            TextSummaryV(
-                textId = R.string.gesture_use_default_digital_assist,
-                tipsId = R.string.gesture_use_default_digital_assist_tips
-            ), SwitchV("gesture_use_default_digital_assist")
-        )
-        TextSummaryWithSwitch(
-            TextSummaryV(
-                textId = R.string.no_vibrate_volKey_Long_press,
-                tipsId = R.string.no_vibrate_volKey_Long_press_tips
-            ), SwitchV("no_vibrate_volKey_Long_press")
-        )
-        TextSummaryWithSwitch(
-            TextSummaryV(
-                textId = R.string.unhide_clipboard_overlay,
-            ), SwitchV("unhide_clipboard_overlay")
-        )
-        TextSummaryWithSwitch(
-            TextSummaryV(
-                textId = R.string.moon_notch,
-                tipsId = R.string.moon_notch_tips
-            ), SwitchV("moon_notch")
-        )
-        TextSummaryWithSwitch(
-            TextSummaryV(
-                textId = R.string.moon_allow_light,
-                tipsId = R.string.moon_allow_light_tips
-            ), SwitchV("moon_allow_light")
-        )
-        TextSummaryWithSwitch(
-            TextSummaryV(
-                textId = R.string.moon_battery,
-                tipsId = R.string.moon_battery_tips
-            ), SwitchV("camera_battery")
-        )
-        TextSummaryArrow(
-            TextSummaryV(
-                textId = R.string.moon_style,
-                tipsId = R.string.moon_style_tips,
-                onClickListener = {
-                    val ctx = mactivity!!
-                    val labels = arrayOf(
-                        ctx.getString(R.string.moon_style_moon),
-                        ctx.getString(R.string.moon_style_color),
-                        ctx.getString(R.string.moon_style_mono)
-                    )
-                    android.app.AlertDialog.Builder(ctx)
-                        .setTitle(R.string.moon_style)
-                        .setSingleChoiceItems(
-                            labels,
-                            com.u9521.wooboxforredmagicos.activity.MoonStyle.get(ctx)
-                        ) { dialog, which ->
-                            com.u9521.wooboxforredmagicos.activity.MoonStyle.set(ctx, which)
-                            dialog.dismiss()
-                        }
-                        .setNegativeButton(android.R.string.cancel, null)
-                        .show()
-                }
-            )
-        )
-        TextSummaryArrow(
-            TextSummaryV(
-                textId = R.string.moon_apps,
-                tipsId = R.string.moon_apps_tips,
-                onClickListener = {
-                    mactivity!!.startActivity(
-                        android.content.Intent(
-                            mactivity,
-                            com.u9521.wooboxforredmagicos.activity.MoonAppListActivity::class.java
-                        )
-                    )
-                }
-            )
-        )
+        TitleText(textId = R.string.notification)
         SwitchGroupBuilder(
             this, mactivity!!,
             SwitchGroupConfig(
-                "aosp_singlehandmode_adjust",
-                R.string.aosp_singlehandmode_adjust,
-                SubItemConfig.Arrow(
-                    R.string.aosp_singlehandmode_offest
-                ) {
-                    InputDialogBuilder(
-                        this,
-                        mactivity!!,
-                        InputDialogConfig(
-                            R.string.input_int,
-                            R.string.aosp_singlehandmode_offest,
-                            "aosp_singlehandmode_offest", 0, PrefsTypeAdapter.INT
-                        )
-                    ).show {
-                        Toast.makeText(mactivity, "设置成功", Toast.LENGTH_SHORT).show()
-                        it.dismiss()
-                    }
-                }
+                "use_aosp_notify",
+                R.string.use_apps_notify_icon,
+                R.string.aosp_notify_tips,
+                SubItemConfig.SeekBar(
+                    "aosp_icon_size_dp",
+                    0,
+                    64,
+                    16
+                )
             )
         ).build()
+        TextSummaryWithSwitch(
+            TextSummaryV(
+                textId = R.string.align_fan_refreshrate_aosp,
+                tipsId = R.string.align_fan_refreshrate_aosp_tip
+            ), SwitchV("align_fan_refreshrate_aosp")
+        )
 
-        Line()
-        TitleText(textId = R.string.lockscreen)
-        TextSummaryWithSwitch(
-            TextSummaryV(
-                textId = R.string.lockscreen_allow_adjust_volume,
-                tipsId = R.string.lockscreen_allow_adjust_volume_tips
-            ), SwitchV("lockscreen_allow_adjust_volume")
-        )
-        TextSummaryWithSwitch(
-            TextSummaryV(
-                textId = R.string.fp_ring,
-                tipsId = R.string.fp_ring_tips
-            ), SwitchV("fp_ring")
-        )
+        // ==================== 快速设置面板 ====================
         Line()
         TitleText(textId = R.string.quick_settings_panel)
-
         TextSummaryWithSwitch(
             TextSummaryV(
                 textId = R.string.qs_shortcut_redir_calendar,
@@ -350,7 +238,6 @@ object ScopeSystemUI : MyFragment() {
                 textId = R.string.qs_show_search,
             ), SwitchV("qs_show_search")
         )
-
         SwitchGroupBuilder(
             this, mactivity!!, SwitchGroupConfig(
                 "qs_custom_switch",
@@ -380,11 +267,68 @@ object ScopeSystemUI : MyFragment() {
                         R.string.qs_custom_columns_landscape_original_tips
                     ),
                     SubItemConfig.SeekBar("qs_custom_columns_landscape_editor", 1, 10, 6),
-
-
-                    )
+                )
             )
         ).build()
 
+        // ==================== 锁屏 ====================
+        Line()
+        TitleText(textId = R.string.lockscreen)
+        TextSummaryWithSwitch(
+            TextSummaryV(
+                textId = R.string.lockscreen_allow_adjust_volume,
+                tipsId = R.string.lockscreen_allow_adjust_volume_tips
+            ), SwitchV("lockscreen_allow_adjust_volume")
+        )
+        TextSummaryWithSwitch(
+            TextSummaryV(
+                textId = R.string.fp_ring,
+                tipsId = R.string.fp_ring_tips
+            ), SwitchV("fp_ring")
+        )
+
+        // ==================== 其他 ====================
+        Line()
+        TitleText(textId = R.string.section_misc)
+        TextSummaryWithSwitch(
+            TextSummaryV(
+                textId = R.string.gesture_use_default_digital_assist,
+                tipsId = R.string.gesture_use_default_digital_assist_tips
+            ), SwitchV("gesture_use_default_digital_assist")
+        )
+        TextSummaryWithSwitch(
+            TextSummaryV(
+                textId = R.string.no_vibrate_volKey_Long_press,
+                tipsId = R.string.no_vibrate_volKey_Long_press_tips
+            ), SwitchV("no_vibrate_volKey_Long_press")
+        )
+        SwitchGroupBuilder(
+            this, mactivity!!,
+            SwitchGroupConfig(
+                "aosp_singlehandmode_adjust",
+                R.string.aosp_singlehandmode_adjust,
+                SubItemConfig.Arrow(
+                    R.string.aosp_singlehandmode_offest
+                ) {
+                    InputDialogBuilder(
+                        this,
+                        mactivity!!,
+                        InputDialogConfig(
+                            R.string.input_int,
+                            R.string.aosp_singlehandmode_offest,
+                            "aosp_singlehandmode_offest", 0, PrefsTypeAdapter.INT
+                        )
+                    ).show {
+                        Toast.makeText(mactivity, "设置成功", Toast.LENGTH_SHORT).show()
+                        it.dismiss()
+                    }
+                }
+            )
+        ).build()
+        TextSummaryWithSwitch(
+            TextSummaryV(
+                textId = R.string.unhide_clipboard_overlay,
+            ), SwitchV("unhide_clipboard_overlay")
+        )
     }
 }

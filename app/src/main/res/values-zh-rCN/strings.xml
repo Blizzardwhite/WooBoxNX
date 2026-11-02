@@ -68,7 +68,9 @@
     <string name="status_bar_network_speed_dual_row_width">双排宽度(超过38匹配内容)</string>
     <string name="status_bar_network_speed_refresh_speed">网速秒刷新</string>
     <string name="status_bar_network_speed_refresh_speed_summary">将状态栏网速组件的刷新频率改成1s</string>
-    <string name="statusbar">状态栏</string>
+    <string name="section_misc">其他</string>
+<string name="section_under_display">屏下显示区域</string>
+<string name="statusbar">状态栏</string>
     <string name="tg_channel">加入 官方TG频道</string>
     <string name="tg_channel_summary">可在频道资料页进入交流群</string>
     <string name="thank_list">感谢名单</string>

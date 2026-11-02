@@ -103,7 +103,9 @@
     <string name="status_bar_network_speed_refresh_speed">Network speed refresh in seconds</string>
     <string name="status_bar_network_speed_refresh_speed_summary">Change the refresh frequency of the status bar network speed component to 1s</string>
 
-    <string name="statusbar">Status bar</string>
+    <string name="section_misc">其他</string>
+<string name="section_under_display">屏下显示区域</string>
+<string name="statusbar">Status bar</string>
 
     <string name="tg_channel">Join the official TG channel</string>
     <string name="tg_channel_summary">You can enter the chat group on the channel page</string>
