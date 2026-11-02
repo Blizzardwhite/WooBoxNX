@@ -197,6 +197,13 @@ object MoonNotch : HookRegister() {
         contentKey = key
 
         val moonStyle = com.u9521.wooboxforredmagicos.activity.MoonStyle
+        if (style == moonStyle.PLAIN_BLACK) {
+            drawable.appIcon = null
+            drawable.monoGlyph = null
+            drawable.plainBlack = true
+            return
+        }
+        drawable.plainBlack = false
         if (style == moonStyle.MOON || pkg == null) {
             drawable.appIcon = null
             drawable.monoGlyph = null
@@ -444,6 +451,7 @@ object MoonNotch : HookRegister() {
 
         private var cache: android.graphics.Bitmap? = null
         private var cacheFor: android.graphics.Bitmap? = null
+        private var cachePlain = false
 
         /** 彩色应用图标：铺满整个圆 */
         var appIcon: android.graphics.Bitmap? = null
@@ -461,9 +469,17 @@ object MoonNotch : HookRegister() {
                 invalidateSelf()
             }
 
+        /** 纯黑遮罩：只有黑圆，不画任何内容 */
+        var plainBlack: Boolean = false
+            set(value) {
+                field = value
+                cache = null
+                invalidateSelf()
+            }
+
         private fun ensureBitmap(size: Int): android.graphics.Bitmap {
             val icon = appIcon ?: monoGlyph
-            cache?.let { if (it.width == size && cacheFor === icon) return it }
+            cache?.let { if (it.width == size && cacheFor === icon && cachePlain == plainBlack) return it }
             val bmp = android.graphics.Bitmap.createBitmap(
                 size, size, android.graphics.Bitmap.Config.ARGB_8888
             )
@@ -487,7 +503,7 @@ object MoonNotch : HookRegister() {
                 c.clipPath(clipCircle)
                 c.drawBitmap(icon, null, iconDst, iconPaint)
                 c.restoreToCount(save)
-            } else {
+            } else if (!plainBlack) {
                 // 兜底：画弯月 + 星星
                 val moonCx = left + d * 0.5f
                 val moonCy = top + d * 0.5f
@@ -509,6 +525,7 @@ object MoonNotch : HookRegister() {
 
             cache = bmp
             cacheFor = icon
+            cachePlain = plainBlack
             return bmp
         }
 

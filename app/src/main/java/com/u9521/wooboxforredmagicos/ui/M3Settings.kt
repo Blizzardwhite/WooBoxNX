@@ -985,14 +985,19 @@ class CameraSettingsActivity : AppCompatActivity() {
             addView(segButton("弯月", 0))
             addView(segButton("图标", 1))
             addView(segButton("剪影", 2))
-            check(if (com.u9521.wooboxforredmagicos.activity.MoonStyle.get(this@CameraSettingsActivity) == 2) R.id.tag_2
-            else if (com.u9521.wooboxforredmagicos.activity.MoonStyle.get(this@CameraSettingsActivity) == 1) R.id.tag_1
-            else R.id.tag_0)
+            addView(segButton("纯黑", 3))
+            check(when (com.u9521.wooboxforredmagicos.activity.MoonStyle.get(this@CameraSettingsActivity)) {
+                2 -> R.id.tag_2
+                3 -> R.id.tag_3
+                1 -> R.id.tag_1
+                else -> R.id.tag_0
+            })
             addOnButtonCheckedListener { _, checkedId, isChecked ->
                 if (!isChecked) return@addOnButtonCheckedListener
                 val style = when (checkedId) {
                     R.id.tag_1 -> 1
                     R.id.tag_2 -> 2
+                    R.id.tag_3 -> 3
                     else -> 0
                 }
                 com.u9521.wooboxforredmagicos.activity.MoonStyle.set(this@CameraSettingsActivity, style)
@@ -1037,7 +1042,7 @@ class CameraSettingsActivity : AppCompatActivity() {
         listRow.addView(LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             addView(M3Ui.text(this@CameraSettingsActivity, "自定义应用名单", 16f, M3Color.ON_SURFACE, true))
-            addView(M3Ui.text(this@CameraSettingsActivity, "指定哪些应用显示弯月/图标", 12f, M3Color.ON_SURFACE_VAR))
+            addView(M3Ui.text(this@CameraSettingsActivity, "指定哪些应用显示屏下内容", 12f, M3Color.ON_SURFACE_VAR))
         }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
         listRow.addView(M3Ui.text(this@CameraSettingsActivity, "›", 24f, M3Color.ON_SURFACE_VAR))
         listCard.addView(listRow)
@@ -1046,7 +1051,7 @@ class CameraSettingsActivity : AppCompatActivity() {
         ).apply { topMargin = M3Ui.dp(this@CameraSettingsActivity, 12) })
 
         content.addView(M3Ui.text(this,
-            "剪影模式只有黑白两色，暗色图标也能看清，也不会让屏下区域在低亮度下发绿。",
+            "剪影只有黑白两色，暗色图标也能看清；纯黑遮罩只画黑圆，不显示任何内容。",
             12f, M3Color.ON_SURFACE_VAR).apply {
             setPadding(M3Ui.dp(this@CameraSettingsActivity, 4), M3Ui.dp(this@CameraSettingsActivity, 12), 0, 0)
         })
@@ -1055,7 +1060,7 @@ class CameraSettingsActivity : AppCompatActivity() {
     private fun segButton(label: String, tag: Int): MaterialButton =
         MaterialButton(this, null, com.google.android.material.R.attr.materialButtonOutlinedStyle).apply {
             text = label
-            id = when (tag) { 1 -> R.id.tag_1; 2 -> R.id.tag_2; else -> R.id.tag_0 }
+            id = when (tag) { 1 -> R.id.tag_1; 2 -> R.id.tag_2; 3 -> R.id.tag_3; else -> R.id.tag_0 }
             layoutParams = LinearLayout.LayoutParams(0, M3Ui.dp(this@CameraSettingsActivity, 44), 1f)
         }
 

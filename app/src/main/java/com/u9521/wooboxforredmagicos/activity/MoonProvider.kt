@@ -63,7 +63,8 @@ object MoonStorage {
 object MoonStyle {
     const val MOON = 0        // 弯月 + 星星
     const val COLOR_ICON = 1  // 应用图标（彩色）
-    const val MONO_ICON = 2   // 应用图标（单色剪影）
+    const val MONO_ICON = 2   // 应用图标（单色剪影)
+    const val PLAIN_BLACK = 3 // 纯黑遮罩
 
     fun get(context: android.content.Context): Int = runCatching {
         val file = File(context.filesDir, MoonStorage.FILE_STYLE)

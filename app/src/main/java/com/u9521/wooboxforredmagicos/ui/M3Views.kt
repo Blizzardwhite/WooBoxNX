@@ -132,6 +132,7 @@ class CameraPreviewView(context: Context) : View(context) {
             2 -> { // 剪影
                 canvas.drawText("C", cx, cy + dp(5f), glyphPaint)
             }
+            3 -> Unit // 纯黑遮罩
             else -> { // 弯月 + 星
                 val mr = r * 0.62f
                 val outer = Path().apply { addCircle(cx - mr * 0.12f, cy, mr, Path.Direction.CW) }
