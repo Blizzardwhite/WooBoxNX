@@ -272,15 +272,17 @@ class SettingsHomeActivity : AppCompatActivity() {
         }
         val avatar = avatarView()
         rightCol.addView(avatar, LinearLayout.LayoutParams(M3Ui.dp(this, 46), M3Ui.dp(this, 46)))
-        header.addView(rightCol)
+        header.addView(rightCol, LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT
+        ).apply { rightMargin = M3Ui.dp(this@SettingsHomeActivity, 10) })
         header.setPadding(M3Ui.dp(this, 6), 0, M3Ui.dp(this, 6), 0)
         content.addView(header)
         header.post {
             val h = titleBox.height
             if (h > 0) {
-                val min = M3Ui.dp(this, 40)
-                val max = M3Ui.dp(this, 54)
-                val size = (h * 0.78f).toInt().coerceIn(min, max)
+                val min = M3Ui.dp(this, 42)
+                val max = M3Ui.dp(this, 58)
+                val size = (h * 0.86f).toInt().coerceIn(min, max)
                 avatar.layoutParams = LinearLayout.LayoutParams(size, size)
             }
         }
