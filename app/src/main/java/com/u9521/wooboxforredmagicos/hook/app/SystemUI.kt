@@ -2,6 +2,7 @@ package com.u9521.wooboxforredmagicos.hook.app
 
 import com.u9521.wooboxforredmagicos.hook.app.systemui.features.AOSPSingleHandModeAdjust
 import com.u9521.wooboxforredmagicos.hook.app.systemui.features.CameraBattery
+import com.u9521.wooboxforredmagicos.hook.app.systemui.features.FingerprintRing
 import com.u9521.wooboxforredmagicos.hook.app.systemui.features.GestureStartDefaultDigitalAssist
 import com.u9521.wooboxforredmagicos.hook.app.systemui.features.MoonNotch
 import com.u9521.wooboxforredmagicos.hook.app.systemui.features.NoVibrateVolKeyLongPress
@@ -58,6 +59,7 @@ object SystemUI : AppRegister() {
             //锁屏界面
             AllowAdjustVolume,//锁屏允许调整音量
             KSBFontRestore,//锁屏字体恢复，不要汉仪正圆了
+            FingerprintRing,//锁屏指纹图标改成圆环
         )
     }
 }

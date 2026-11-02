@@ -321,6 +321,12 @@ object ScopeSystemUI : MyFragment() {
                 tipsId = R.string.lockscreen_allow_adjust_volume_tips
             ), SwitchV("lockscreen_allow_adjust_volume")
         )
+        TextSummaryWithSwitch(
+            TextSummaryV(
+                textId = R.string.fp_ring,
+                tipsId = R.string.fp_ring_tips
+            ), SwitchV("fp_ring")
+        )
         Line()
         TitleText(textId = R.string.quick_settings_panel)
 

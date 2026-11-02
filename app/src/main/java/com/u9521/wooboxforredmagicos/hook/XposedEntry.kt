@@ -23,6 +23,7 @@ class XposedEntry : EasyXposedInit() {
         PermissionController, //权限控制器
         Settings,//系统设置
         SystemUI, //系统界面
+        FingerprintSensorUI, //指纹图标（com.fingerprint.sensorservice）
         SystemUpdater,//系统更新
     )
 

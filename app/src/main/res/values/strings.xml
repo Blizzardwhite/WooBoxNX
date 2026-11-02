@@ -295,4 +295,6 @@
 <string name="moon_allow_light_tips">默认只在深色模式下显示。打开后浅色模式也会画弯月/应用图标，适合深色壁纸或想让状态栏统一隐藏的情况。</string>
 <string name="moon_apps_select_all">全选</string>
 <string name="moon_apps_clear_all">全不选</string>
+<string name="fp_ring">锁屏指纹图标改成圆环</string>
+<string name="fp_ring_tips">把锁屏和指纹解锁界面里的指纹图标换成简单的白色圆环，大小、位置和透明度都跟原来一致。</string>
 </resources>
