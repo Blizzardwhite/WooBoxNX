@@ -296,5 +296,5 @@
 <string name="moon_apps_select_all">全选</string>
 <string name="moon_apps_clear_all">全不选</string>
 <string name="fp_ring">锁屏指纹图标改成圆环</string>
-<string name="fp_ring_tips">把锁屏和指纹解锁界面里的指纹图标换成简单的白色圆环，大小、位置和透明度都跟原来一致。</string>
+<string name="fp_ring_tips">把锁屏和指纹解锁界面里的指纹图标换成简单的圆环：深色壁纸用白色，浅色壁纸用黑色，大小和位置跟随原图标。注意：指纹 UI 是常驻系统服务，修改 LSPosed 作用域后需要重启手机才会生效。</string>
 </resources>

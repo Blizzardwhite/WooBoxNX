@@ -32,6 +32,9 @@ object FingerprintRing : HookRegister() {
     /** 圆环线宽，占图标直径的比例 */
     private const val RING_STROKE_RATIO = 0.075f
 
+    /** 圆环半径占可用半径的比例（比原图标小一点） */
+    private const val RING_RADIUS_SCALE = 0.86f
+
     override fun init() = hasEnable("fp_ring") {
         runCatching { hookSensorView(SENSOR_VIEW_CLASS, "mSensorView") }
         runCatching { hookSensorView(LEGACY_SENSOR_VIEW_CLASS, "sensorView") }
@@ -86,8 +89,12 @@ object FingerprintRing : HookRegister() {
         }
     }
 
-    /** 从参数里的资源 id 判断该用白色还是黑色圆环 */
+    /** 跟随系统的深/浅色判断：keyguard 颜色为 -1 时用白色，否则黑色（和原生逻辑一致） */
     private fun colorOf(view: ImageView, param: XC_MethodHook.MethodHookParam): Int {
+        (param.args?.getOrNull(0) as? Int)?.let { keyguardColor ->
+            android.util.Log.i("WooBox-FPUI", "keyguardColor=$keyguardColor")
+            return if (keyguardColor == -1) Color.WHITE else Color.BLACK
+        }
         val id = param.args?.firstOrNull { it is Int } as? Int ?: return Color.WHITE
         val name = runCatching { view.resources.getResourceEntryName(id) }.getOrNull()
             ?: return Color.WHITE
@@ -132,7 +139,7 @@ object FingerprintRing : HookRegister() {
         canvas.drawCircle(
             bounds.exactCenterX(),
             bounds.exactCenterY(),
-            size / 2f - stroke / 2f,
+            (size / 2f - stroke / 2f) * RING_RADIUS_SCALE,
             paint
         )
     }
@@ -154,7 +161,7 @@ object FingerprintRing : HookRegister() {
             canvas.drawCircle(
                 b.exactCenterX(),
                 b.exactCenterY(),
-                size / 2f - stroke / 2f,
+                (size / 2f - stroke / 2f) * RING_RADIUS_SCALE,
                 paint
             )
         }
