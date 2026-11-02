@@ -36,7 +36,7 @@ object FingerprintRing : HookRegister() {
     private const val RING_RADIUS_SCALE = 0.86f
 
     /** 浅色壁纸下用的深色圆环：比原来更深一些 */
-    private val DARK_RING = Color.argb(199, 0, 0, 0)
+    private val DARK_RING = Color.argb(166, 0, 0, 0)
 
     /** 圆环外圈的反色描边透明度（白环配黑边、深色环配白边），中心保持透明 */
     private const val OUTLINE_ALPHA = 0.28f
@@ -153,17 +153,15 @@ object FingerprintRing : HookRegister() {
         val radius = (size / 2f - stroke / 2f) * RING_RADIUS_SCALE
         val outlineWidth = size * OUTLINE_WIDTH_RATIO
 
-        // 只有白色圆环才加反色描边（浅色/白色背景上靠它显形）
-        if (color == Color.WHITE) {
-            val outline = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                style = Paint.Style.STROKE
-                strokeCap = Paint.Cap.ROUND
-                this.color = Color.BLACK
-                strokeWidth = stroke + outlineWidth * 2
-                this.alpha = (255 * OUTLINE_ALPHA * alpha / 255f).toInt()
-            }
-            canvas.drawCircle(cx, cy, radius, outline)
+        // 两个方向都加一圈反色描边（粗细一致）：白环配黑边、深色环配白边
+        val outline = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.STROKE
+            strokeCap = Paint.Cap.ROUND
+            this.color = if (color == Color.WHITE) Color.BLACK else Color.WHITE
+            strokeWidth = stroke + outlineWidth * 2
+            this.alpha = (255 * OUTLINE_ALPHA * alpha / 255f).toInt()
         }
+        canvas.drawCircle(cx, cy, radius, outline)
 
         val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             style = Paint.Style.STROKE
@@ -196,14 +194,11 @@ object FingerprintRing : HookRegister() {
             val radius = (size / 2f - stroke / 2f) * RING_RADIUS_SCALE
             val outlineWidth = size * OUTLINE_WIDTH_RATIO
 
-            // 只有白色圆环才需要外圈描边：浅色/白色背景上靠它显形；
-            // 深色圆环本身在浅色背景上已经清楚，不加白边
-            if (color == Color.WHITE) {
-                outlinePaint.color = Color.BLACK
-                outlinePaint.strokeWidth = stroke + outlineWidth * 2
-                outlinePaint.alpha = (255 * OUTLINE_ALPHA * alphaFactor).toInt()
-                canvas.drawCircle(b.exactCenterX(), b.exactCenterY(), radius, outlinePaint)
-            }
+            // 反色描边：白环配黑边、深色环配白边，两侧粗细一致
+            outlinePaint.color = if (color == Color.WHITE) Color.BLACK else Color.WHITE
+            outlinePaint.strokeWidth = stroke + outlineWidth * 2
+            outlinePaint.alpha = (255 * OUTLINE_ALPHA * alphaFactor).toInt()
+            canvas.drawCircle(b.exactCenterX(), b.exactCenterY(), radius, outlinePaint)
 
             paint.color = color
             paint.strokeWidth = stroke
