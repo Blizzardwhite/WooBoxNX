@@ -35,6 +35,9 @@ object FingerprintRing : HookRegister() {
     /** 圆环半径占可用半径的比例（比原图标小一点） */
     private const val RING_RADIUS_SCALE = 0.86f
 
+    /** 浅色壁纸下用的深色圆环：跟随锁屏时钟的观感（黑色约 65% 不透明度） */
+    private val DARK_RING = Color.argb(166, 0, 0, 0)
+
     override fun init() = hasEnable("fp_ring") {
         runCatching { hookSensorView(SENSOR_VIEW_CLASS, "mSensorView") }
         runCatching { hookSensorView(LEGACY_SENSOR_VIEW_CLASS, "sensorView") }
@@ -52,7 +55,7 @@ object FingerprintRing : HookRegister() {
                         ?: return
                     if (!name.contains("finger", ignoreCase = true)) return
                     android.util.Log.i("WooBox-FPUI", "imageView $name -> ring")
-                    val color = if (name.contains("black", ignoreCase = true)) Color.BLACK else Color.WHITE
+                    val color = if (name.contains("black", ignoreCase = true)) DARK_RING else Color.WHITE
                     if (param.method.name.contains("Background")) {
                         view.background = RingDrawable(color)
                     } else {
@@ -93,12 +96,12 @@ object FingerprintRing : HookRegister() {
     private fun colorOf(view: ImageView, param: XC_MethodHook.MethodHookParam): Int {
         (param.args?.getOrNull(0) as? Int)?.let { keyguardColor ->
             android.util.Log.i("WooBox-FPUI", "keyguardColor=$keyguardColor")
-            return if (keyguardColor == -1) Color.WHITE else Color.BLACK
+            return if (keyguardColor == -1) Color.WHITE else DARK_RING
         }
         val id = param.args?.firstOrNull { it is Int } as? Int ?: return Color.WHITE
         val name = runCatching { view.resources.getResourceEntryName(id) }.getOrNull()
             ?: return Color.WHITE
-        return if (name.contains("black", ignoreCase = true)) Color.BLACK else Color.WHITE
+        return if (name.contains("black", ignoreCase = true)) DARK_RING else Color.WHITE
     }
 
     /** AOSP UDFPS 的指纹图形（部分机型/界面走这条） */
@@ -149,6 +152,7 @@ object FingerprintRing : HookRegister() {
             style = Paint.Style.STROKE
             strokeCap = Paint.Cap.ROUND
         }
+        private var drawableAlpha = 255
 
         override fun draw(canvas: Canvas) {
             val b = bounds
@@ -158,6 +162,7 @@ object FingerprintRing : HookRegister() {
             val stroke = size * RING_STROKE_RATIO
             paint.color = color
             paint.strokeWidth = stroke
+            paint.alpha = Color.alpha(color) * drawableAlpha / 255
             canvas.drawCircle(
                 b.exactCenterX(),
                 b.exactCenterY(),
@@ -167,11 +172,11 @@ object FingerprintRing : HookRegister() {
         }
 
         override fun setAlpha(alpha: Int) {
-            paint.alpha = alpha
+            drawableAlpha = alpha
             invalidateSelf()
         }
 
-        override fun getAlpha(): Int = paint.alpha
+        override fun getAlpha(): Int = drawableAlpha
 
         override fun setColorFilter(colorFilter: ColorFilter?) {
             paint.colorFilter = colorFilter
