@@ -17,27 +17,28 @@ import de.robv.android.xposed.XposedHelpers
 /**
  * 把锁屏的指纹识别图标换成圆环。
  *
- * 系统里可能有两套实现，这里都兜住：
- *  1. ZTE 浮窗：FloatWindowSensorView 里的 ImageView(sensorView)，图标是它的背景图；
- *  2. AOSP：UdfpsFpDrawable.draw() 画出的指纹路径。
+ * 指纹图标其实画在独立系统应用 com.fingerprint.sensorservice 里，
+ * 对应类 com.fingerprint.sensorservice.view.FloatWindowSensorView：
+ *   - 图标控件字段 mSensorView（ImageView）
+ *   - 设置图标的方法 setSensorViewBackground(int) / initSensorView(int, String)
+ *   - 背景资源 fingerprint_senser_white / fingerprint_senser_black
+ * 这里在它设置完图标之后，把背景换成自绘的圆环（颜色跟随原来的白色/黑色）。
  */
 object FingerprintRing : HookRegister() {
-    private const val SENSOR_VIEW_CLASS = "com.zte.feature.fingerprintlcd.FloatWindowSensorView"
-    private const val FEATURE_CLASS = "com.zte.feature.fingerprintlcd.FingerprintUnderLcdFeature"
+    private const val SENSOR_VIEW_CLASS = "com.fingerprint.sensorservice.view.FloatWindowSensorView"
+    private const val LEGACY_SENSOR_VIEW_CLASS = "com.zte.feature.fingerprintlcd.FloatWindowSensorView"
     private const val UDFPS_DRAWABLE_CLASS = "com.android.systemui.biometrics.UdfpsFpDrawable"
 
     /** 圆环线宽，占图标直径的比例 */
     private const val RING_STROKE_RATIO = 0.075f
 
     override fun init() = hasEnable("fp_ring") {
-        runCatching { hookSensorView() }
+        runCatching { hookSensorView(SENSOR_VIEW_CLASS, "mSensorView") }
+        runCatching { hookSensorView(LEGACY_SENSOR_VIEW_CLASS, "sensorView") }
         runCatching { hookUdfpsDrawable() }
     }
 
-    /**
-     * 指纹 UI 是独立的应用（com.fingerprint.sensorservice），
-     * 图标最终是 ImageView 的背景/前景资源，这里按资源名兜底替换。
-     */
+    /** 指纹 UI 是独立应用，图标最终落到 ImageView 的背景资源上，这里按资源名兜底 */
     fun installImageViewHook() {
         runCatching {
             val hook = object : XC_MethodHook() {
@@ -47,8 +48,8 @@ object FingerprintRing : HookRegister() {
                     val name = runCatching { view.resources.getResourceEntryName(id) }.getOrNull()
                         ?: return
                     if (!name.contains("finger", ignoreCase = true)) return
+                    android.util.Log.i("WooBox-FPUI", "imageView $name -> ring")
                     val color = if (name.contains("black", ignoreCase = true)) Color.BLACK else Color.WHITE
-                    android.util.Log.d("WBRing", "imageView $name -> ring")
                     if (param.method.name.contains("Background")) {
                         view.background = RingDrawable(color)
                     } else {
@@ -61,25 +62,42 @@ object FingerprintRing : HookRegister() {
         }
     }
 
-    /** ZTE 浮窗里的 sensorView：把背景图换成圆环 */
-    private fun hookSensorView() {
-        val cls = XposedHelpers.findClass(SENSOR_VIEW_CLASS, getDefaultCL())
-        android.util.Log.i("WooBox-FPUI", "hookSensorView: class found")
+    private fun hookSensorView(className: String, fieldName: String) {
+        val cls = runCatching { XposedHelpers.findClass(className, getDefaultCL()) }.getOrNull()
+            ?: return
+        android.util.Log.i("WooBox-FPUI", "hooked $className")
         val hook = object : XC_MethodHook() {
             override fun afterHookedMethod(param: MethodHookParam?) {
-                val view = XposedHelpers.getObjectField(param?.thisObject, "sensorView") as? ImageView
-                    ?: return
-                android.util.Log.i("WooBox-FPUI", "sensorView -> ring (${param?.method?.name})")
-                view.background = RingDrawable(ringColor(param))
+                val self = param?.thisObject ?: return
+                val view = runCatching {
+                    XposedHelpers.getObjectField(self, fieldName)
+                }.getOrNull() as? ImageView ?: return
+                android.util.Log.i("WooBox-FPUI", "${param.method.name} -> ring")
+                view.background = RingDrawable(colorOf(view, param))
             }
         }
-        XposedBridge.hookAllMethods(cls, "initSensorView", hook)
-        XposedBridge.hookAllMethods(cls, "setSensorViewIconForRedmagic", hook)
+        listOf(
+            "setSensorViewBackground",
+            "initSensorView",
+            "setSensorViewIconForRedmagic",
+            "setSensorWindowBackgroundResource"
+        ).forEach { method ->
+            runCatching { XposedBridge.hookAllMethods(cls, method, hook) }
+        }
     }
 
-    /** AOSP UDFPS 的指纹图形 */
+    /** 从参数里的资源 id 判断该用白色还是黑色圆环 */
+    private fun colorOf(view: ImageView, param: XC_MethodHook.MethodHookParam): Int {
+        val id = param.args?.firstOrNull { it is Int } as? Int ?: return Color.WHITE
+        val name = runCatching { view.resources.getResourceEntryName(id) }.getOrNull()
+            ?: return Color.WHITE
+        return if (name.contains("black", ignoreCase = true)) Color.BLACK else Color.WHITE
+    }
+
+    /** AOSP UDFPS 的指纹图形（部分机型/界面走这条） */
     private fun hookUdfpsDrawable() {
-        val cls = XposedHelpers.findClass(UDFPS_DRAWABLE_CLASS, getDefaultCL())
+        val cls = runCatching { XposedHelpers.findClass(UDFPS_DRAWABLE_CLASS, getDefaultCL()) }.getOrNull()
+            ?: return
         XposedBridge.hookAllMethods(cls, "draw", object : XC_MethodHook() {
             override fun beforeHookedMethod(param: MethodHookParam?) {
                 val self = param?.thisObject ?: return
@@ -93,20 +111,10 @@ object FingerprintRing : HookRegister() {
                 val alpha = runCatching {
                     XposedHelpers.getIntField(self, "_alpha")
                 }.getOrDefault(255)
-                android.util.Log.d("WBRing", "udfps drawable -> ring alpha=$alpha")
                 drawRing(canvas, shape.bounds, Color.WHITE, alpha)
                 param.result = null
             }
         })
-    }
-
-    /** 跟随系统的深/浅色判断：keyguard 颜色为 -1 时用白色，否则黑色 */
-    private fun ringColor(param: XC_MethodHook.MethodHookParam?): Int {
-        val feature = param?.args?.lastOrNull { it?.javaClass?.name == FEATURE_CLASS } ?: return Color.WHITE
-        return runCatching {
-            val color = XposedHelpers.callMethod(feature, "getKeyguardColor") as Int
-            if (color == -1) Color.WHITE else Color.BLACK
-        }.getOrDefault(Color.WHITE)
     }
 
     private fun drawRing(canvas: Canvas, bounds: Rect, color: Int, alpha: Int) {
