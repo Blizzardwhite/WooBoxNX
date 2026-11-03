@@ -605,6 +605,8 @@ object M3Actions {
             setPadding(0, dp(14), 0, 0)
         }
 
+        var dialogRef: androidx.appcompat.app.AlertDialog? = null
+
         fun addAction(label: String, filled: Boolean, onClick: () -> Unit) {
             val b = MaterialButton(activity).apply {
                 text = label
@@ -624,7 +626,10 @@ object M3Actions {
                     strokeColor = ColorStateList.valueOf(M3Color.OUTLINE_VAR)
                     setTextColor(M3Color.ON_SURFACE)
                 }
-                setOnClickListener { onClick() }
+                setOnClickListener {
+                    dialogRef?.dismiss()
+                    onClick()
+                }
             }
             actions.addView(b, LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT
@@ -649,16 +654,17 @@ object M3Actions {
         addAction("重启手机", true) { confirmReboot(activity) }
         box.addView(actions)
 
-        MaterialAlertDialogBuilder(activity)
+        dialogRef = MaterialAlertDialogBuilder(activity)
             .setTitle("应用修改")
             .setView(box)
             .setNegativeButton("关闭", null)
-            .show()
+            .create()
+        dialogRef?.show()
     }
     private fun confirmReboot(activity: Activity) {
         MaterialAlertDialogBuilder(activity)
             .setTitle("重启手机")
-            .setMessage("有改动需要重启手机才能生效，现在重启？")
+            .setMessage("确定要重启手机吗？未生效的改动会在开机后生效。")
             .setPositiveButton("重启") { _, _ ->
                 Toast.makeText(activity, "正在重启手机…", Toast.LENGTH_SHORT).show()
                 Thread {
