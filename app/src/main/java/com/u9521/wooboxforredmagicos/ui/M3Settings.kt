@@ -571,10 +571,6 @@ object M3Actions {
     /** 应用修改：列出待生效项，并给出「重启手机 / 重启作用域」两个入口 */
     fun applyChanges(activity: Activity, onDone: () -> Unit) {
         val state = M3Dirty.check(activity)
-        if (!state.dirty) {
-            Toast.makeText(activity, "当前没有未生效的修改", Toast.LENGTH_SHORT).show()
-            return
-        }
 
         val density = activity.resources.displayMetrics.density
         fun dp(v: Int) = (v * density + 0.5f).toInt()
@@ -600,7 +596,8 @@ object M3Actions {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(24), dp(6), dp(24), dp(2))
         }
-        box.addView(M3Ui.text(activity, msg.toString().trim(), 13f, M3Color.ON_SURFACE_VAR))
+        val summary = if (state.dirty) msg.toString().trim() else "当前没有未生效的修改"
+        box.addView(M3Ui.text(activity, summary, 13f, M3Color.ON_SURFACE_VAR))
 
         val actions = LinearLayout(activity).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -634,24 +631,22 @@ object M3Actions {
             ).apply { leftMargin = dp(8) })
         }
 
-        addAction("取消修改", false) {
-            MaterialAlertDialogBuilder(activity)
-                .setTitle("取消修改")
-                .setMessage("把尚未生效的改动恢复为上次生效时的状态，确定吗？")
-                .setPositiveButton("恢复") { _, _ ->
-                    M3Dirty.revertPending(activity)
-                    Toast.makeText(activity, "已恢复为上次生效的配置", Toast.LENGTH_SHORT).show()
-                    onDone()
-                }
-                .setNegativeButton("取消", null)
-                .show()
+        if (state.dirty) {
+            addAction("取消修改", false) {
+                MaterialAlertDialogBuilder(activity)
+                    .setTitle("取消修改")
+                    .setMessage("把尚未生效的改动恢复为上次生效时的状态，确定吗？")
+                    .setPositiveButton("恢复") { _, _ ->
+                        M3Dirty.revertPending(activity)
+                        Toast.makeText(activity, "已恢复为上次生效的配置", Toast.LENGTH_SHORT).show()
+                        onDone()
+                    }
+                    .setNegativeButton("取消", null)
+                    .show()
+            }
         }
-        if (state.restartTitles.isNotEmpty()) {
-            addAction("重启作用域", false) { restartScope(activity) { onDone() } }
-        }
-        if (state.rebootTitles.isNotEmpty()) {
-            addAction("重启手机", true) { confirmReboot(activity) }
-        }
+        addAction("重启作用域", false) { restartScope(activity) { onDone() } }
+        addAction("重启手机", true) { confirmReboot(activity) }
         box.addView(actions)
 
         MaterialAlertDialogBuilder(activity)
@@ -883,7 +878,7 @@ class SettingsHomeActivity : AppCompatActivity() {
         super.onResume()
         refreshStatus()
         val p = scopePill ?: return
-        if (M3Dirty.check(this).dirty) M3Actions.blinkLoop(p) else M3Actions.stopBlink(p)
+        M3Dirty.check(this)
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -1055,10 +1050,7 @@ class SettingsHomeActivity : AppCompatActivity() {
                 }
             }
         })
-        root.post {
-            val p = scopePill
-            if (p != null && M3Dirty.check(this).dirty) M3Actions.blinkLoop(p)
-        }
+
     }
 
     private fun buildList() {
@@ -1199,11 +1191,12 @@ class SettingsHomeActivity : AppCompatActivity() {
         return card
     }
 
-    private fun markDirty() = refreshDirty()
+    private fun markDirty() {
+        M3Dirty.check(this)
+    }
 
     private fun refreshDirty() {
-        val dirty = M3Dirty.check(this).dirty
-        scopePill?.let { if (dirty) M3Actions.blinkLoop(it) else M3Actions.stopBlink(it) }
+        M3Dirty.check(this)
     }
 
     private fun clearSearch() {
@@ -1322,9 +1315,6 @@ class CategoryActivity : AppCompatActivity() {
             M3Actions.applyChanges(this) { refreshDirty() }
         }
         bar.addView(scopePill)
-        if (M3Dirty.check(this).dirty) {
-            scopePill?.post { scopePill?.let { p -> M3Actions.blinkLoop(p) } }
-        }
         root.addView(bar)
 
         val scroll = M3ScrollView(this)
@@ -1407,11 +1397,12 @@ class CategoryActivity : AppCompatActivity() {
             action == "restore" -> backup.confirmRestore()
         }
     }
-    private fun markChanged() = refreshDirty()
+    private fun markChanged() {
+        M3Dirty.check(this)
+    }
 
     private fun refreshDirty() {
-        val dirty = M3Dirty.check(this).dirty
-        scopePill?.let { if (dirty) M3Actions.blinkLoop(it) else M3Actions.stopBlink(it) }
+        M3Dirty.check(this)
     }
 
 }
@@ -1422,11 +1413,12 @@ class CameraSettingsActivity : AppCompatActivity() {
 
     private var scopePill: View? = null
 
-    private fun markChanged() = refreshDirty()
+    private fun markChanged() {
+        M3Dirty.check(this)
+    }
 
     private fun refreshDirty() {
-        val dirty = M3Dirty.check(this).dirty
-        scopePill?.let { if (dirty) M3Actions.blinkLoop(it) else M3Actions.stopBlink(it) }
+        M3Dirty.check(this)
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -1458,9 +1450,6 @@ class CameraSettingsActivity : AppCompatActivity() {
             M3Actions.applyChanges(this) { refreshDirty() }
         }
         bar.addView(scopePill)
-        if (M3Dirty.check(this).dirty) {
-            scopePill?.post { scopePill?.let { p -> M3Actions.blinkLoop(p) } }
-        }
         root.addView(bar)
 
         val scroll = M3ScrollView(this)
