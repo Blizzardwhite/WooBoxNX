@@ -1188,7 +1188,7 @@ class AboutActivity : AppCompatActivity() {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
         }
-        upstreamRow.addView(letterAvatar("G", 44))
+        upstreamRow.addView(circleImage(R.drawable.app_icon, 44))
         val upstreamTexts = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(M3Ui.dp(this@AboutActivity, 14), 0, 0, 0)
