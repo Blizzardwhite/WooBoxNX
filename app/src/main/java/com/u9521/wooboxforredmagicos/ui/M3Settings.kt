@@ -392,14 +392,16 @@ object M3Actions {
         val thin = (1f * density + 0.5f).toInt()
         val thick = (2f * density + 0.5f).toInt()
         val evaluator = android.animation.ArgbEvaluator()
+        val fillTo = (0x52 shl 24) or (M3Color.PRIMARY and 0x00FFFFFF)
         val a = android.animation.ValueAnimator.ofFloat(0f, 1f).apply {
             duration = 900
             repeatMode = android.animation.ValueAnimator.REVERSE
             repeatCount = android.animation.ValueAnimator.INFINITE
             addUpdateListener {
                 val f = it.animatedValue as Float
-                val color = evaluator.evaluate(f, M3Color.OUTLINE_VAR, M3Color.PRIMARY) as Int
-                bg.setStroke((thin + (thick - thin) * f).toInt(), color)
+                val stroke = evaluator.evaluate(f, M3Color.OUTLINE_VAR, M3Color.PRIMARY) as Int
+                bg.setStroke((thin + (thick - thin) * f).toInt(), stroke)
+                bg.setColor(evaluator.evaluate(f, Color.TRANSPARENT, fillTo) as Int)
                 v.invalidate()
             }
         }
@@ -412,7 +414,10 @@ object M3Actions {
         (v.getTag(R.id.tag_blink) as? android.animation.Animator)?.cancel()
         v.setTag(R.id.tag_blink, null)
         val density = v.resources.displayMetrics.density
-        (v.background as? GradientDrawable)?.setStroke((1f * density + 0.5f).toInt(), M3Color.OUTLINE_VAR)
+        (v.background as? GradientDrawable)?.apply {
+            setStroke((1f * density + 0.5f).toInt(), M3Color.OUTLINE_VAR)
+            setColor(Color.TRANSPARENT)
+        }
         v.invalidate()
     }
 
