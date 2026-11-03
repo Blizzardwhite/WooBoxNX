@@ -347,6 +347,7 @@ class M3ScrollView(context: Context) : ScrollView(context) {
     private var flingRunning = false
     private var lastTouchY = 0f
     private var dragOver = 0f
+    private var blockFling = false
     private val maxDrag get() = 170f * density
     private var lastTime = 0L
     private var maxScroll = 0
@@ -407,12 +408,22 @@ class M3ScrollView(context: Context) : ScrollView(context) {
     }
 
     override fun onTouchEvent(ev: MotionEvent): Boolean {
+        if ((ev.actionMasked == MotionEvent.ACTION_UP || ev.actionMasked == MotionEvent.ACTION_CANCEL) &&
+            dragOver != 0f
+        ) {
+            // 越界拖拽抬起时，不让系统再按速度滑一段
+            blockFling = true
+        }
         val handled = super.onTouchEvent(ev)
         val child = getChildAt(0) ?: return handled
         when (ev.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
+                blockFling = false
                 lastTouchY = ev.y
                 dragOver = 0f
+                // 手指按下时立刻停止正在进行的回弹，避免两套动画抢位置
+                bounce = 0f
+                bounceVel = 0f
                 child.translationY = 0f
                 maxScroll = (child.height + paddingTop + paddingBottom - height).coerceAtLeast(0)
             }
@@ -447,6 +458,10 @@ class M3ScrollView(context: Context) : ScrollView(context) {
     }
 
     override fun fling(velocityY: Int) {
+        if (blockFling) {
+            blockFling = false
+            return
+        }
         val child = getChildAt(0) ?: return
         maxScroll = (child.height + paddingTop + paddingBottom - height).coerceAtLeast(0)
         if (maxScroll <= 0) return
