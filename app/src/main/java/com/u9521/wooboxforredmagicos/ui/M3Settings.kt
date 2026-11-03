@@ -383,6 +383,16 @@ object M3Actions {
             .show()
     }
 
+    /** 设置被修改时闪烁提示「重启作用域」 */
+    fun blink(v: View) {
+        v.animate().cancel()
+        val steps = floatArrayOf(0.22f, 1f, 0.22f, 1f, 0.22f, 1f)
+        val a = android.animation.ValueAnimator.ofFloat(*steps)
+        a.duration = 900
+        a.addUpdateListener { v.alpha = it.animatedValue as Float }
+        a.start()
+    }
+
     fun pill(activity: Activity, label: String, chipStyle: Boolean = false, endMarginDp: Int = 0, onClick: () -> Unit): TextView {
         val tv = M3Ui.text(activity, label, if (chipStyle) 13f else 12f, M3Color.ON_SURFACE_VAR)
         if (chipStyle) {
@@ -638,6 +648,7 @@ class SettingsHomeActivity : AppCompatActivity() {
 class CategoryActivity : AppCompatActivity() {
 
     private lateinit var backup: M3Backup
+    private var scopePill: View? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -668,7 +679,8 @@ class CategoryActivity : AppCompatActivity() {
         })
         bar.addView(M3Ui.text(this, cat.title, 22f, M3Color.ON_SURFACE, true))
         bar.addView(View(this), LinearLayout.LayoutParams(0, 1, 1f))
-        bar.addView(M3Actions.pill(this, "重启作用域", endMarginDp = 8) { M3Actions.restartScope(this) })
+        scopePill = M3Actions.pill(this, "重启作用域", endMarginDp = 8) { M3Actions.restartScope(this) }
+        bar.addView(scopePill)
         root.addView(bar)
 
         val scroll = ScrollView(this)
@@ -737,7 +749,7 @@ class CategoryActivity : AppCompatActivity() {
                     valueText.text = value.toInt().toString()
                     addOnChangeListener { _, v, _ ->
                         valueText.text = v.toInt().toString()
-                        prefs.edit().putInt(row.key, v.toInt()).apply()
+                        prefs.edit().putInt(row.key, v.toInt()).apply(); markChanged()
                     }
                 }
                 box.addView(slider)
@@ -767,7 +779,7 @@ class CategoryActivity : AppCompatActivity() {
                     val key = row.switchKey
                     if (key != null) {
                         isChecked = prefs.getBoolean(key, false)
-                        setOnCheckedChangeListener { _, c -> prefs.edit().putBoolean(key, c).apply() }
+                        setOnCheckedChangeListener { _, c -> prefs.edit().putBoolean(key, c).apply(); markChanged() }
                     }
                 })
                 box.addView(head)
@@ -780,7 +792,7 @@ class CategoryActivity : AppCompatActivity() {
                     valueText.text = value.toInt().toString()
                     addOnChangeListener { _, v, _ ->
                         valueText.text = v.toInt().toString()
-                        prefs.edit().putInt(row.key, v.toInt()).apply()
+                        prefs.edit().putInt(row.key, v.toInt()).apply(); markChanged()
                     }
                 }
                 box.addView(slider)
@@ -809,7 +821,7 @@ class CategoryActivity : AppCompatActivity() {
                     line.addView(MaterialSwitch(this).apply {
                         val key = row.switchKey
                         isChecked = prefs.getBoolean(key, false)
-                        setOnCheckedChangeListener { _, c -> prefs.edit().putBoolean(key, c).apply() }
+                        setOnCheckedChangeListener { _, c -> prefs.edit().putBoolean(key, c).apply(); markChanged() }
                     })
                 } else {
                     line.addView(M3Ui.text(this, "›", 24f, M3Color.ON_SURFACE_VAR))
@@ -867,13 +879,17 @@ class CategoryActivity : AppCompatActivity() {
                 val sw = MaterialSwitch(this).apply {
                     isChecked = prefs.getBoolean(row.key, false)
                     setOnCheckedChangeListener { _, checked ->
-                        prefs.edit().putBoolean(row.key, checked).apply()
+                        prefs.edit().putBoolean(row.key, checked).apply(); markChanged()
                     }
                 }
                 line.addView(sw)
                 line
             }
         }
+    }
+
+    private fun markChanged() {
+        scopePill?.let { M3Actions.blink(it) }
     }
 
     private fun currentValue(prefs: SharedPreferences, row: Row): String =
@@ -906,9 +922,9 @@ class CategoryActivity : AppCompatActivity() {
                         Toast.makeText(this, "请输入整数", Toast.LENGTH_SHORT).show()
                         return@setPositiveButton
                     }
-                    prefs.edit().putInt(row.key, n).apply()
+                    prefs.edit().putInt(row.key, n).apply(); markChanged()
                 } else {
-                    prefs.edit().putString(row.key, v).apply()
+                    prefs.edit().putString(row.key, v).apply(); markChanged()
                 }
                 onSaved(v)
                 Toast.makeText(this, "设置成功", Toast.LENGTH_SHORT).show()
@@ -920,6 +936,12 @@ class CategoryActivity : AppCompatActivity() {
 
 // ---------------- 屏下显示区域 ----------------
 class CameraSettingsActivity : AppCompatActivity() {
+
+    private var scopePill: View? = null
+
+    private fun markChanged() {
+        scopePill?.let { M3Actions.blink(it) }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -945,7 +967,8 @@ class CameraSettingsActivity : AppCompatActivity() {
         })
         bar.addView(M3Ui.text(this, "屏下显示区域", 22f, M3Color.ON_SURFACE, true))
         bar.addView(View(this), LinearLayout.LayoutParams(0, 1, 1f))
-        bar.addView(M3Actions.pill(this, "重启作用域", endMarginDp = 8) { M3Actions.restartScope(this) })
+        scopePill = M3Actions.pill(this, "重启作用域", endMarginDp = 8) { M3Actions.restartScope(this) }
+        bar.addView(scopePill)
         root.addView(bar)
 
         val scroll = ScrollView(this)
@@ -997,6 +1020,7 @@ class CameraSettingsActivity : AppCompatActivity() {
                 }
                 com.u9521.wooboxforredmagicos.activity.MoonStyle.set(this@CameraSettingsActivity, style)
                 preview.invalidate()
+                markChanged()
             }
         }
         content.addView(seg)
@@ -1071,7 +1095,7 @@ class CameraSettingsActivity : AppCompatActivity() {
         line.addView(texts, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
         line.addView(MaterialSwitch(this).apply {
             isChecked = prefs.getBoolean(key, false)
-            setOnCheckedChangeListener { _, c -> prefs.edit().putBoolean(key, c).apply() }
+            setOnCheckedChangeListener { _, c -> prefs.edit().putBoolean(key, c).apply(); markChanged() }
         })
         return line
     }
