@@ -85,13 +85,10 @@ object M3Theme {
 
 // ---------------- 偏好 ----------------
 object M3Prefs {
-    @SuppressLint("WorldReadableFiles")
-    fun sp(c: Context): SharedPreferences = try {
-        @Suppress("DEPRECATION")
-        c.getSharedPreferences("WooboxConfig", Context.MODE_WORLD_READABLE)
-    } catch (e: SecurityException) {
-        c.getSharedPreferences("viewonly", Context.MODE_PRIVATE)
-    }
+    /** Android 7 之后 MODE_WORLD_READABLE 会抛 SecurityException，统一用 MODE_PRIVATE */
+    fun sp(c: Context): SharedPreferences =
+        c.getSharedPreferences("WooboxConfig", Context.MODE_PRIVATE)
+
 }
 
 /** 模块运行状态（靠 SystemUI hook 写的心跳判断） */
@@ -549,9 +546,22 @@ class M3Backup(private val activity: AppCompatActivity) {
 // ---------------- 主页 ----------------
 class SettingsHomeActivity : AppCompatActivity() {
 
+    private var scopePill: View? = null
+
+    override fun onResume() {
+        super.onResume()
+        val p = scopePill ?: return
+        if (M3Prefs.sp(this).getBoolean("scope_dirty", false)) {
+            M3Actions.blinkLoop(p)
+        } else {
+            M3Actions.stopBlink(p)
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         M3Theme.apply(this)
+
 
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -621,7 +631,14 @@ class SettingsHomeActivity : AppCompatActivity() {
         chips.addView(statusChip)
         chips.addView(chip("作用域 $scopeCount 个", M3Color.ON_SURFACE_VAR, Color.TRANSPARENT))
         chips.addView(View(this), LinearLayout.LayoutParams(0, 1, 1f))
-        chips.addView(M3Actions.pill(this, "重启作用域", true) { M3Actions.restartScope(this) { M3Prefs.sp(this).edit().putBoolean("scope_dirty", false).apply() } })
+        val homePill = M3Actions.pill(this, "重启作用域", true) {
+            M3Actions.restartScope(this) {
+                M3Prefs.sp(this).edit().putBoolean("scope_dirty", false).apply()
+                M3Actions.stopBlink(scopePill)
+            }
+        }
+        scopePill = homePill
+        chips.addView(homePill)
         content.addView(chips, LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
         ))
@@ -756,6 +773,7 @@ class CategoryActivity : AppCompatActivity() {
 
         val cat = SettingsModel.byId(intent.getStringExtra("id") ?: "") ?: run { finish(); return }
         val prefs = M3Prefs.sp(this)
+
 
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -1057,6 +1075,7 @@ class CameraSettingsActivity : AppCompatActivity() {
         M3Theme.apply(this)
         val prefs = M3Prefs.sp(this)
 
+
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setBackgroundColor(M3Color.SURFACE)
@@ -1225,6 +1244,7 @@ class AboutActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         M3Theme.apply(this)
+
 
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL

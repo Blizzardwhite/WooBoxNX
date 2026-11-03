@@ -283,7 +283,7 @@
     <string name="moon_battery_tips">独立功能：在摄像头位置显示电量（黑底圆 + 进度环 + 百分比）。与弯月互不影响，同时开启时两个图形会叠在同一位置。</string>
     <string name="moon_apps">自定义应用名单</string>
     <string name="moon_apps_tips">指定哪些应用显示弯月。名单为空时跟随系统（深色模式下系统自带的顶部显示优化名单）；名单非空时只对勾选的应用生效。</string>
-    <string name="moon_apps_title">显示月亮的应用</string>
+    <string name="moon_apps_title">显示屏下内容的应用</string>
     <string name="moon_apps_search">搜索应用名称或包名</string>
     <string name="moon_apps_done">完成</string>
     <string name="moon_apps_count">已选 %d 个</string>

@@ -15,6 +15,7 @@ import android.text.TextUtils
 import android.text.TextWatcher
 import android.util.TypedValue
 import android.view.Gravity
+import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.widget.BaseAdapter
@@ -146,7 +147,7 @@ class MoonAppListActivity : AppCompatActivity() {
         val listView = ListView(this).apply {
             dividerHeight = 0
             setBackgroundColor(Color.TRANSPARENT)
-            isFastScrollEnabled = true
+            isFastScrollEnabled = false
             setPadding(dp(8), 0, dp(8), 0)
             clipToPadding = false
         }
@@ -313,9 +314,14 @@ class MoonAppListActivity : AppCompatActivity() {
 
             val check = MaterialCheckBox(this@MoonAppListActivity).apply {
                 isChecked = entry.pkg in selected
-                isClickable = false
                 isFocusable = false
+                isClickable = false
                 buttonTintList = ColorStateList.valueOf(M3Color.PRIMARY)
+                // 选框自己吞掉触摸，这里把它转发给整行，点框和点行效果一致
+                setOnTouchListener { v, e ->
+                    if (e.action == MotionEvent.ACTION_UP) row.performClick()
+                    true
+                }
             }
             row.addView(check, LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT
