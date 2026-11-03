@@ -72,6 +72,41 @@ class IconView(context: Context, private val type: Int) : View(context) {
                 canvas.drawCircle(cx, cy - s * 0.55f, dp(1.8f), p)
                 canvas.drawRoundRect(RectF(cx - dp(1.2f), cy - s * 0.15f, cx + dp(1.2f), cy + s * 0.7f), dp(1.2f), dp(1.2f), p)
             }
+            7 -> { // 齿轮（系统）
+                val p = Paint(fg).apply { style = Paint.Style.STROKE; strokeWidth = dp(2.0f) }
+                canvas.drawCircle(cx, cy, s * 0.5f, p)
+                canvas.drawCircle(cx, cy, s * 0.18f, p)
+                for (i in 0 until 8) {
+                    val a = Math.toRadians(i * 45.0)
+                    val x1 = cx + (s * 0.6f * Math.cos(a)).toFloat()
+                    val y1 = cy + (s * 0.6f * Math.sin(a)).toFloat()
+                    val x2 = cx + (s * 0.92f * Math.cos(a)).toFloat()
+                    val y2 = cy + (s * 0.92f * Math.sin(a)).toFloat()
+                    canvas.drawLine(x1, y1, x2, y2, p)
+                }
+            }
+            8 -> { // 向下箭头（系统更新）
+                val p = Paint(fg).apply { style = Paint.Style.STROKE; strokeWidth = dp(2.0f) }
+                canvas.drawLine(cx, cy - s * 0.8f, cx, cy + s * 0.3f, p)
+                canvas.drawLine(cx - s * 0.4f, cy - s * 0.1f, cx, cy + s * 0.3f, p)
+                canvas.drawLine(cx + s * 0.4f, cy - s * 0.1f, cx, cy + s * 0.3f, p)
+                canvas.drawLine(cx - s * 0.8f, cy + s * 0.8f, cx + s * 0.8f, cy + s * 0.8f, p)
+            }
+            9 -> { // 手势：屏幕 + 底部手势点
+                val p = Paint(fg).apply { style = Paint.Style.STROKE; strokeWidth = dp(2.0f) }
+                canvas.drawRoundRect(
+                    RectF(cx - s * 0.6f, cy - s * 0.85f, cx + s * 0.6f, cy + s * 0.85f),
+                    dp(3f), dp(3f), p
+                )
+                canvas.drawCircle(cx, cy + s * 0.45f, s * 0.16f,
+                    Paint(fg).apply { style = Paint.Style.FILL })
+                canvas.drawLine(cx - s * 0.3f, cy + s * 0.12f, cx + s * 0.3f, cy + s * 0.12f, p)
+            }
+            10 -> { // 应用方块
+                val p = Paint(fg).apply { style = Paint.Style.STROKE; strokeWidth = dp(2.0f) }
+                canvas.drawRoundRect(RectF(cx - s * 0.75f, cy - s * 0.75f, cx + s * 0.75f, cy + s * 0.75f), dp(4f), dp(4f), p)
+                canvas.drawCircle(cx, cy, s * 0.22f, Paint(fg).apply { style = Paint.Style.FILL })
+            }
             else -> { // 三个点
                 val p = Paint(fg).apply { style = Paint.Style.FILL }
                 canvas.drawCircle(cx - s, cy, dp(2.2f), p)

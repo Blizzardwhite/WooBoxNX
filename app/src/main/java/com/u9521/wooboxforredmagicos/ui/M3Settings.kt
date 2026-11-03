@@ -194,9 +194,6 @@ object SettingsModel {
         key = key, title = title, kind = Row.SWITCH_TEXT, switchKey = sw, defStr = defStr
     )
 
-    private fun page(id: String, title: String, summary: String) =
-        Row(title = title, summary = summary, kind = Row.ACTION, action = "page:$id")
-
     private val camera = Category("camera", "屏下显示区域", "弯月 · 跟随深色模式", 0, emptyList())
 
     private val status = Category("status", "状态栏", "双击锁屏、图标、网速", 1, listOf(
@@ -267,33 +264,8 @@ object SettingsModel {
         ))
     ))
 
-    private val other = Category("other", "其他", "系统框架、应用、系统更新、调试", 5, listOf(
-        Group("手势与交互", listOf(
-            Row(key = "gesture_use_default_digital_assist", title = "手势打开默认数字助理"),
-            Row(key = "no_vibrate_volKey_Long_press", title = "禁用长按调节音量的振动"),
-            Row(key = "unhide_clipboard_overlay", title = "恢复剪贴板浮窗"),
-            Row(key = "aosp_singlehandmode_offest", title = "单手模式偏移", summary = "正数向上，负数向下",
-                kind = Row.SWITCH_SLIDER, switchKey = "aosp_singlehandmode_adjust", min = 0, max = 200, def = 0)
-        )),
-        Group(null, listOf(
-            page("framework", "系统框架", "音量阶数、飞行模式、小窗、截图、WLAN"),
-            page("apps", "应用与服务", "启动器、安装器、系统设置、双开、MTP"),
-            page("update", "系统更新伪装", "型号、IMEI、指纹等设备信息")
-        )),
-        Group("调试", listOf(
-            Row(key = "debug_log", title = "打印模块调试日志", summary = "重启作用域后生效"),
-            Row(key = "block_system_server_log", title = "阻止系统输出日志", summary = "实验性功能，目前仅拦截 Telecom 日志")
-        )),
-        Group("备份与恢复", listOf(
-            Row(title = "备份设置", summary = "把当前配置导出为 JSON 文件", kind = Row.ACTION, action = "backup"),
-            Row(title = "恢复配置", summary = "从备份文件恢复，会覆盖当前设置", kind = Row.ACTION, action = "restore")
-        )),
-        Group(null, listOf(
-            Row(title = "旧版界面", summary = "按作用域划分的原始设置页", kind = Row.ACTION, action = "legacy")
-        ))
-    ))
-
-    private val framework = Category("framework", "系统框架", "改动后需重启手机生效", 5, listOf(
+    /** 系统行为：音量、小窗、飞行模式、截图、WLAN（改动后需重启手机） */
+    private val framework = Category("framework", "系统", "音量、小窗、飞行模式、WLAN", 7, listOf(
         Group("音量阶数", listOf(
             vol("alarm_volume_steps_switch", "alarm_volume_steps", "闹钟音量阶数", 15),
             vol("media_volume_steps_switch", "media_volume_steps", "媒体音量阶数", 15),
@@ -309,15 +281,14 @@ object SettingsModel {
             Row(key = "airplane_mode_keep_bt", title = "飞行模式保持蓝牙状态"),
             Row(key = "airplane_mode_keep_wlan", title = "飞行模式保持 WLAN 和热点")
         )),
-        Group("特色功能", listOf(
-            Row(key = "allow_untrusted_touches", title = "允许不受信任的触摸", summary = "允许高可见度 View 点击穿透，慎用"),
-            Row(key = "long_power_key_wakeup_assist", title = "长按电源键启动默认数字助理"),
-            Row(key = "block_telemetry_service", title = "阻止启动遥测服务"),
-            Row(key = "remove_intent_hijack", title = "去除意图劫持", summary = "还原原生分享界面，双开用户不建议开启")
-        )),
         Group("截图", listOf(
             Row(key = "disable_flag_secure", title = "允许截图", summary = "立即生效，无需重启"),
             Row(key = "disable_flag_secure_enhanced", title = "允许截图增强模式", summary = "阻止应用通过隐藏 API 禁止截屏")
+        )),
+        Group("其他系统行为", listOf(
+            Row(key = "allow_untrusted_touches", title = "允许不受信任的触摸", summary = "允许高可见度 View 点击穿透，慎用"),
+            Row(key = "block_telemetry_service", title = "阻止启动遥测服务"),
+            Row(key = "remove_intent_hijack", title = "去除意图劫持", summary = "还原原生分享界面，双开用户不建议开启")
         )),
         Group("WLAN 服务", listOf(
             Row(key = "telecom_wlan_cc_val", title = "自定义 WiFi 国家码", summary = "两位字母或数字，默认 us",
@@ -327,9 +298,25 @@ object SettingsModel {
             Row(key = "pin_ap_bssid", title = "固定热点随机 BSSID", summary = "修改后重启热点生效",
                 kind = Row.SWITCH_TEXT, switchKey = "pin_ap_bssid_sw", defStr = "b4:f3:cb:a7:b8:e7")
         ))
-    ), parent = "other")
+    ))
 
-    private val apps = Category("apps", "应用与服务", "启动器、安装器、系统设置等", 5, listOf(
+    /** 按键与手势 */
+    private val keys = Category("keys", "按键与手势", "手势助理、音量键、电源键", 9, listOf(
+        Group("手势与交互", listOf(
+            Row(key = "gesture_use_default_digital_assist", title = "手势打开默认数字助理"),
+            Row(key = "no_vibrate_volKey_Long_press", title = "禁用长按调节音量的振动"),
+            Row(key = "unhide_clipboard_overlay", title = "恢复剪贴板浮窗"),
+            Row(key = "aosp_singlehandmode_offest", title = "单手模式偏移", summary = "正数向上，负数向下",
+                kind = Row.SWITCH_SLIDER, switchKey = "aosp_singlehandmode_adjust", min = 0, max = 200, def = 0)
+        )),
+        Group("长按电源键", listOf(
+            Row(key = "long_power_key_wakeup_assist", title = "启动默认数字助理",
+                summary = "需系统长按行为为「语音助手」，否则保持原生关机菜单")
+        ))
+    ))
+
+    /** 应用与服务 */
+    private val apps = Category("apps", "应用", "启动器、安装器、双开、MTP", 10, listOf(
         Group("启动器", listOf(
             Row(key = "launcher_rm_zvoice_uninstall_dialog", title = "取消智慧语音已卸载弹窗"),
             Row(key = "launcher_force_support_resize_activity", title = "所有 Activity 允许调整大小"),
@@ -352,10 +339,6 @@ object SettingsModel {
             Row(key = "rm_double_low_memory_limit", title = "去除低内存设备双开限制"),
             Row(key = "double_any_app", title = "允许双开任意应用")
         )),
-        Group("NFC 与权限", listOf(
-            Row(key = "mute_nfc_sound", title = "禁用 NFC 提示音"),
-            Row(key = "allow_thirdparty_launcher", title = "允许设置默认第三方桌面")
-        )),
         Group("负一屏", listOf(
             Row(key = "miboard_unlock_widgets", title = "允许添加任意小部件",
                 summary = "解除 Z-Board 的服务器白名单，需勾选 miboard 作用域并重启")
@@ -364,10 +347,15 @@ object SettingsModel {
             Row(key = "hide_mtp_category_browse", title = "隐藏 MTP 分类浏览"),
             Row(key = "rename_mtp_storage_root_name", title = "重命名 MTP 存储设备名", summary = "只对路径浏览有效",
                 kind = Row.SWITCH_TEXT, switchKey = "rename_mtp_storage_root_name_sw", defStr = "内部存储设备")
+        )),
+        Group("NFC 与权限", listOf(
+            Row(key = "mute_nfc_sound", title = "禁用 NFC 提示音"),
+            Row(key = "allow_thirdparty_launcher", title = "允许设置默认第三方桌面")
         ))
-    ), parent = "other")
+    ))
 
-    private val update = Category("update", "系统更新伪装", "伪装设备信息，阻止更新", 5, listOf(
+    /** 系统更新 */
+    private val update = Category("update", "系统更新", "伪装设备信息、阻止更新", 8, listOf(
         Group("伪装设备信息", listOf(
             mock("system_update_mock_model_sw", "system_update_mock_model", "伪装设备型号", "NX769J"),
             mock("system_update_mock_imei_sw", "system_update_mock_imei", "伪装设备 IMEI", "114514191981000"),
@@ -385,14 +373,32 @@ object SettingsModel {
             Row(key = "system_update_block_update", title = "阻止更新", summary = "开启后更新会卡在 0%"),
             Row(key = "system_update_log_info", title = "记录更新信息", summary = "把更新信息打印到 Xposed 日志")
         ))
-    ), parent = "other")
+    ))
 
-    private val all: List<Category> = listOf(camera, status, notify, qs, lock, other, framework, apps, update)
+    /** 工具与调试 */
+    private val other = Category("other", "其他", "调试、备份与恢复", 5, listOf(
+        Group("调试", listOf(
+            Row(key = "debug_log", title = "打印模块调试日志", summary = "重启作用域后生效"),
+            Row(key = "block_system_server_log", title = "阻止系统输出日志", summary = "实验性功能，目前仅拦截 Telecom 日志")
+        )),
+        Group("备份与恢复", listOf(
+            Row(title = "备份设置", summary = "把当前配置导出为 JSON 文件", kind = Row.ACTION, action = "backup"),
+            Row(title = "恢复配置", summary = "从备份文件恢复，会覆盖当前设置", kind = Row.ACTION, action = "restore")
+        )),
+        Group(null, listOf(
+            Row(title = "旧版界面", summary = "按作用域划分的原始设置页", kind = Row.ACTION, action = "legacy")
+        ))
+    ))
+
+    private val all: List<Category> = listOf(
+        camera, status, notify, qs, lock, framework, keys, apps, update, other
+    )
 
     fun categories(): List<Category> = all.filter { it.parent == null }
 
     fun byId(id: String): Category? = all.firstOrNull { it.id == id }
 }
+
 
 // ---------------- 通用 UI 工具 ----------------
 object M3Ui {
