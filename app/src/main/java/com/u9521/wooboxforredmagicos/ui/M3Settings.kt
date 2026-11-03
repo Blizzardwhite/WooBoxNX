@@ -586,9 +586,22 @@ class M3Backup(private val activity: AppCompatActivity) {
 class SettingsHomeActivity : AppCompatActivity() {
 
     private var scopePill: View? = null
+    private var statusChip: TextView? = null
+
+    /** 每次回到主页都重新判断模块是否在运行（心跳可能刚更新） */
+    private fun refreshStatus() {
+        val alive = M3Status.hookAlive(this)
+        val tv = statusChip ?: return
+        tv.text = if (alive) "● 运行中" else "● 未激活"
+        tv.setTextColor(if (alive) M3Color.ON_PRIMARY_CONT else M3Color.ON_ERROR_CONT)
+        (tv.background as? GradientDrawable)?.setColor(
+            if (alive) M3Color.PRIMARY_CONT else M3Color.ERROR_CONT
+        )
+    }
 
     override fun onResume() {
         super.onResume()
+        refreshStatus()
         val p = scopePill ?: return
         if (M3Dirty.check(this)) M3Actions.blinkLoop(p) else M3Actions.stopBlink(p)
     }
@@ -656,13 +669,13 @@ class SettingsHomeActivity : AppCompatActivity() {
             resources.getStringArray(R.array.xposed_scope).count { it != "android" }
         }.getOrDefault(0)
         val alive = M3Status.hookAlive(this)
-        val statusChip = chip(
+        statusChip = chip(
             if (alive) "● 运行中" else "● 未激活",
             if (alive) M3Color.ON_PRIMARY_CONT else M3Color.ON_ERROR_CONT,
             if (alive) M3Color.PRIMARY_CONT else M3Color.ERROR_CONT
         )
-        statusChip.isClickable = true
-        statusChip.setOnClickListener { showStatusDialog(alive) }
+        statusChip?.isClickable = true
+        statusChip?.setOnClickListener { showStatusDialog(M3Status.hookAlive(this)) }
         chips.addView(statusChip)
         chips.addView(chip("作用域 $scopeCount 个", M3Color.ON_SURFACE_VAR, Color.TRANSPARENT))
         chips.addView(View(this), LinearLayout.LayoutParams(0, 1, 1f))
