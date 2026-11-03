@@ -1103,8 +1103,6 @@ class AboutActivity : AppCompatActivity() {
             setOnClickListener { finish() }
         })
         bar.addView(M3Ui.text(this, "关于", 22f, M3Color.ON_SURFACE, true))
-        bar.addView(View(this), LinearLayout.LayoutParams(0, 1, 1f))
-        bar.addView(M3Actions.pill(this, "重启作用域", endMarginDp = 8) { M3Actions.restartScope(this) })
         root.addView(bar)
 
         val scroll = ScrollView(this)
