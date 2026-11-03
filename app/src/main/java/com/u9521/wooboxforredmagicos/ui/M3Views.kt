@@ -346,7 +346,10 @@ class M3ScrollView(context: Context) : ScrollView(context) {
     private var velocity = 0f
     private var lastTime = 0L
     private var maxScroll = 0
+    private var bounce = 0f
+    private var bounceVel = 0f
     private val density = resources.displayMetrics.density
+    private val maxBounce = 60f * density
 
     private val runner = object : Runnable {
         override fun run() {
@@ -355,31 +358,47 @@ class M3ScrollView(context: Context) : ScrollView(context) {
             val dt = ((now - lastTime) / 1000f).coerceIn(0.001f, 0.04f)
             lastTime = now
 
-            // 摩擦衰减
+            // 1. 惯性滚动
             velocity *= Math.pow(0.35, dt.toDouble()).toFloat()
-
-            val y = scrollY.toFloat()
-            val margin = 160f * density
-            // 接近边界时按剩余距离衰减，平滑停在边上
-            var v = velocity
-            val toEdge = if (v > 0) maxScroll - y else y
-            if (toEdge < margin) v *= (toEdge / margin).coerceIn(0f, 1f)
-
-            var next = y + v * dt
-            if (next >= maxScroll) { next = maxScroll.toFloat(); velocity = 0f }
-            if (next <= 0f) { next = 0f; velocity = 0f }
-
+            var next = scrollY + velocity * dt
+            if (next > maxScroll) {
+                next = maxScroll.toFloat()
+                if (velocity > 0f) {
+                    bounceVel = -velocity * 0.12f
+                    velocity = 0f
+                }
+            } else if (next < 0f) {
+                next = 0f
+                if (velocity < 0f) {
+                    bounceVel = -velocity * 0.12f
+                    velocity = 0f
+                }
+            }
             scrollTo(0, next.toInt())
 
-            val moved = kotlin.math.abs(v) * dt
-            if (kotlin.math.abs(velocity) > 40f && moved > 0.4f) {
+            // 2. 回弹（阻尼弹簧）
+            if (bounce != 0f || bounceVel != 0f) {
+                bounceVel += (-bounce * 600f - bounceVel * 13f) * dt
+                bounce += bounceVel * dt
+                bounce = bounce.coerceIn(-maxBounce, maxBounce)
+                getChildAt(0)?.translationY = bounce
+            }
+
+            val moving = kotlin.math.abs(velocity) > 25f ||
+                kotlin.math.abs(bounce) > 0.5f ||
+                kotlin.math.abs(bounceVel) > 8f
+            if (moving) {
                 postOnAnimation(this)
+            } else {
+                getChildAt(0)?.translationY = 0f
+                bounce = 0f
+                bounceVel = 0f
             }
         }
     }
 
     init {
-        overScrollMode = View.OVER_SCROLL_ALWAYS
+        overScrollMode = View.OVER_SCROLL_NEVER
     }
 
     override fun fling(velocityY: Int) {
@@ -388,6 +407,9 @@ class M3ScrollView(context: Context) : ScrollView(context) {
         if (maxScroll <= 0) return
         velocity = velocityY.toFloat()
         lastTime = 0L
+        bounce = 0f
+        bounceVel = 0f
+        child.translationY = 0f
         postOnAnimation(runner)
     }
 
