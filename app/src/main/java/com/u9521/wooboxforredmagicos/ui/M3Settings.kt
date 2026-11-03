@@ -91,6 +91,41 @@ object M3Prefs {
 
 }
 
+/**
+ * 记录"上次重启作用域时的配置基线"，
+ * 用来判断当前设置是否真的和已生效的配置不同（改了又改回去就不算脏）。
+ */
+object M3Dirty {
+    private const val FILE = "prefs_baseline.txt"
+
+    private fun snapshot(c: Context): String {
+        val all = M3Prefs.sp(c).all.filterKeys { it != "scope_dirty" }
+        return all.entries.sortedBy { it.key }.joinToString("\n") { "${it.key}=${it.value}" }
+    }
+
+    private fun file(c: Context) = java.io.File(c.filesDir, FILE)
+
+    private fun ensureBaseline(c: Context) {
+        val f = file(c)
+        if (!f.exists()) runCatching { f.writeText(snapshot(c)) }
+    }
+
+    /** 重启成功后调用：把当前配置当作已生效的基线 */
+    fun markBaseline(c: Context) {
+        runCatching { file(c).writeText(snapshot(c)) }
+        M3Prefs.sp(c).edit().putBoolean("scope_dirty", false).apply()
+    }
+
+    /** 与基线比对，返回是否还有未生效的改动 */
+    fun check(c: Context): Boolean {
+        ensureBaseline(c)
+        val base = runCatching { file(c).readText() }.getOrNull() ?: return false
+        val dirty = runCatching { snapshot(c) != base }.getOrDefault(false)
+        M3Prefs.sp(c).edit().putBoolean("scope_dirty", dirty).apply()
+        return dirty
+    }
+}
+
 /** 模块运行状态（靠 SystemUI hook 写的心跳判断） */
 object M3Status {
     fun hookAlive(c: Context): Boolean = runCatching {
@@ -551,11 +586,7 @@ class SettingsHomeActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         val p = scopePill ?: return
-        if (M3Prefs.sp(this).getBoolean("scope_dirty", false)) {
-            M3Actions.blinkLoop(p)
-        } else {
-            M3Actions.stopBlink(p)
-        }
+        if (M3Dirty.check(this)) M3Actions.blinkLoop(p) else M3Actions.stopBlink(p)
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -633,7 +664,7 @@ class SettingsHomeActivity : AppCompatActivity() {
         chips.addView(View(this), LinearLayout.LayoutParams(0, 1, 1f))
         val homePill = M3Actions.pill(this, "重启作用域", true) {
             M3Actions.restartScope(this) {
-                M3Prefs.sp(this).edit().putBoolean("scope_dirty", false).apply()
+                M3Dirty.markBaseline(this)
                 M3Actions.stopBlink(scopePill)
             }
         }
@@ -798,12 +829,12 @@ class CategoryActivity : AppCompatActivity() {
         bar.addView(View(this), LinearLayout.LayoutParams(0, 1, 1f))
         scopePill = M3Actions.pill(this, "重启作用域", endMarginDp = 8) {
             M3Actions.restartScope(this) {
-                M3Prefs.sp(this).edit().putBoolean("scope_dirty", false).apply()
+                M3Dirty.markBaseline(this)
                 M3Actions.stopBlink(scopePill)
             }
         }
         bar.addView(scopePill)
-        if (M3Prefs.sp(this).getBoolean("scope_dirty", false)) {
+        if (M3Dirty.check(this)) {
             scopePill?.post { scopePill?.let { p -> M3Actions.blinkLoop(p) } }
         }
         root.addView(bar)
@@ -1014,8 +1045,8 @@ class CategoryActivity : AppCompatActivity() {
     }
 
     private fun markChanged() {
-        M3Prefs.sp(this).edit().putBoolean("scope_dirty", true).apply()
-        scopePill?.let { M3Actions.blinkLoop(it) }
+        val dirty = M3Dirty.check(this)
+        scopePill?.let { if (dirty) M3Actions.blinkLoop(it) else M3Actions.stopBlink(it) }
     }
 
     private fun currentValue(prefs: SharedPreferences, row: Row): String =
@@ -1066,8 +1097,8 @@ class CameraSettingsActivity : AppCompatActivity() {
     private var scopePill: View? = null
 
     private fun markChanged() {
-        M3Prefs.sp(this).edit().putBoolean("scope_dirty", true).apply()
-        scopePill?.let { M3Actions.blinkLoop(it) }
+        val dirty = M3Dirty.check(this)
+        scopePill?.let { if (dirty) M3Actions.blinkLoop(it) else M3Actions.stopBlink(it) }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -1097,12 +1128,12 @@ class CameraSettingsActivity : AppCompatActivity() {
         bar.addView(View(this), LinearLayout.LayoutParams(0, 1, 1f))
         scopePill = M3Actions.pill(this, "重启作用域", endMarginDp = 8) {
             M3Actions.restartScope(this) {
-                M3Prefs.sp(this).edit().putBoolean("scope_dirty", false).apply()
+                M3Dirty.markBaseline(this)
                 M3Actions.stopBlink(scopePill)
             }
         }
         bar.addView(scopePill)
-        if (M3Prefs.sp(this).getBoolean("scope_dirty", false)) {
+        if (M3Dirty.check(this)) {
             scopePill?.post { scopePill?.let { p -> M3Actions.blinkLoop(p) } }
         }
         root.addView(bar)
