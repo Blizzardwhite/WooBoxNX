@@ -642,10 +642,22 @@ class SettingsHomeActivity : AppCompatActivity() {
             setBackgroundColor(M3Color.SURFACE)
         }
 
+        // 顶栏固定不滚动
+        val topBar = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(M3Ui.dp(this@SettingsHomeActivity, 20), M3Ui.dp(this@SettingsHomeActivity, 24),
+                M3Ui.dp(this@SettingsHomeActivity, 20), M3Ui.dp(this@SettingsHomeActivity, 4))
+        }
+        root.addView(topBar, LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
+        ))
+        root.addView(View(this).apply { setBackgroundColor(M3Color.OUTLINE_VAR) },
+            LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 1))
+
         val scroll = ScrollView(this)
         val content = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(M3Ui.dp(this@SettingsHomeActivity, 20), M3Ui.dp(this@SettingsHomeActivity, 24),
+            setPadding(M3Ui.dp(this@SettingsHomeActivity, 20), M3Ui.dp(this@SettingsHomeActivity, 6),
                 M3Ui.dp(this@SettingsHomeActivity, 20), M3Ui.dp(this@SettingsHomeActivity, 24))
         }
         scroll.addView(content)
@@ -669,7 +681,7 @@ class SettingsHomeActivity : AppCompatActivity() {
             rightMargin = M3Ui.dp(this@SettingsHomeActivity, 10)
         })
         header.setPadding(M3Ui.dp(this, 6), 0, M3Ui.dp(this, 6), 0)
-        content.addView(header)
+        topBar.addView(header)
         header.post {
             val h = titleBox.height
             if (h > 0) {
@@ -709,7 +721,7 @@ class SettingsHomeActivity : AppCompatActivity() {
         }
         scopePill = homePill
         chips.addView(homePill)
-        content.addView(chips, LinearLayout.LayoutParams(
+        topBar.addView(chips, LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
         ))
 
@@ -753,7 +765,7 @@ class SettingsHomeActivity : AppCompatActivity() {
         }
         searchClear = clear
         searchWrap.addView(clear)
-        content.addView(searchWrap, LinearLayout.LayoutParams(
+        topBar.addView(searchWrap, LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
         ).apply { topMargin = M3Ui.dp(this@SettingsHomeActivity, 14) })
 
@@ -775,7 +787,7 @@ class SettingsHomeActivity : AppCompatActivity() {
                 }
             }
         })
-        content.post {
+        root.post {
             val p = scopePill
             if (p != null && M3Dirty.check(this)) M3Actions.blinkLoop(p)
         }
