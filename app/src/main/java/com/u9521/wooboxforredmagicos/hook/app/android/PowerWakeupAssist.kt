@@ -6,7 +6,12 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
+import android.os.SystemClock
 import android.provider.Settings
+import android.view.InputEvent
+import android.view.KeyEvent
 import com.u9521.wooboxforredmagicos.util.hasEnable
 import com.u9521.wooboxforredmagicos.util.xposed.Log
 import com.u9521.wooboxforredmagicos.util.xposed.base.HookRegister
@@ -90,6 +95,12 @@ object PowerWakeupAssist : HookRegister() {
                         if (ok) {
                             param.result = null
                             Log.i("handled by digital assistant: $assist")
+                            if (runCatching {
+                                    com.u9521.wooboxforredmagicos.util.XSPUtils
+                                        .getBoolean("power_key_assist_scrim", false)
+                                }.getOrDefault(false)) {
+                                scheduleScrimTrick()
+                            }
                         }
                     } else {
                         // 和旧实现一致：系统是关机菜单时，由我们弹一次（带触感反馈）
@@ -114,6 +125,35 @@ object PowerWakeupAssist : HookRegister() {
             Log.i("PowerWakeupAssist hooked")
         }.onFailure {
             Log.px("E", "PowerWakeupAssist init failed: $it", it, logInRelease = true)
+        }
+    }
+
+    private val mainHandler = Handler(Looper.getMainLooper())
+
+    /**
+     * 实验性：在助理启动的瞬间连按两次"最近任务"，
+     * 抢在 Activity 完成启动前打断它，只留下遮罩/图标残影。
+     */
+    private fun scheduleScrimTrick() {
+        mainHandler.postDelayed({ injectAppSwitch() }, 10)
+        mainHandler.postDelayed({ injectAppSwitch() }, 25)
+    }
+
+    private fun injectAppSwitch() {
+        runCatching {
+            val imClass = Class.forName("android.hardware.input.InputManager")
+            val im = imClass.getMethod("getInstance").invoke(null) ?: return
+            val inject = imClass.getMethod(
+                "injectInputEvent", InputEvent::class.java, Int::class.javaPrimitiveType
+            )
+            val now = SystemClock.uptimeMillis()
+            val down = KeyEvent(now, now, KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_APP_SWITCH, 0)
+            val up = KeyEvent(now, now, KeyEvent.ACTION_UP, KeyEvent.KEYCODE_APP_SWITCH, 0)
+            inject.invoke(im, down, 0)
+            inject.invoke(im, up, 0)
+            Log.i("injected APP_SWITCH")
+        }.onFailure {
+            Log.px("E", "inject APP_SWITCH failed: $it", it, logInRelease = true)
         }
     }
 
