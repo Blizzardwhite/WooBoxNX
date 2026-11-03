@@ -345,6 +345,9 @@ class M3ScrollView(context: Context) : ScrollView(context) {
 
     private var velocity = 0f
     private var flingRunning = false
+    private var lastTouchY = 0f
+    private var dragOver = 0f
+    private val maxDrag get() = 110f * density
     private var lastTime = 0L
     private var maxScroll = 0
     private var bounce = 0f
@@ -400,7 +403,47 @@ class M3ScrollView(context: Context) : ScrollView(context) {
     }
 
     init {
-        overScrollMode = View.OVER_SCROLL_ALWAYS
+        overScrollMode = View.OVER_SCROLL_NEVER
+    }
+
+    override fun onTouchEvent(ev: MotionEvent): Boolean {
+        val handled = super.onTouchEvent(ev)
+        val child = getChildAt(0) ?: return handled
+        when (ev.actionMasked) {
+            MotionEvent.ACTION_DOWN -> {
+                lastTouchY = ev.y
+                dragOver = 0f
+                child.translationY = 0f
+                maxScroll = (child.height + paddingTop + paddingBottom - height).coerceAtLeast(0)
+            }
+            MotionEvent.ACTION_MOVE -> {
+                val dy = ev.y - lastTouchY
+                val atTop = scrollY <= 0
+                val atBottom = scrollY >= maxScroll
+                if (atTop) {
+                    dragOver = (dragOver + dy * 0.5f).coerceIn(0f, maxDrag)
+                    child.translationY = dragOver
+                } else if (atBottom) {
+                    dragOver = (dragOver + dy * 0.5f).coerceIn(-maxDrag, 0f)
+                    child.translationY = dragOver
+                } else if (dragOver != 0f) {
+                    dragOver = 0f
+                    child.translationY = 0f
+                }
+            }
+            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                if (dragOver != 0f) {
+                    bounce = dragOver
+                    bounceVel = 0f
+                    dragOver = 0f
+                    flingRunning = true
+                    lastTime = 0L
+                    postOnAnimation(runner)
+                }
+            }
+        }
+        lastTouchY = ev.y
+        return handled
     }
 
     override fun fling(velocityY: Int) {
