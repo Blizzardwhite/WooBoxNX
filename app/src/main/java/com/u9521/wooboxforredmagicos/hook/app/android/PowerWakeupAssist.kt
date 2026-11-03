@@ -2,85 +2,123 @@ package com.u9521.wooboxforredmagicos.hook.app.android
 
 import android.annotation.SuppressLint
 import android.app.SearchManager
-import android.app.role.RoleManager
+import android.content.ComponentName
 import android.content.Context
+import android.content.Intent
 import android.os.Bundle
+import android.provider.Settings
 import com.u9521.wooboxforredmagicos.util.hasEnable
 import com.u9521.wooboxforredmagicos.util.xposed.Log
 import com.u9521.wooboxforredmagicos.util.xposed.base.HookRegister
 import de.robv.android.xposed.XC_MethodHook
 import de.robv.android.xposed.XposedBridge
 
+/**
+ * 长按电源键启动默认数字助理。
+ *
+ * 和旧实现相比的关键区别：
+ * 1. 不再依赖 getResolvedLongPressOnPowerBehavior() 必须等于"语音助手"，
+ *    只要系统里有默认数字助理就直接接管长按；
+ * 2. 用公开的 RoleManager.getRoleHolders 取助理，找不到再读 Settings.Secure.assistant，
+ *    避免隐藏方法不存在时整个 hook 注册失败；
+ * 3. 任何一步失败都不拦截原生行为，至少还能正常弹出关机菜单。
+ */
 object PowerWakeupAssist : HookRegister() {
+
+    private const val ROLE_ASSISTANT = "android.app.role.ASSISTANT"
+
     @SuppressLint("PrivateApi")
     override fun init() = hasEnable("long_power_key_wakeup_assist") {
-        val phoneWMClazz = getDefaultCL().loadClass("com.android.server.policy.PhoneWindowManager")
-        val powerLongPress =
-            phoneWMClazz.getDeclaredMethod("powerLongPress", Long::class.javaPrimitiveType)
-        val resolvePowerLongBH =
-            phoneWMClazz.getDeclaredMethod("getResolvedLongPressOnPowerBehavior")
-        val showGA = phoneWMClazz.getDeclaredMethod("showGlobalActions")
-        val performHaptic = phoneWMClazz.getDeclaredMethod(
-            "performHapticFeedback",
-            Int::class.javaPrimitiveType,
-            Boolean::class.javaPrimitiveType,
-            String::class.java
-        )
-        val powerKeyHandled = phoneWMClazz.getDeclaredField("mPowerKeyHandled")
-        val mContext = phoneWMClazz.getDeclaredField("mContext")
-        val longPressHooker = object : XC_MethodHook() {
-            override fun beforeHookedMethod(param: MethodHookParam?) {
-                super.beforeHookedMethod(param)
-                //power behavior 4 打开数字助理，1正常关机，2，3cts测试，5威图life，应该没人在威图手机上用这个模块吧
-                var powerBH = resolvePowerLongBH.invoke(param!!.thisObject) as Int
-                Log.i("powerKey long pressed. power behavior is: $powerBH")
+        runCatching {
+            val clazz = getDefaultCL().loadClass("com.android.server.policy.PhoneWindowManager")
+            val powerLongPress =
+                clazz.getDeclaredMethod("powerLongPress", Long::class.javaPrimitiveType)
+            val resolvePowerLongBH =
+                clazz.getDeclaredMethod("getResolvedLongPressOnPowerBehavior")
+            val performHaptic = runCatching {
+                clazz.getDeclaredMethod(
+                    "performHapticFeedback",
+                    Int::class.javaPrimitiveType,
+                    Boolean::class.javaPrimitiveType,
+                    String::class.java
+                )
+            }.getOrNull()
+            val powerKeyHandled = clazz.getDeclaredField("mPowerKeyHandled")
+            val mContext = clazz.getDeclaredField("mContext")
 
-                val context = mContext.get(param.thisObject) as Context
-                val searchManager =
-                    context.getSystemService(Context.SEARCH_SERVICE) as SearchManager
-                val roleManager =
-                    context.getSystemService(Context.ROLE_SERVICE) as RoleManager
+            XposedBridge.hookMethod(powerLongPress, object : XC_MethodHook() {
+                override fun beforeHookedMethod(param: MethodHookParam) {
+                    val self = param.thisObject
+                    val ctx = runCatching { mContext.get(self) as Context }.getOrNull() ?: return
+                    val powerBH = runCatching {
+                        resolvePowerLongBH.invoke(self) as Int
+                    }.getOrDefault(-1)
+                    val assist = findAssistant(ctx)
+                    Log.i("powerKey long pressed, behavior=$powerBH, assistant=$assist")
 
-                var defaultAssistPkgName: String? = null
+                    if (assist == null) {
+                        // 没有默认数字助理，交给系统原生处理（正常弹关机菜单）
+                        Log.i("no default assistant, keep original power behavior")
+                        return
+                    }
 
-                if (powerBH != 1) {
-                    //获取默认数字助理
-                    defaultAssistPkgName = roleManager.javaClass.getDeclaredMethod(
-                        "getDefaultApplication",
-                        String::class.java
-                    ).invoke(roleManager, RoleManager.ROLE_ASSISTANT) as String?
-                    if (defaultAssistPkgName == null) {
-                        powerBH = 1
-                        Log.wx(
-                            "no default digital assist found,fallback to normal powerOff",
-                            logInRelease = true
+                    val ok = runCatching {
+                        powerKeyHandled.setBoolean(self, true)
+                        performHaptic?.invoke(
+                            self, 10003, false, "Power - Long Press - Go To Voice Assist"
                         )
+                        if (!launchAssist(ctx, assist)) throw IllegalStateException("launchAssist failed")
+                        true
+                    }.getOrElse {
+                        Log.px("E", "launch assist failed: ${it}", it, logInRelease = true)
+                        false
+                    }
+                    if (ok) {
+                        param.result = null
+                        Log.i("handled by digital assistant")
                     }
                 }
-                if (powerBH != 1) {
-                    Log.i("default assist package name:$defaultAssistPkgName")
-                    powerKeyHandled.setBoolean(param.thisObject, true)
-                    performHaptic.invoke(
-                        param.thisObject, 10003, false, "Power - Long Press - Go To Voice Assist"
-                    )
-                    //启动数字助理
-                    searchManager.javaClass.getMethod(
-                        "launchAssist", Bundle::class.java
-                    ).invoke(searchManager, Bundle())
-                    Log.i("finished handle Voice Assist")
-                    param.result = null
-                } else {
-                    //处理正常关机
-                    powerKeyHandled.setBoolean(param.thisObject, true)
-                    performHaptic.invoke(
-                        param.thisObject, 10003, false, "Power - Long Press - Global Actions"
-                    )
-                    showGA.invoke(param.thisObject)
-                    Log.i("finish handle powerOff")
-                    param.result = null
-                }
+            })
+            Log.i("PowerWakeupAssist hooked")
+        }.onFailure {
+            Log.px("E", "PowerWakeupAssist init failed: ${it}", it, logInRelease = true)
+        }
+    }
+
+    /** 取默认数字助理的包名：优先 RoleManager，再退回 Settings.Secure */
+    private fun findAssistant(ctx: Context): String? {
+        runCatching {
+            // getRoleHolders 是 @SystemApi，编译期不可见，这里走反射（system_server 有权限）
+            val rm = ctx.getSystemService(Context.ROLE_SERVICE)
+            val holders = rm?.javaClass?.getMethod("getRoleHolders", String::class.java)
+                ?.invoke(rm, ROLE_ASSISTANT) as? List<*>
+            val first = holders?.firstOrNull() as? String
+            if (!first.isNullOrBlank()) return first
+        }
+        runCatching {
+            val raw = Settings.Secure.getString(ctx.contentResolver, "assistant")
+            if (!raw.isNullOrBlank()) {
+                return ComponentName.unflattenFromString(raw)?.packageName ?: raw
             }
         }
-        XposedBridge.hookMethod(powerLongPress, longPressHooker)
+        return null
+    }
+
+    /** 先试 SearchManager.launchAssist（真正拉起助理浮层），失败再退到 ACTION_ASSIST */
+    private fun launchAssist(ctx: Context, pkg: String): Boolean {
+        val first = runCatching {
+            val sm = ctx.getSystemService(Context.SEARCH_SERVICE) as SearchManager
+            sm.javaClass.getMethod("launchAssist", Bundle::class.java).invoke(sm, Bundle())
+            true
+        }.getOrDefault(false)
+        if (first) return true
+
+        return runCatching {
+            val intent = ctx.packageManager.getLaunchIntentForPackage(pkg)
+                ?: Intent(Intent.ACTION_ASSIST).setPackage(pkg)
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            ctx.startActivity(intent)
+            true
+        }.getOrDefault(false)
     }
 }
