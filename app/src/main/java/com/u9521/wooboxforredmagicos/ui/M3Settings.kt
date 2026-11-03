@@ -356,6 +356,10 @@ object SettingsModel {
             Row(key = "mute_nfc_sound", title = "禁用 NFC 提示音"),
             Row(key = "allow_thirdparty_launcher", title = "允许设置默认第三方桌面")
         )),
+        Group("负一屏", listOf(
+            Row(key = "miboard_unlock_widgets", title = "允许添加任意小部件",
+                summary = "解除 Z-Board 的服务器白名单，需勾选 miboard 作用域并重启")
+        )),
         Group("MTP", listOf(
             Row(key = "hide_mtp_category_browse", title = "隐藏 MTP 分类浏览"),
             Row(key = "rename_mtp_storage_root_name", title = "重命名 MTP 存储设备名", summary = "只对路径浏览有效",

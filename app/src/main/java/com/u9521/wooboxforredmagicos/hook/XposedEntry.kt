@@ -23,7 +23,8 @@ class XposedEntry : EasyXposedInit() {
         PermissionController, //权限控制器
         Settings,//系统设置
         SystemUI, //系统界面
-        FingerprintSensorUI, //指纹图标（com.fingerprint.sensorservice）
+        FingerprintSensorUI, //指纹图标（com.fingerprint.serverservice）
+        MiBoard, //负一屏（解除小部件白名单）
         SystemUpdater,//系统更新
     )
 
