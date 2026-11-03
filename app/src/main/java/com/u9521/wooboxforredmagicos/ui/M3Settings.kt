@@ -309,12 +309,9 @@ object SettingsModel {
             Row(key = "airplane_mode_keep_bt", title = "飞行模式保持蓝牙状态"),
             Row(key = "airplane_mode_keep_wlan", title = "飞行模式保持 WLAN 和热点")
         )),
-        Group("长按电源键", listOf(
-            Row(key = "long_power_key_wakeup_assist", title = "长按电源键启动默认数字助理"),
-            Row(key = "power_key_assist_scrim", title = "只弹遮罩（实验）", summary = "长按后注入两次最近任务键，只留下遮罩残影，可能不稳定")
-        )),
         Group("特色功能", listOf(
             Row(key = "allow_untrusted_touches", title = "允许不受信任的触摸", summary = "允许高可见度 View 点击穿透，慎用"),
+            Row(key = "long_power_key_wakeup_assist", title = "长按电源键启动默认数字助理"),
             Row(key = "block_telemetry_service", title = "阻止启动遥测服务"),
             Row(key = "remove_intent_hijack", title = "去除意图劫持", summary = "还原原生分享界面，双开用户不建议开启")
         )),
