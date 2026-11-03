@@ -646,7 +646,7 @@ class SettingsHomeActivity : AppCompatActivity() {
         val topBar = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(M3Ui.dp(this@SettingsHomeActivity, 20), M3Ui.dp(this@SettingsHomeActivity, 24),
-                M3Ui.dp(this@SettingsHomeActivity, 20), M3Ui.dp(this@SettingsHomeActivity, 4))
+                M3Ui.dp(this@SettingsHomeActivity, 20), M3Ui.dp(this@SettingsHomeActivity, 10))
         }
         root.addView(topBar, LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
@@ -765,16 +765,15 @@ class SettingsHomeActivity : AppCompatActivity() {
         }
         searchClear = clear
         searchWrap.addView(clear)
-        topBar.addView(searchWrap, LinearLayout.LayoutParams(
+        content.addView(searchWrap, LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
-        ).apply { topMargin = M3Ui.dp(this@SettingsHomeActivity, 14) })
+        ).apply { topMargin = M3Ui.dp(this@SettingsHomeActivity, 4) })
 
         val host = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         listHost = host
         content.addView(host, LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
         ).apply { topMargin = M3Ui.dp(this@SettingsHomeActivity, 10) })
-
         setContentView(root)
         buildList()
         onBackPressedDispatcher.addCallback(this, object : androidx.activity.OnBackPressedCallback(true) {
