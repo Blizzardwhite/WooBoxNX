@@ -1173,6 +1173,35 @@ class AboutActivity : AppCompatActivity() {
                 M3Ui.dp(this@AboutActivity, 4), M3Ui.dp(this@AboutActivity, 8))
         })
 
+        val upstreamCard = M3Ui.card(this).apply {
+            setContentPadding(M3Ui.dp(this@AboutActivity, 16), M3Ui.dp(this@AboutActivity, 16),
+                M3Ui.dp(this@AboutActivity, 16), M3Ui.dp(this@AboutActivity, 16))
+            isClickable = true
+            setOnClickListener {
+                runCatching {
+                    startActivity(Intent(Intent.ACTION_VIEW,
+                        android.net.Uri.parse("https://github.com/u9521/WooBoxForRedmagicOS")))
+                }
+            }
+        }
+        val upstreamRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        upstreamRow.addView(letterAvatar("G", 44))
+        val upstreamTexts = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(M3Ui.dp(this@AboutActivity, 14), 0, 0, 0)
+        }
+        upstreamTexts.addView(M3Ui.text(this, "WooBox For RedMagicOS", 16f, M3Color.ON_SURFACE, true))
+        upstreamTexts.addView(M3Ui.text(this, "原项目仓库 · GitHub", 12f, M3Color.ON_SURFACE_VAR))
+        upstreamRow.addView(upstreamTexts, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+        upstreamRow.addView(M3Ui.text(this, "›", 24f, M3Color.ON_SURFACE_VAR))
+        upstreamCard.addView(upstreamRow)
+        content.addView(upstreamCard, LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
+        ))
+
         val linkCard = M3Ui.card(this).apply {
             setContentPadding(M3Ui.dp(this@AboutActivity, 16), M3Ui.dp(this@AboutActivity, 16),
                 M3Ui.dp(this@AboutActivity, 16), M3Ui.dp(this@AboutActivity, 16))
@@ -1195,7 +1224,9 @@ class AboutActivity : AppCompatActivity() {
         }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
         linkRow.addView(M3Ui.text(this@AboutActivity, "›", 24f, M3Color.ON_SURFACE_VAR))
         linkCard.addView(linkRow)
-        content.addView(linkCard)
+        content.addView(linkCard, LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
+        ).apply { topMargin = M3Ui.dp(this@AboutActivity, 12) })
     }
 
     private fun letterAvatar(letter: String, sizeDp: Int): View {
