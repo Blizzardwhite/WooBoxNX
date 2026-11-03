@@ -15,6 +15,7 @@ import android.util.TypedValue
 import android.view.GestureDetector
 import android.view.MotionEvent
 import android.view.View
+import android.view.ViewGroup
 import android.widget.ScrollView
 
 /** 分类图标：在 tonal 圆底上画一个简单图形 */
@@ -282,8 +283,48 @@ class SwipeScrollView(context: Context, private val onSwipe: (Int) -> Unit) : Sc
         }
     })
 
+    private var blocked = false
+
+    private fun collectInteractive(v: View, out: MutableList<View>) {
+        if (v is android.widget.SeekBar || v is com.google.android.material.slider.Slider) {
+            // 整块滑块区域都算，避免手指稍微偏一点就切换 tab
+            out.add(v)
+            (v.parent as? View)?.let { out.add(it) }
+        } else if (v is androidx.appcompat.widget.SwitchCompat || v is android.widget.Switch) {
+            out.add(v)
+        }
+        if (v is ViewGroup) {
+            for (i in 0 until v.childCount) collectInteractive(v.getChildAt(i), out)
+        }
+    }
+
+    /** 触摸点是否落在滑块/开关上（按屏幕坐标判断，带一点纵向容差） */
+    private fun hitInteractive(x: Float, y: Float): Boolean {
+        val list = ArrayList<View>()
+        collectInteractive(this, list)
+        if (list.isEmpty()) return false
+        val selfLoc = IntArray(2)
+        getLocationOnScreen(selfLoc)
+        val pad = 12 * resources.displayMetrics.density
+        val loc = IntArray(2)
+        for (v in list) {
+            if (v.visibility != View.VISIBLE) continue
+            v.getLocationOnScreen(loc)
+            val left = loc[0] - selfLoc[0]
+            val top = loc[1] - selfLoc[1]
+            if (x >= left && x <= left + v.width &&
+                y >= top - pad && y <= top + v.height + pad
+            ) {
+                return true
+            }
+        }
+        return false
+    }
     override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
-        detector.onTouchEvent(ev)
+        if (ev.actionMasked == MotionEvent.ACTION_DOWN) {
+            blocked = hitInteractive(ev.x, ev.y)
+        }
+        if (!blocked) detector.onTouchEvent(ev)
         return super.dispatchTouchEvent(ev)
     }
 }

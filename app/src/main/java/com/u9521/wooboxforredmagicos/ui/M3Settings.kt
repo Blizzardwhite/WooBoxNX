@@ -803,11 +803,14 @@ class SettingsHomeActivity : AppCompatActivity() {
             navView.menu.add(0, index + 1, index, tab.title).setIcon(tab.icon)
         }
         navView.setOnItemSelectedListener { item ->
-            currentTab = item.itemId - 1
+            val target = item.itemId - 1
+            val dir = if (target > currentTab) 1 else -1
+            currentTab = target
             query = ""
             searchField?.setText("")
             searchClear?.visibility = View.GONE
             buildList()
+            animateSwitch(dir)
             scroll.smoothScrollTo(0, 0)
             true
         }
@@ -921,6 +924,14 @@ class SettingsHomeActivity : AppCompatActivity() {
         scopePill?.let { if (dirty) M3Actions.blinkLoop(it) else M3Actions.stopBlink(it) }
     }
 
+    private fun animateSwitch(dir: Int) {
+        val host = listHost ?: return
+        host.animate().cancel()
+        host.alpha = 0f
+        host.translationX = (dir * M3Ui.dp(this, 26)).toFloat()
+        host.animate().alpha(1f).translationX(0f).setDuration(180).start()
+    }
+
     private fun shiftTab(dir: Int) {
         val next = (currentTab + dir).coerceIn(0, tabs.lastIndex)
         if (next != currentTab) navView.selectedItemId = next + 1
@@ -952,8 +963,8 @@ class SettingsHomeActivity : AppCompatActivity() {
         val row = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            setPadding(M3Ui.dp(this@SettingsHomeActivity, 8), M3Ui.dp(this@SettingsHomeActivity, 10),
-                M3Ui.dp(this@SettingsHomeActivity, 6), M3Ui.dp(this@SettingsHomeActivity, 10))
+            setPadding(M3Ui.dp(this@SettingsHomeActivity, 8), M3Ui.dp(this@SettingsHomeActivity, 16),
+                M3Ui.dp(this@SettingsHomeActivity, 6), M3Ui.dp(this@SettingsHomeActivity, 16))
             isClickable = true
             val tv = android.util.TypedValue()
             if (theme.resolveAttribute(android.R.attr.selectableItemBackground, tv, true)) {
@@ -961,15 +972,15 @@ class SettingsHomeActivity : AppCompatActivity() {
             }
             setOnClickListener { onClick() }
         }
-        val size = M3Ui.dp(this, 38)
+        val size = M3Ui.dp(this, 44)
         row.addView(IconView(this, icon).apply {
             layoutParams = LinearLayout.LayoutParams(size, size).apply {
                 rightMargin = M3Ui.dp(this@SettingsHomeActivity, 14)
             }
         })
         val texts = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        texts.addView(M3Ui.text(this, title, 16f, M3Color.ON_SURFACE, true))
-        texts.addView(M3Ui.text(this, subtitle, 12f, M3Color.ON_SURFACE_VAR).apply {
+        texts.addView(M3Ui.text(this, title, 17f, M3Color.ON_SURFACE, true))
+        texts.addView(M3Ui.text(this, subtitle, 13f, M3Color.ON_SURFACE_VAR).apply {
             setPadding(0, M3Ui.dp(this@SettingsHomeActivity, 1), 0, 0)
         })
         row.addView(texts, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
@@ -1711,6 +1722,9 @@ class M3RowBuilder(
                 if (!row.summary.isNullOrEmpty()) {
                     box.addView(M3Ui.text(activity, row.summary, 12f, M3Color.ON_SURFACE_VAR))
                 }
+                box.addView(M3Ui.text(activity, "默认 ${row.def}", 11f, M3Color.ON_SURFACE_VAR).apply {
+                    setPadding(0, M3Ui.dp(activity, 2), 0, 0)
+                })
                 val slider = Slider(activity).apply {
                     valueFrom = row.min.toFloat()
                     valueTo = row.max.toFloat()
@@ -1754,6 +1768,9 @@ class M3RowBuilder(
                     }
                 })
                 box.addView(head)
+                box.addView(M3Ui.text(activity, "默认 ${row.def}", 11f, M3Color.ON_SURFACE_VAR).apply {
+                    setPadding(0, M3Ui.dp(activity, 2), 0, 0)
+                })
                 val slider = Slider(activity).apply {
                     valueFrom = row.min.toFloat()
                     valueTo = row.max.toFloat()
