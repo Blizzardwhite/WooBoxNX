@@ -339,34 +339,13 @@ class SwipeScrollView(context: Context, private val onSwipe: (Int) -> Unit) : Sc
  * 系统 ScrollView 的 fling 在接近边缘时会被框架"贴边"，看起来像突然吸附；
  * 这里用独立的 OverScroller 逐帧滚动，并在边界处自然停住，不做贴边/回弹。
  */
+/** 设置页用的 ScrollView：松手即停，不做惯性滑动，避免一路滑到顶/底 */
 class M3ScrollView(context: Context) : ScrollView(context) {
-
-    private val scroller = android.widget.OverScroller(context)
-    private val runner = object : Runnable {
-        override fun run() {
-            if (scroller.computeScrollOffset()) {
-                scrollTo(0, scroller.currY)
-
-                postOnAnimation(this)
-            }
-        }
-    }
-
     init {
         overScrollMode = View.OVER_SCROLL_NEVER
-        isVerticalScrollBarEnabled = false
     }
 
     override fun fling(velocityY: Int) {
-        val child = getChildAt(0) ?: return
-        val maxY = (child.height + paddingTop + paddingBottom - height).coerceAtLeast(0)
-        if (maxY <= 0) return
-        scroller.forceFinished(true)
-        scroller.fling(0, scrollY, 0, (velocityY * 0.45f).toInt(), 0, 0, 0, maxY)
-        postOnAnimation(runner)
-    }
-
-    override fun computeScroll() {
-        // 由上面的 runner 驱动，避免父类再跑一套惯性逻辑
+        // 不接管惯性：松手即停，位置完全由手指决定
     }
 }
