@@ -501,6 +501,13 @@ object M3Actions {
         a.start()
     }
 
+    /** 一次性高亮（搜索结果跳转后用） */
+    fun flash(v: View) {
+        val a = android.animation.ObjectAnimator.ofFloat(v, "alpha", 1f, 0.3f, 1f, 0.3f, 1f)
+        a.duration = 900
+        a.start()
+    }
+
     fun stopBlink(v: View?) {
         v ?: return
         (v.getTag(R.id.tag_blink) as? android.animation.Animator)?.cancel()
@@ -701,19 +708,159 @@ class SettingsHomeActivity : AppCompatActivity() {
             ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
         ))
 
-        // 分类卡片
-        SettingsModel.categories().forEach { cat ->
-            content.addView(categoryCard(cat), LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
-            ).apply { topMargin = M3Ui.dp(this@SettingsHomeActivity, 12) })
+        // 搜索框
+        val search = android.widget.EditText(this).apply {
+            hint = "搜索设置项"
+            setHintTextColor(M3Color.ON_SURFACE_VAR)
+            setTextColor(M3Color.ON_SURFACE)
+            textSize = 14f
+            setSingleLine()
+            setPadding(M3Ui.dp(this@SettingsHomeActivity, 16), M3Ui.dp(this@SettingsHomeActivity, 10),
+                M3Ui.dp(this@SettingsHomeActivity, 16), M3Ui.dp(this@SettingsHomeActivity, 10))
+            background = GradientDrawable().apply {
+                cornerRadius = M3Ui.dp(this@SettingsHomeActivity, 22).toFloat()
+                setColor(M3Color.SURFACE_CONT)
+            }
         }
+        content.addView(search, LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
+        ).apply { topMargin = M3Ui.dp(this@SettingsHomeActivity, 14) })
 
-        // 关于
-        content.addView(categoryCard(Category("about", "关于", "版本、开发者与致谢", 6, emptyList())),
-            LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
-            ).apply { topMargin = M3Ui.dp(this@SettingsHomeActivity, 12) })
+        val listHost = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        content.addView(listHost, LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
+        ).apply { topMargin = M3Ui.dp(this@SettingsHomeActivity, 10) })
 
+        fun render(query: String) {
+            listHost.removeAllViews()
+            listHost.addView(if (query.isBlank()) categoryList() else searchResultList(query))
+        }
+        search.addTextChangedListener(object : android.text.TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
+            override fun onTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
+            override fun afterTextChanged(s: android.text.Editable?) {
+                render(s?.toString().orEmpty())
+            }
+        })
+        render("")
+    }
+
+    /** 紧凑列表：所有分类放在一张卡里 */
+    private fun categoryList(): View {
+        val card = M3Ui.card(this).apply {
+            setContentPadding(M3Ui.dp(this@SettingsHomeActivity, 8), M3Ui.dp(this@SettingsHomeActivity, 4), M3Ui.dp(this@SettingsHomeActivity, 8), M3Ui.dp(this@SettingsHomeActivity, 4))
+        }
+        val inner = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        val cats = SettingsModel.categories() +
+            Category("about", "关于", "版本、开发者与致谢", 6, emptyList())
+        cats.forEachIndexed { index, cat ->
+            inner.addView(compactRow(cat.icon, cat.title, cat.subtitle) { openCategory(cat) })
+            if (index != cats.lastIndex) inner.addView(divider())
+        }
+        card.addView(inner)
+        return card
+    }
+
+    private fun compactRow(icon: Int, title: String, subtitle: String, onClick: () -> Unit): View {
+        val row = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(M3Ui.dp(this@SettingsHomeActivity, 8), M3Ui.dp(this@SettingsHomeActivity, 9),
+                M3Ui.dp(this@SettingsHomeActivity, 6), M3Ui.dp(this@SettingsHomeActivity, 9))
+            isClickable = true
+            val tv = android.util.TypedValue()
+            if (theme.resolveAttribute(android.R.attr.selectableItemBackground, tv, true)) {
+                setBackgroundResource(tv.resourceId)
+            }
+            setOnClickListener { onClick() }
+        }
+        val size = M3Ui.dp(this, 38)
+        row.addView(IconView(this, icon).apply {
+            layoutParams = LinearLayout.LayoutParams(size, size).apply {
+                rightMargin = M3Ui.dp(this@SettingsHomeActivity, 14)
+            }
+        })
+        val texts = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        texts.addView(M3Ui.text(this, title, 16f, M3Color.ON_SURFACE, true))
+        texts.addView(M3Ui.text(this, subtitle, 12f, M3Color.ON_SURFACE_VAR).apply {
+            setPadding(0, M3Ui.dp(this@SettingsHomeActivity, 1), 0, 0)
+        })
+        row.addView(texts, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+        row.addView(M3Ui.text(this, "›", 24f, M3Color.ON_SURFACE_VAR))
+        return row
+    }
+
+    private fun divider(): View = View(this).apply {
+        setBackgroundColor(M3Color.OUTLINE_VAR)
+        layoutParams = LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, 1
+        ).apply { leftMargin = M3Ui.dp(this@SettingsHomeActivity, 60) }
+    }
+
+    private fun openCategory(cat: Category) {
+        when (cat.id) {
+            "camera" -> startActivity(Intent(this, CameraSettingsActivity::class.java))
+            "about" -> startActivity(Intent(this, AboutActivity::class.java))
+            else -> startActivity(Intent(this, CategoryActivity::class.java).apply {
+                putExtra("id", cat.id)
+            })
+        }
+    }
+
+    private data class SearchHit(val cat: Category, val row: Row?, val group: String?)
+
+    private fun searchHits(query: String): List<SearchHit> {
+        val key = query.trim()
+        val out = ArrayList<SearchHit>()
+        if (key.isEmpty()) return out
+        SettingsModel.categories().forEach { cat ->
+            if (cat.id == "camera") {
+                if (cat.title.contains(key, true) || cat.subtitle.contains(key, true)) {
+                    out.add(SearchHit(cat, null, null))
+                }
+                return@forEach
+            }
+            cat.groups.forEach { group ->
+                group.rows.forEach { row ->
+                    if (row.title.contains(key, true) ||
+                        (row.summary?.contains(key, true) == true)
+                    ) {
+                        out.add(SearchHit(cat, row, group.title))
+                    }
+                }
+            }
+        }
+        return out
+    }
+
+    private fun searchResultList(query: String): View {
+        val hits = searchHits(query)
+        if (hits.isEmpty()) {
+            return M3Ui.text(this, "没有匹配的设置项", 14f, M3Color.ON_SURFACE_VAR).apply {
+                setPadding(M3Ui.dp(this@SettingsHomeActivity, 8), M3Ui.dp(this@SettingsHomeActivity, 20),
+                    M3Ui.dp(this@SettingsHomeActivity, 8), M3Ui.dp(this@SettingsHomeActivity, 20))
+            }
+        }
+        val card = M3Ui.card(this).apply {
+            setContentPadding(M3Ui.dp(this@SettingsHomeActivity, 8), M3Ui.dp(this@SettingsHomeActivity, 4), M3Ui.dp(this@SettingsHomeActivity, 8), M3Ui.dp(this@SettingsHomeActivity, 4))
+        }
+        val inner = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        hits.forEachIndexed { index, hit ->
+            val title = hit.row?.title ?: hit.cat.title
+            val path = hit.cat.title + (hit.group?.let { "  ·  $it" } ?: "")
+            inner.addView(compactRow(hit.cat.icon, title, path) {
+                if (hit.row == null) {
+                    openCategory(hit.cat)
+                } else {
+                    startActivity(Intent(this, CategoryActivity::class.java)
+                        .putExtra("id", hit.cat.id)
+                        .putExtra("focus", hit.row.key ?: hit.row.title))
+                }
+            })
+            if (index != hits.lastIndex) inner.addView(divider())
+        }
+        card.addView(inner)
+        return card
     }
 
     private fun showStatusDialog(alive: Boolean) {
@@ -876,6 +1023,20 @@ class CategoryActivity : AppCompatActivity() {
         root.addView(scroll, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
         setContentView(root)
 
+        // 从搜索结果跳过来时，滚动到对应设置项并闪一下
+        val focus = intent.getStringExtra("focus")
+        if (!focus.isNullOrEmpty()) {
+            scroll.post {
+                val target = findViewByTag(content, focus) ?: return@post
+                val t = IntArray(2)
+                val s = IntArray(2)
+                target.getLocationInWindow(t)
+                scroll.getLocationInWindow(s)
+                scroll.smoothScrollTo(0, scroll.scrollY + (t[1] - s[1]) - M3Ui.dp(this, 72))
+                M3Actions.flash(target)
+            }
+        }
+
         cat.groups.forEach { group ->
             if (!group.title.isNullOrEmpty()) {
                 content.addView(M3Ui.text(this, group.title, 13f, M3Color.ON_SURFACE_VAR, true).apply {
@@ -891,7 +1052,9 @@ class CategoryActivity : AppCompatActivity() {
             }
             val inner = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
             group.rows.forEachIndexed { index, row ->
-                inner.addView(buildRow(prefs, row))
+                val rowView = buildRow(prefs, row)
+                rowView.tag = row.key ?: row.title
+                inner.addView(rowView)
                 if (index != group.rows.lastIndex) {
                     inner.addView(View(this).apply {
                         setBackgroundColor(M3Color.OUTLINE_VAR)
@@ -1071,6 +1234,15 @@ class CategoryActivity : AppCompatActivity() {
         }
     }
 
+    private fun findViewByTag(v: View, tag: String): View? {
+        if (v.tag == tag) return v
+        if (v is ViewGroup) {
+            for (i in 0 until v.childCount) {
+                findViewByTag(v.getChildAt(i), tag)?.let { return it }
+            }
+        }
+        return null
+    }
     private fun markChanged() {
         val dirty = M3Dirty.check(this)
         scopePill?.let { if (dirty) M3Actions.blinkLoop(it) else M3Actions.stopBlink(it) }
