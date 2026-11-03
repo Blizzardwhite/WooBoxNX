@@ -364,13 +364,13 @@ class M3ScrollView(context: Context) : ScrollView(context) {
             if (next > maxScroll) {
                 next = maxScroll.toFloat()
                 if (velocity > 0f) {
-                    bounceVel = -velocity * 0.12f
+                    bounceVel = -velocity * 0.18f
                     velocity = 0f
                 }
             } else if (next < 0f) {
                 next = 0f
                 if (velocity < 0f) {
-                    bounceVel = -velocity * 0.12f
+                    bounceVel = -velocity * 0.18f
                     velocity = 0f
                 }
             }
