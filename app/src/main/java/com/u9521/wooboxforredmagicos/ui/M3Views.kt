@@ -340,12 +340,9 @@ class SwipeScrollView(context: Context, private val onSwipe: (Int) -> Unit) : Sc
  * 这里用独立的 OverScroller 逐帧滚动，并在边界处自然停住，不做贴边/回弹。
  */
 /** 设置页用的 ScrollView：松手即停，不做惯性滑动，避免一路滑到顶/底 */
+/** 设置页用的 ScrollView：标准惯性 + 边缘回弹 */
 class M3ScrollView(context: Context) : ScrollView(context) {
     init {
-        overScrollMode = View.OVER_SCROLL_NEVER
-    }
-
-    override fun fling(velocityY: Int) {
-        // 不接管惯性：松手即停，位置完全由手指决定
+        overScrollMode = View.OVER_SCROLL_ALWAYS
     }
 }
