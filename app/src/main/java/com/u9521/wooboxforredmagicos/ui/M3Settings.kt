@@ -364,7 +364,7 @@ object M3Ui {
 
 // ---------------- 动作 ----------------
 object M3Actions {
-    fun restartScope(activity: Activity) {
+    fun restartScope(activity: Activity, onRestarted: (() -> Unit)? = null) {
         val pkgs: List<String> = runCatching {
             activity.resources.getStringArray(R.array.xposed_scope).filter { it != "android" }
         }.getOrDefault(emptyList())
@@ -378,18 +378,30 @@ object M3Actions {
                     )
                 }
                 Toast.makeText(activity, "已重启作用域", Toast.LENGTH_SHORT).show()
+                onRestarted?.invoke()
             }
             .setNegativeButton("取消", null)
             .show()
     }
 
-    /** 设置被修改后持续缓慢闪烁，直到点了「重启作用域」 */
+    /** 设置被修改后持续缓慢闪烁外框（绿色），文字保持不动，直到点了「重启作用域」 */
     fun blinkLoop(v: View) {
-        (v.getTag(R.id.tag_blink) as? android.animation.Animator)?.let { if (it.isRunning) return }
-        val a = android.animation.ObjectAnimator.ofFloat(v, "alpha", 1f, 0.28f).apply {
-            duration = 850
+        if (v.getTag(R.id.tag_blink) != null) return
+        val bg = v.background as? GradientDrawable ?: return
+        val density = v.resources.displayMetrics.density
+        val thin = (1f * density + 0.5f).toInt()
+        val thick = (2f * density + 0.5f).toInt()
+        val evaluator = android.animation.ArgbEvaluator()
+        val a = android.animation.ValueAnimator.ofFloat(0f, 1f).apply {
+            duration = 900
             repeatMode = android.animation.ValueAnimator.REVERSE
             repeatCount = android.animation.ValueAnimator.INFINITE
+            addUpdateListener {
+                val f = it.animatedValue as Float
+                val color = evaluator.evaluate(f, M3Color.OUTLINE_VAR, M3Color.PRIMARY) as Int
+                bg.setStroke((thin + (thick - thin) * f).toInt(), color)
+                v.invalidate()
+            }
         }
         v.setTag(R.id.tag_blink, a)
         a.start()
@@ -399,7 +411,9 @@ object M3Actions {
         v ?: return
         (v.getTag(R.id.tag_blink) as? android.animation.Animator)?.cancel()
         v.setTag(R.id.tag_blink, null)
-        v.alpha = 1f
+        val density = v.resources.displayMetrics.density
+        (v.background as? GradientDrawable)?.setStroke((1f * density + 0.5f).toInt(), M3Color.OUTLINE_VAR)
+        v.invalidate()
     }
 
     fun pill(activity: Activity, label: String, chipStyle: Boolean = false, endMarginDp: Int = 0, onClick: () -> Unit): TextView {
@@ -689,8 +703,7 @@ class CategoryActivity : AppCompatActivity() {
         bar.addView(M3Ui.text(this, cat.title, 22f, M3Color.ON_SURFACE, true))
         bar.addView(View(this), LinearLayout.LayoutParams(0, 1, 1f))
         scopePill = M3Actions.pill(this, "重启作用域", endMarginDp = 8) {
-            M3Actions.stopBlink(scopePill)
-            M3Actions.restartScope(this)
+            M3Actions.restartScope(this) { M3Actions.stopBlink(scopePill) }
         }
         bar.addView(scopePill)
         root.addView(bar)
@@ -980,8 +993,7 @@ class CameraSettingsActivity : AppCompatActivity() {
         bar.addView(M3Ui.text(this, "屏下显示区域", 22f, M3Color.ON_SURFACE, true))
         bar.addView(View(this), LinearLayout.LayoutParams(0, 1, 1f))
         scopePill = M3Actions.pill(this, "重启作用域", endMarginDp = 8) {
-            M3Actions.stopBlink(scopePill)
-            M3Actions.restartScope(this)
+            M3Actions.restartScope(this) { M3Actions.stopBlink(scopePill) }
         }
         bar.addView(scopePill)
         root.addView(bar)
