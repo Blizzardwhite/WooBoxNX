@@ -344,17 +344,17 @@ class SwipeScrollView(context: Context, private val onSwipe: (Int) -> Unit) : Sc
 class M3ScrollView(context: Context) : ScrollView(context) {
 
     private var velocity = 0f
-    private var flingRunning = false
-    private var lastTouchY = 0f
-    private var dragOver = 0f
-    private var blockFling = false
-    private val maxDrag get() = 170f * density
     private var lastTime = 0L
     private var maxScroll = 0
     private var bounce = 0f
     private var bounceVel = 0f
+    private var flingRunning = false
+    private var lastTouchY = 0f
+    private var dragOver = 0f
+    private var blockFling = false
     private val density = resources.displayMetrics.density
     private val maxBounce = 130f * density
+    private val maxDrag get() = 170f * density
 
     private val runner = object : Runnable {
         override fun run() {
@@ -363,7 +363,7 @@ class M3ScrollView(context: Context) : ScrollView(context) {
             val dt = ((now - lastTime) / 1000f).coerceIn(0.001f, 0.04f)
             lastTime = now
 
-            // 1. 惯性滚动
+            // 1. 惯性
             velocity *= Math.pow(0.35, dt.toDouble()).toFloat()
             var next = scrollY + velocity * dt
             if (next > maxScroll) {
@@ -381,7 +381,7 @@ class M3ScrollView(context: Context) : ScrollView(context) {
             }
             scrollTo(0, next.toInt())
 
-            // 2. 回弹（阻尼弹簧）
+            // 2. 回弹
             if (bounce != 0f || bounceVel != 0f) {
                 bounceVel += (-bounce * 60f - bounceVel * 16f) * dt
                 bounce += bounceVel * dt
@@ -407,26 +407,36 @@ class M3ScrollView(context: Context) : ScrollView(context) {
         overScrollMode = View.OVER_SCROLL_NEVER
     }
 
+    private fun beginTouch(y: Float) {
+        blockFling = false
+        lastTouchY = y
+        dragOver = 0f
+        bounce = 0f
+        bounceVel = 0f
+        val child = getChildAt(0)
+        if (child != null) {
+            child.translationY = 0f
+            maxScroll = (child.height + paddingTop + paddingBottom - height).coerceAtLeast(0)
+        }
+    }
+
+    override fun onInterceptTouchEvent(ev: MotionEvent): Boolean {
+        // DOWN 可能被可点击的子 View 吃掉，这里先初始化手势起点
+        if (ev.actionMasked == MotionEvent.ACTION_DOWN) beginTouch(ev.y)
+        return super.onInterceptTouchEvent(ev)
+    }
+
     override fun onTouchEvent(ev: MotionEvent): Boolean {
+        if (ev.actionMasked == MotionEvent.ACTION_DOWN) beginTouch(ev.y)
         if ((ev.actionMasked == MotionEvent.ACTION_UP || ev.actionMasked == MotionEvent.ACTION_CANCEL) &&
             dragOver != 0f
         ) {
-            // 越界拖拽抬起时，不让系统再按速度滑一段
             blockFling = true
         }
         val handled = super.onTouchEvent(ev)
         val child = getChildAt(0) ?: return handled
+
         when (ev.actionMasked) {
-            MotionEvent.ACTION_DOWN -> {
-                blockFling = false
-                lastTouchY = ev.y
-                dragOver = 0f
-                // 手指按下时立刻停止正在进行的回弹，避免两套动画抢位置
-                bounce = 0f
-                bounceVel = 0f
-                child.translationY = 0f
-                maxScroll = (child.height + paddingTop + paddingBottom - height).coerceAtLeast(0)
-            }
             MotionEvent.ACTION_MOVE -> {
                 val dy = ev.y - lastTouchY
                 val atTop = scrollY <= 0
@@ -475,7 +485,6 @@ class M3ScrollView(context: Context) : ScrollView(context) {
     }
 
     override fun computeScroll() {
-        // 自己的惯性由 runner 驱动；空闲时交给父类处理拖拽越界的回弹
         if (!flingRunning) super.computeScroll()
     }
 }
