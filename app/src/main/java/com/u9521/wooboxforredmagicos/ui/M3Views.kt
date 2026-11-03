@@ -342,7 +342,56 @@ class SwipeScrollView(context: Context, private val onSwipe: (Int) -> Unit) : Sc
 /** 设置页用的 ScrollView：松手即停，不做惯性滑动，避免一路滑到顶/底 */
 /** 设置页用的 ScrollView：标准惯性 + 边缘回弹 */
 class M3ScrollView(context: Context) : ScrollView(context) {
+
+    private var velocity = 0f
+    private var lastTime = 0L
+    private var maxScroll = 0
+    private val density = resources.displayMetrics.density
+
+    private val runner = object : Runnable {
+        override fun run() {
+            val now = android.os.SystemClock.uptimeMillis()
+            if (lastTime == 0L) lastTime = now
+            val dt = ((now - lastTime) / 1000f).coerceIn(0.001f, 0.04f)
+            lastTime = now
+
+            // 摩擦衰减
+            velocity *= Math.pow(0.35, dt.toDouble()).toFloat()
+
+            val y = scrollY.toFloat()
+            val margin = 160f * density
+            // 接近边界时按剩余距离衰减，平滑停在边上
+            var v = velocity
+            val toEdge = if (v > 0) maxScroll - y else y
+            if (toEdge < margin) v *= (toEdge / margin).coerceIn(0f, 1f)
+
+            var next = y + v * dt
+            if (next >= maxScroll) { next = maxScroll.toFloat(); velocity = 0f }
+            if (next <= 0f) { next = 0f; velocity = 0f }
+
+            scrollTo(0, next.toInt())
+
+            val moved = kotlin.math.abs(v) * dt
+            if (kotlin.math.abs(velocity) > 40f && moved > 0.4f) {
+                postOnAnimation(this)
+            }
+        }
+    }
+
     init {
         overScrollMode = View.OVER_SCROLL_ALWAYS
+    }
+
+    override fun fling(velocityY: Int) {
+        val child = getChildAt(0) ?: return
+        maxScroll = (child.height + paddingTop + paddingBottom - height).coerceAtLeast(0)
+        if (maxScroll <= 0) return
+        velocity = velocityY.toFloat()
+        lastTime = 0L
+        postOnAnimation(runner)
+    }
+
+    override fun computeScroll() {
+        // 惯性由 runner 驱动
     }
 }
