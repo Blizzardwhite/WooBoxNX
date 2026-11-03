@@ -85,9 +85,13 @@ object M3Theme {
 
 // ---------------- 偏好 ----------------
 object M3Prefs {
-    /** Android 7 之后 MODE_WORLD_READABLE 会抛 SecurityException，统一用 MODE_PRIVATE */
-    fun sp(c: Context): SharedPreferences =
-        c.getSharedPreferences("WooboxConfig", Context.MODE_PRIVATE)
+    @SuppressLint("WorldReadableFiles")
+    fun sp(c: Context): SharedPreferences = try {
+        @Suppress("DEPRECATION")
+        c.getSharedPreferences("WooboxConfig", Context.MODE_WORLD_READABLE)
+    } catch (e: SecurityException) {
+        c.getSharedPreferences("viewonly", Context.MODE_PRIVATE)
+    }
 
 }
 

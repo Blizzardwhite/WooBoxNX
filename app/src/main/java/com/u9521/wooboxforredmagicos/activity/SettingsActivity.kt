@@ -39,7 +39,25 @@ class SettingsActivity : MIUIActivity() {
     @Suppress("DEPRECATION")
     @SuppressLint("WorldReadableFiles")
     private fun checkLSPosed() {
-        setSP(getSharedPreferences("WooboxConfig", MODE_PRIVATE))
+        try {
+            setSP(getSharedPreferences("WooboxConfig", MODE_WORLD_READABLE))
+        } catch (exception: SecurityException) {
+            val viewonlySP = getSharedPreferences("viewonly", MODE_PRIVATE)
+            viewonlySP.edit().clear().apply()
+            lsposedLoaded = false
+            setSP(viewonlySP)
+            MIUIDialog(this) {
+                setTitle(R.string.Tips)
+                setMessage(R.string.not_support)
+                setCancelable(false)
+                setLButton(R.string.ignore) {
+                    dismiss()
+                }
+                setRButton(R.string.Done) {
+                    exitProcess(0)
+                }
+            }.show()
+        }
     }
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
