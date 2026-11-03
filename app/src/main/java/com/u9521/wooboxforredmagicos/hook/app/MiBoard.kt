@@ -64,6 +64,7 @@ object MiBoard : AppRegister() {
         val dPkg = dataCls.getField("pkg")
         val dCls = dataCls.getField("cls")
         val dAppName = dataCls.getField("appName")
+        val dType = dataCls.getField("type")
         val dSpanX = dataCls.getField("spanX")
         val dSpanY = dataCls.getField("spanY")
         val cardsField = dataCls.getField("cards")
@@ -73,47 +74,70 @@ object MiBoard : AppRegister() {
         val iSpanX = detailCls.getField("spanX")
         val iSpanY = detailCls.getField("spanY")
 
-        // 已经存在的 pkg|cls 不重复注入
-        val existing = HashSet<String>()
+        // 已存在的条目：pkg -> CardAddListData（同一应用只保留一个），同时记录已有的 pkg|cls
+        val existingByPkg = HashMap<String, Any>()
+        val existingKeys = HashSet<String>()
         for (c in list) {
             val pkg = runCatching { dPkg.get(c) as? String }.getOrNull() ?: continue
-            val cards = runCatching { cardsField.get(c) as? List<*> }.getOrNull() ?: continue
+            if (pkg.isBlank()) continue
+            val cards = runCatching { cardsField.get(c) as? MutableList<Any> }.getOrNull()
+            if (cards == null) continue
+            existingByPkg.putIfAbsent(pkg, c)
             for (d in cards) {
                 val cls = runCatching { iCls.get(d) as? String }.getOrNull() ?: continue
-                existing.add("$pkg|$cls")
+                existingKeys.add("$pkg|$cls")
             }
         }
 
         val pm = ctx.packageManager
-        val added = ArrayList<Any>()
+        val perPkgDetails = LinkedHashMap<String, MutableList<Any>>()
+        val perPkgLabel = HashMap<String, String>()
+
         for (p in providers) {
             val comp = p.provider ?: continue
-            val key = "${comp.packageName}|${comp.className}"
-            if (key in existing) continue
-            // 2x2 或 4x2（miboard 只支持这两种跨度）
+            val pkg = comp.packageName
+            val key = "$pkg|${comp.className}"
+            if (key in existingKeys) continue
             val spanX = if (p.minWidth > 180) 4 else 2
-            val label = runCatching {
-                pm.getApplicationLabel(pm.getApplicationInfo(comp.packageName, 0)).toString()
-            }.getOrDefault(comp.packageName)
 
             val detail = detailCls.getDeclaredConstructor().also { it.isAccessible = true }.newInstance()
-            iPkg.set(detail, comp.packageName)
+            iPkg.set(detail, pkg)
             iCls.set(detail, comp.className)
             iSpanX.setInt(detail, spanX)
             iSpanY.setInt(detail, 2)
 
-            val card = dataCls.getDeclaredConstructor().also { it.isAccessible = true }.newInstance()
-            dPkg.set(card, comp.packageName)
-            dCls.set(card, comp.className)
-            dAppName.set(card, label)
-            dSpanX.setInt(card, spanX)
-            dSpanY.setInt(card, 2)
-            cardsField.set(card, arrayListOf(detail))
-            added.add(card)
+            perPkgDetails.getOrPut(pkg) { ArrayList() }.add(detail)
+            if (!perPkgLabel.containsKey(pkg)) {
+                perPkgLabel[pkg] = runCatching {
+                    pm.getApplicationLabel(pm.getApplicationInfo(pkg, 0)).toString()
+                }.getOrDefault(pkg)
+            }
+            existingKeys.add(key)
         }
-        if (added.isNotEmpty()) {
-            list.addAll(added)
-            Log.i("injected ${added.size} widget cards")
+
+        if (perPkgDetails.isEmpty()) return
+
+        for ((pkg, details) in perPkgDetails) {
+            val exist = existingByPkg[pkg]
+            if (exist != null) {
+                // 服务器已有这个应用的条目，把缺的小部件补进同一个条目
+                runCatching {
+                    val cards = cardsField.get(exist) as MutableList<Any>
+                    cards.addAll(details)
+                }
+            } else {
+                val first = details.first()
+                val card = dataCls.getDeclaredConstructor().also { it.isAccessible = true }.newInstance()
+                dPkg.set(card, pkg)
+                dCls.set(card, iCls.get(first))
+                dAppName.set(card, perPkgLabel[pkg])
+                runCatching { dType.set(card, "list_item") }
+                dSpanX.setInt(card, iSpanX.getInt(first))
+                dSpanY.setInt(card, 2)
+                cardsField.set(card, ArrayList(details))
+                list.add(card)
+            }
         }
+        Log.i("injected widget cards for ${perPkgDetails.size} package(s)")
     }
 }
