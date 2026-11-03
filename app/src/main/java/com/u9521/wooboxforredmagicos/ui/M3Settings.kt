@@ -651,8 +651,7 @@ class SettingsHomeActivity : AppCompatActivity() {
         root.addView(topBar, LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
         ))
-        root.addView(View(this).apply { setBackgroundColor(M3Color.OUTLINE_VAR) },
-            LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 1))
+
 
         val scroll = M3ScrollView(this)
         val content = LinearLayout(this).apply {
@@ -661,7 +660,25 @@ class SettingsHomeActivity : AppCompatActivity() {
                 M3Ui.dp(this@SettingsHomeActivity, 20), M3Ui.dp(this@SettingsHomeActivity, 24))
         }
         scroll.addView(content)
-        root.addView(scroll, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
+        val scrollWrap = android.widget.FrameLayout(this)
+        scrollWrap.addView(scroll, android.widget.FrameLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT
+        ))
+        val fade = View(this).apply {
+            background = GradientDrawable(
+                GradientDrawable.Orientation.TOP_BOTTOM,
+                intArrayOf(M3Color.SURFACE, Color.TRANSPARENT)
+            )
+            alpha = 0f
+        }
+        scrollWrap.addView(fade, android.widget.FrameLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, M3Ui.dp(this@SettingsHomeActivity, 18),
+            Gravity.TOP
+        ))
+        root.addView(scrollWrap, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
+        scroll.setOnScrollChangeListener { _, _, y, _, _ ->
+            fade.alpha = if (y > 6) 1f else 0f
+        }
 
         // ---------- 头部 ----------
         val header = LinearLayout(this).apply {
