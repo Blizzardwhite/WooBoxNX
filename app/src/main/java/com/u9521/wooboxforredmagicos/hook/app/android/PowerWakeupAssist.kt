@@ -6,7 +6,10 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.provider.Settings
+import android.view.KeyEvent
 import com.u9521.wooboxforredmagicos.util.hasEnable
 import com.u9521.wooboxforredmagicos.util.xposed.Log
 import com.u9521.wooboxforredmagicos.util.xposed.base.HookRegister
@@ -16,16 +19,36 @@ import de.robv.android.xposed.XposedBridge
 /**
  * 长按电源键启动默认数字助理。
  *
- * 和旧实现相比的关键区别：
- * 1. 不再依赖 getResolvedLongPressOnPowerBehavior() 必须等于"语音助手"，
- *    只要系统里有默认数字助理就直接接管长按；
- * 2. 用公开的 RoleManager.getRoleHolders 取助理，找不到再读 Settings.Secure.assistant，
- *    避免隐藏方法不存在时整个 hook 注册失败；
- * 3. 任何一步失败都不拦截原生行为，至少还能正常弹出关机菜单。
+ * - 长按（约 0.5s）：启动默认数字助理
+ * - 继续按住（再约 2.5s）：弹出电源菜单，保证还能关机
+ * - 没有默认数字助理 / 任一步反射失败：完全不拦截，保持系统原生行为
  */
 object PowerWakeupAssist : HookRegister() {
 
     private const val ROLE_ASSISTANT = "android.app.role.ASSISTANT"
+
+    /** 长按触发后，再按住这么久就弹电源菜单 */
+    private const val MENU_HOLD_MS = 2500L
+
+    private val mainHandler = Handler(Looper.getMainLooper())
+    private var powerKeyDown = false
+    private var lastSelf: Any? = null
+    private var showGlobalActions: java.lang.reflect.Method? = null
+    private var performHaptic: java.lang.reflect.Method? = null
+
+    private val openMenu = Runnable {
+        if (!powerKeyDown) return@Runnable
+        val self = lastSelf ?: return@Runnable
+        runCatching {
+            performHaptic?.invoke(
+                self, 10003, false, "Power - Long Press - Global Actions"
+            )
+            showGlobalActions?.invoke(self)
+            Log.i("very long press -> global actions")
+        }.onFailure {
+            Log.px("E", "show global actions failed: $it", it, logInRelease = true)
+        }
+    }
 
     @SuppressLint("PrivateApi")
     override fun init() = hasEnable("long_power_key_wakeup_assist") {
@@ -35,7 +58,8 @@ object PowerWakeupAssist : HookRegister() {
                 clazz.getDeclaredMethod("powerLongPress", Long::class.javaPrimitiveType)
             val resolvePowerLongBH =
                 clazz.getDeclaredMethod("getResolvedLongPressOnPowerBehavior")
-            val performHaptic = runCatching {
+            showGlobalActions = runCatching { clazz.getDeclaredMethod("showGlobalActions") }.getOrNull()
+            performHaptic = runCatching {
                 clazz.getDeclaredMethod(
                     "performHapticFeedback",
                     Int::class.javaPrimitiveType,
@@ -45,10 +69,42 @@ object PowerWakeupAssist : HookRegister() {
             }.getOrNull()
             val powerKeyHandled = clazz.getDeclaredField("mPowerKeyHandled")
             val mContext = clazz.getDeclaredField("mContext")
+            val interceptDown = runCatching {
+                clazz.getDeclaredMethod(
+                    "interceptPowerKeyDown", KeyEvent::class.java,
+                    Boolean::class.javaPrimitiveType
+                )
+            }.getOrNull()
+            val interceptUp = runCatching {
+                clazz.getDeclaredMethod(
+                    "interceptPowerKeyUp", KeyEvent::class.java,
+                    Boolean::class.javaPrimitiveType
+                )
+            }.getOrNull()
+
+            // 记录按键状态，用来判断"还按着"
+            interceptDown?.let {
+                XposedBridge.hookMethod(it, object : XC_MethodHook() {
+                    override fun afterHookedMethod(param: MethodHookParam) {
+                        powerKeyDown = true
+                        lastSelf = param.thisObject
+                        mainHandler.removeCallbacks(openMenu)
+                    }
+                })
+            }
+            interceptUp?.let {
+                XposedBridge.hookMethod(it, object : XC_MethodHook() {
+                    override fun beforeHookedMethod(param: MethodHookParam) {
+                        powerKeyDown = false
+                        mainHandler.removeCallbacks(openMenu)
+                    }
+                })
+            }
 
             XposedBridge.hookMethod(powerLongPress, object : XC_MethodHook() {
                 override fun beforeHookedMethod(param: MethodHookParam) {
                     val self = param.thisObject
+                    lastSelf = self
                     val ctx = runCatching { mContext.get(self) as Context }.getOrNull() ?: return
                     val powerBH = runCatching {
                         resolvePowerLongBH.invoke(self) as Int
@@ -75,6 +131,9 @@ object PowerWakeupAssist : HookRegister() {
                     }
                     if (ok) {
                         param.result = null
+                        // 继续按住就弹电源菜单，避免开启后没法关机
+                        mainHandler.removeCallbacks(openMenu)
+                        mainHandler.postDelayed(openMenu, MENU_HOLD_MS)
                         Log.i("handled by digital assistant")
                     }
                 }
@@ -104,7 +163,7 @@ object PowerWakeupAssist : HookRegister() {
         return null
     }
 
-    /** 先试 SearchManager.launchAssist（真正拉起助理浮层），失败再退到 ACTION_ASSIST */
+    /** 先试 SearchManager.launchAssist（真正拉起助理浮层），失败再退到应用本身 */
     private fun launchAssist(ctx: Context, pkg: String): Boolean {
         val first = runCatching {
             val sm = ctx.getSystemService(Context.SEARCH_SERVICE) as SearchManager
