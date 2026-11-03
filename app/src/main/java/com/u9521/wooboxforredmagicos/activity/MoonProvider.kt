@@ -38,7 +38,17 @@ class MoonProvider : ContentProvider() {
 
     override fun getType(uri: Uri): String = "vnd.android.cursor.item/vnd.woobox.moon"
 
-    override fun insert(uri: Uri, values: ContentValues?): Uri? = null
+    override fun insert(uri: Uri, values: ContentValues?): Uri? {
+        val dir = context?.filesDir ?: return null
+        if (uri.lastPathSegment == "heartbeat") {
+            runCatching {
+                val v = values?.getAsString("v").orEmpty()
+                File(dir, MoonStorage.FILE_ALIVE).writeText(v)
+            }
+            return uri
+        }
+        return null
+    }
 
     override fun delete(uri: Uri, selection: String?, selectionArgs: Array<out String>?): Int = 0
 
@@ -53,10 +63,12 @@ class MoonProvider : ContentProvider() {
 object MoonStorage {
     const val FILE_NAME = "moon_apps.txt"
     const val FILE_STYLE = "moon_style.txt"
+    const val FILE_ALIVE = "hook_alive.txt"
     const val COLUMN = "value"
     const val AUTHORITY = "com.u9521.wooboxforredmagicos.mod.moon"
     const val URI = "content://$AUTHORITY/moon"
     const val URI_STYLE = "content://$AUTHORITY/style"
+    const val URI_HEARTBEAT = "content://$AUTHORITY/heartbeat"
 }
 
 /** 摄像头位置圆里显示的内容样式 */

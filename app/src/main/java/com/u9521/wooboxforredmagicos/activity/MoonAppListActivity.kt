@@ -1,39 +1,44 @@
 package com.u9521.wooboxforredmagicos.activity
 
 import android.annotation.SuppressLint
-import android.app.Activity
-import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
-import android.provider.Settings
-import java.io.File
+import android.content.res.ColorStateList
 import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.Drawable
+import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
+import android.provider.Settings
 import android.text.Editable
+import android.text.TextUtils
 import android.text.TextWatcher
 import android.util.TypedValue
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
 import android.widget.BaseAdapter
-import android.widget.Button
-import android.widget.CheckBox
 import android.widget.EditText
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ListView
 import android.widget.TextView
+import androidx.appcompat.app.AppCompatActivity
+import com.google.android.material.checkbox.MaterialCheckBox
+import com.u9521.wooboxforredmagicos.R
+import com.u9521.wooboxforredmagicos.ui.M3Color
+import com.u9521.wooboxforredmagicos.ui.M3Theme
+import com.u9521.wooboxforredmagicos.ui.M3Ui
+import java.io.File
 import java.text.Collator
 import java.util.Locale
 
 /**
- * 自定义"显示月亮"的应用名单。
- * 选择结果写入 WooboxConfig 的 moon_apps（分号分隔的包名），
- * SystemUI 里的 MoonNotch 直接读取这个值。
+ * 自定义"显示屏下内容"的应用名单（MD3 界面）。
+ * 选择结果写入 files/moon_apps.txt（SystemUI 通过 ContentProvider 读取），
+ * 同时继续写一份到 WooboxConfig 以兼容旧数据。
  */
-class MoonAppListActivity : Activity() {
+class MoonAppListActivity : AppCompatActivity() {
 
     private data class AppEntry(
         val pkg: String,
@@ -52,6 +57,7 @@ class MoonAppListActivity : Activity() {
     @SuppressLint("WorldReadableFiles")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        M3Theme.apply(this)
         prefs = try {
             @Suppress("DEPRECATION")
             getSharedPreferences("WooboxConfig", MODE_WORLD_READABLE)
@@ -70,68 +76,79 @@ class MoonAppListActivity : Activity() {
         persist()
     }
 
-    private fun dp(value: Int): Int =
-        TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, value.toFloat(), resources.displayMetrics)
-            .toInt()
+    private fun dp(value: Int): Int = M3Ui.dp(this, value)
 
     private fun buildUi(): View {
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setBackgroundColor(Color.parseColor("#0F0F0F"))
+            setBackgroundColor(M3Color.SURFACE)
         }
 
-        // 标题栏
+        // 顶栏
         val titleBar = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(12), dp(14), dp(16), dp(6))
+            setPadding(dp(8), dp(16), dp(16), dp(8))
         }
         titleBar.addView(TextView(this).apply {
             text = "‹"
-            setTextColor(Color.WHITE)
-            setTextSize(TypedValue.COMPLEX_UNIT_SP, 28f)
-            setPadding(dp(8), 0, dp(12), dp(4))
+            setTextColor(M3Color.ON_SURFACE)
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 30f)
+            setPadding(dp(12), 0, dp(12), dp(2))
             setOnClickListener { finish() }
         })
-        titleBar.addView(TextView(this).apply {
-            text = getString(com.u9521.wooboxforredmagicos.R.string.moon_apps_title)
-            setTextColor(Color.WHITE)
-            setTextSize(TypedValue.COMPLEX_UNIT_SP, 20f)
-            setTypeface(typeface, Typeface.BOLD)
-        }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+        titleBar.addView(M3Ui.text(this, getString(R.string.moon_apps_title), 22f,
+            M3Color.ON_SURFACE, true))
+        titleBar.addView(View(this), LinearLayout.LayoutParams(0, 1, 1f))
         selectAllText = TextView(this).apply {
-            text = getString(com.u9521.wooboxforredmagicos.R.string.moon_apps_select_all)
-            setTextColor(Color.parseColor("#4FA3FF"))
-            setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f)
-            setPadding(dp(14), dp(10), dp(6), dp(10))
+            text = getString(R.string.moon_apps_select_all)
+            setTextColor(M3Color.PRIMARY)
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f)
+            setPadding(dp(14), dp(7), dp(14), dp(7))
+            background = GradientDrawable().apply {
+                cornerRadius = dp(16).toFloat()
+                setColor(Color.TRANSPARENT)
+                setStroke(dp(1), M3Color.OUTLINE_VAR)
+            }
+            isClickable = true
             setOnClickListener { toggleSelectAll() }
         }
         titleBar.addView(selectAllText)
         root.addView(titleBar)
 
-        // 搜索框
-        root.addView(EditText(this).apply {
-            hint = getString(com.u9521.wooboxforredmagicos.R.string.moon_apps_search)
-            setHintTextColor(Color.parseColor("#888888"))
-            setTextColor(Color.WHITE)
+        // 搜索
+        val searchWrap = LinearLayout(this).apply {
+            setPadding(dp(16), dp(4), dp(16), dp(8))
+        }
+        val search = EditText(this).apply {
+            hint = getString(R.string.moon_apps_search)
+            setHintTextColor(M3Color.ON_SURFACE_VAR)
+            setTextColor(M3Color.ON_SURFACE)
             setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f)
             setSingleLine()
-            setBackgroundColor(Color.parseColor("#1C1C1C"))
             setPadding(dp(16), dp(10), dp(16), dp(10))
+            background = GradientDrawable().apply {
+                cornerRadius = dp(20).toFloat()
+                setColor(M3Color.SURFACE_CONT)
+            }
             addTextChangedListener(object : TextWatcher {
                 override fun beforeTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
                 override fun onTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
                 override fun afterTextChanged(s: Editable?) = filter(s?.toString().orEmpty())
             })
-        }, LinearLayout.LayoutParams(
+        }
+        searchWrap.addView(search, LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
-        ).apply { setMargins(dp(16), dp(4), dp(16), dp(8)) })
+        ))
+        root.addView(searchWrap)
 
         // 列表
         val listView = ListView(this).apply {
             dividerHeight = 0
             setBackgroundColor(Color.TRANSPARENT)
             isFastScrollEnabled = true
+            setPadding(dp(8), 0, dp(8), 0)
+            clipToPadding = false
         }
         adapter = AppAdapter()
         listView.adapter = adapter
@@ -143,15 +160,15 @@ class MoonAppListActivity : Activity() {
         val bottom = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(20), dp(10), dp(16), dp(16))
+            setPadding(dp(20), dp(8), dp(12), dp(12))
         }
-        countText = TextView(this).apply {
-            setTextColor(Color.parseColor("#AAAAAA"))
-            setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f)
-        }
+        countText = M3Ui.text(this, "", 13f, M3Color.ON_SURFACE_VAR)
         bottom.addView(countText, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
-        bottom.addView(Button(this).apply {
-            text = getString(com.u9521.wooboxforredmagicos.R.string.moon_apps_done)
+        bottom.addView(com.google.android.material.button.MaterialButton(this).apply {
+            text = getString(R.string.moon_apps_done)
+            backgroundTintList = ColorStateList.valueOf(M3Color.PRIMARY_CONT)
+            setTextColor(M3Color.ON_PRIMARY_CONT)
+            cornerRadius = dp(22)
             setOnClickListener { finish() }
         })
         root.addView(bottom)
@@ -219,9 +236,9 @@ class MoonAppListActivity : Activity() {
         val label = selectAllText ?: return
         val allSelected = shownApps.isNotEmpty() && shownApps.all { it.pkg in selected }
         label.text = getString(
-            if (allSelected) com.u9521.wooboxforredmagicos.R.string.moon_apps_clear_all
-            else com.u9521.wooboxforredmagicos.R.string.moon_apps_select_all
+            if (allSelected) R.string.moon_apps_clear_all else R.string.moon_apps_select_all
         )
+        label.setTextColor(M3Color.PRIMARY)
     }
 
     private fun persist() {
@@ -246,10 +263,7 @@ class MoonAppListActivity : Activity() {
 
     private fun updateCount() {
         if (this::countText.isInitialized) {
-            countText.text = getString(
-                com.u9521.wooboxforredmagicos.R.string.moon_apps_count,
-                selected.size
-            )
+            countText.text = getString(R.string.moon_apps_count, selected.size)
         }
     }
 
@@ -260,43 +274,48 @@ class MoonAppListActivity : Activity() {
 
         override fun getView(position: Int, convertView: View?, parent: ViewGroup?): View {
             val entry = shownApps[position]
-            val context: Context = this@MoonAppListActivity
-
-            val row = LinearLayout(context).apply {
+            val row = LinearLayout(this@MoonAppListActivity).apply {
                 orientation = LinearLayout.HORIZONTAL
                 gravity = Gravity.CENTER_VERTICAL
-                setPadding(dp(16), dp(9), dp(16), dp(9))
+                setPadding(dp(12), dp(9), dp(8), dp(9))
                 isClickable = true
+                val tv = TypedValue()
+                if (theme.resolveAttribute(android.R.attr.selectableItemBackground, tv, true)) {
+                    setBackgroundResource(tv.resourceId)
+                }
             }
 
-            val icon = ImageView(context).apply {
+            val icon = ImageView(this@MoonAppListActivity).apply {
                 setImageDrawable(entry.icon)
             }
-            row.addView(icon, LinearLayout.LayoutParams(dp(40), dp(40)).apply {
+            row.addView(icon, LinearLayout.LayoutParams(dp(38), dp(38)).apply {
                 rightMargin = dp(14)
             })
 
-            val texts = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL }
-            texts.addView(TextView(context).apply {
+            val texts = LinearLayout(this@MoonAppListActivity).apply {
+                orientation = LinearLayout.VERTICAL
+            }
+            texts.addView(TextView(this@MoonAppListActivity).apply {
                 text = entry.label
-                setTextColor(Color.WHITE)
+                setTextColor(M3Color.ON_SURFACE)
                 setTextSize(TypedValue.COMPLEX_UNIT_SP, 15.5f)
                 setSingleLine()
-                ellipsize = android.text.TextUtils.TruncateAt.END
+                ellipsize = TextUtils.TruncateAt.END
             })
-            texts.addView(TextView(context).apply {
+            texts.addView(TextView(this@MoonAppListActivity).apply {
                 text = entry.pkg
-                setTextColor(Color.parseColor("#7A7A7A"))
+                setTextColor(M3Color.ON_SURFACE_VAR)
                 setTextSize(TypedValue.COMPLEX_UNIT_SP, 11.5f)
                 setSingleLine()
-                ellipsize = android.text.TextUtils.TruncateAt.END
+                ellipsize = TextUtils.TruncateAt.END
             })
             row.addView(texts, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
 
-            val check = CheckBox(context).apply {
+            val check = MaterialCheckBox(this@MoonAppListActivity).apply {
                 isChecked = entry.pkg in selected
                 isClickable = false
                 isFocusable = false
+                buttonTintList = ColorStateList.valueOf(M3Color.PRIMARY)
             }
             row.addView(check, LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT

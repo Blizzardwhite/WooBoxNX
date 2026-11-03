@@ -65,6 +65,7 @@
         <activity
             android:name="com.u9521.wooboxforredmagicos.activity.MoonAppListActivity"
             android:exported="true"
+            android:theme="@style/Theme.WooBoxM3"
             android:label="@string/moon_apps_title"
             android:screenOrientation="portrait" />
 

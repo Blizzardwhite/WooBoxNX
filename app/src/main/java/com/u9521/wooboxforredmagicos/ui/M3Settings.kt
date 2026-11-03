@@ -44,6 +44,8 @@ object M3Color {
     var ON_SURFACE = 0xFFE2E4E2.toInt()
     var ON_SURFACE_VAR = 0xFFC4C6C5.toInt()
     var OUTLINE_VAR = 0xFF444745.toInt()
+    var ERROR_CONT = 0xFF8C1D18.toInt()
+    var ON_ERROR_CONT = 0xFFF9DEDC.toInt()
 
     fun apply(c: Context) {
         SURFACE = c.getColor(R.color.m3_surface)
@@ -55,6 +57,9 @@ object M3Color {
         ON_SURFACE = c.getColor(R.color.m3_on_surface)
         ON_SURFACE_VAR = c.getColor(R.color.m3_on_surface_variant)
         OUTLINE_VAR = c.getColor(R.color.m3_outline_variant)
+        val night = M3Theme.isNight(c)
+        ERROR_CONT = if (night) 0xFF8C1D18.toInt() else 0xFFF9DEDC.toInt()
+        ON_ERROR_CONT = if (night) 0xFFF9DEDC.toInt() else 0xFF410002.toInt()
     }
 }
 
@@ -87,6 +92,25 @@ object M3Prefs {
     } catch (e: SecurityException) {
         c.getSharedPreferences("viewonly", Context.MODE_PRIVATE)
     }
+}
+
+/** 模块运行状态（靠 SystemUI hook 写的心跳判断） */
+object M3Status {
+    fun hookAlive(c: Context): Boolean = runCatching {
+        val f = java.io.File(c.filesDir, "hook_alive.txt")
+        if (!f.exists()) return false
+        val parts = f.readText().trim().split("|")
+        if (parts.size != 2) return false
+        val elapsed = parts[0].toLongOrNull() ?: return false
+        val wall = parts[1].toLongOrNull() ?: return false
+        val nowElapsed = android.os.SystemClock.elapsedRealtime()
+        val nowWall = System.currentTimeMillis()
+        if (elapsed <= 0L || elapsed > nowElapsed + 5000L) return false
+        // 心跳记录的"开机时刻"必须和当前这次开机一致，避免上次开机的心跳误判
+        val beatBootWall = wall - elapsed
+        val nowBootWall = nowWall - nowElapsed
+        kotlin.math.abs(beatBootWall - nowBootWall) < 60_000L
+    }.getOrDefault(false)
 }
 
 // ---------------- 数据模型 ----------------
@@ -372,13 +396,35 @@ object M3Actions {
             .setTitle("重启作用域")
             .setMessage("将对 ${pkgs.size} 个作用域应用执行 killall，需要 root 权限。")
             .setPositiveButton("确定") { _, _ ->
-                runCatching {
-                    com.u9521.wooboxforredmagicos.util.ShellUtils.execCommand(
-                        pkgs.map { "killall $it" }, true
-                    )
-                }
-                Toast.makeText(activity, "已重启作用域", Toast.LENGTH_SHORT).show()
-                onRestarted?.invoke()
+                Toast.makeText(activity, "正在重启作用域…", Toast.LENGTH_SHORT).show()
+                Thread {
+                    val hasRoot = runCatching {
+                        com.u9521.wooboxforredmagicos.util.ShellUtils.checkRootPermission()
+                    }.getOrDefault(false)
+                    if (!hasRoot) {
+                        activity.runOnUiThread {
+                            MaterialAlertDialogBuilder(activity)
+                                .setTitle("重启失败")
+                                .setMessage("没有获得 root 权限，无法结束作用域里的应用进程。\n\n请确认已在 root 管理器中给本应用授权。")
+                                .setPositiveButton("知道了", null)
+                                .show()
+                        }
+                        return@Thread
+                    }
+                    val result = runCatching {
+                        com.u9521.wooboxforredmagicos.util.ShellUtils.execCommand(
+                            pkgs.map { "killall $it" }, true, true
+                        )
+                    }.getOrNull()
+                    activity.runOnUiThread {
+                        if (result == null) {
+                            Toast.makeText(activity, "重启失败：命令执行异常", Toast.LENGTH_LONG).show()
+                        } else {
+                            Toast.makeText(activity, "已重启作用域", Toast.LENGTH_SHORT).show()
+                            onRestarted?.invoke()
+                        }
+                    }
+                }.start()
             }
             .setNegativeButton("取消", null)
             .show()
@@ -479,6 +525,7 @@ class M3Backup(private val activity: AppCompatActivity) {
             }
             edit.apply()
             Toast.makeText(activity, "已恢复配置，建议重启作用域", Toast.LENGTH_LONG).show()
+            activity.recreate()
         }.onFailure {
             Toast.makeText(activity, "恢复失败：${it.message}", Toast.LENGTH_SHORT).show()
         }
@@ -563,10 +610,18 @@ class SettingsHomeActivity : AppCompatActivity() {
         val scopeCount = runCatching {
             resources.getStringArray(R.array.xposed_scope).count { it != "android" }
         }.getOrDefault(0)
-        chips.addView(chip("● 运行中", M3Color.ON_PRIMARY_CONT, M3Color.PRIMARY_CONT))
+        val alive = M3Status.hookAlive(this)
+        val statusChip = chip(
+            if (alive) "● 运行中" else "● 未激活",
+            if (alive) M3Color.ON_PRIMARY_CONT else M3Color.ON_ERROR_CONT,
+            if (alive) M3Color.PRIMARY_CONT else M3Color.ERROR_CONT
+        )
+        statusChip.isClickable = true
+        statusChip.setOnClickListener { showStatusDialog(alive) }
+        chips.addView(statusChip)
         chips.addView(chip("作用域 $scopeCount 个", M3Color.ON_SURFACE_VAR, Color.TRANSPARENT))
         chips.addView(View(this), LinearLayout.LayoutParams(0, 1, 1f))
-        chips.addView(M3Actions.pill(this, "重启作用域", true) { M3Actions.restartScope(this) })
+        chips.addView(M3Actions.pill(this, "重启作用域", true) { M3Actions.restartScope(this) { M3Prefs.sp(this).edit().putBoolean("scope_dirty", false).apply() } })
         content.addView(chips, LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
         ))
@@ -584,6 +639,22 @@ class SettingsHomeActivity : AppCompatActivity() {
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
             ).apply { topMargin = M3Ui.dp(this@SettingsHomeActivity, 12) })
 
+    }
+
+    private fun showStatusDialog(alive: Boolean) {
+        if (alive) {
+            MaterialAlertDialogBuilder(this)
+                .setTitle("模块运行中")
+                .setMessage("已检测到系统界面里的模块进程，功能正常。\n\n改动设置后记得点右上角「重启作用域」生效。")
+                .setPositiveButton("知道了", null)
+                .show()
+        } else {
+            MaterialAlertDialogBuilder(this)
+                .setTitle("模块未激活")
+                .setMessage("没有检测到模块在目标应用中运行，所有功能都不会生效。\n\n请检查：\n1. LSPosed 中已启用本模块\n2. 作用域里已勾选「系统界面」等目标应用\n3. 改过作用域后需要重启手机\n4. 刚开机时可能要等系统界面加载完")
+                .setPositiveButton("知道了", null)
+                .show()
+        }
     }
 
     private fun chip(label: String, fg: Int, bg: Int): TextView {
@@ -708,9 +779,15 @@ class CategoryActivity : AppCompatActivity() {
         bar.addView(M3Ui.text(this, cat.title, 22f, M3Color.ON_SURFACE, true))
         bar.addView(View(this), LinearLayout.LayoutParams(0, 1, 1f))
         scopePill = M3Actions.pill(this, "重启作用域", endMarginDp = 8) {
-            M3Actions.restartScope(this) { M3Actions.stopBlink(scopePill) }
+            M3Actions.restartScope(this) {
+                M3Prefs.sp(this).edit().putBoolean("scope_dirty", false).apply()
+                M3Actions.stopBlink(scopePill)
+            }
         }
         bar.addView(scopePill)
+        if (M3Prefs.sp(this).getBoolean("scope_dirty", false)) {
+            scopePill?.post { scopePill?.let { p -> M3Actions.blinkLoop(p) } }
+        }
         root.addView(bar)
 
         val scroll = ScrollView(this)
@@ -919,6 +996,7 @@ class CategoryActivity : AppCompatActivity() {
     }
 
     private fun markChanged() {
+        M3Prefs.sp(this).edit().putBoolean("scope_dirty", true).apply()
         scopePill?.let { M3Actions.blinkLoop(it) }
     }
 
@@ -970,6 +1048,7 @@ class CameraSettingsActivity : AppCompatActivity() {
     private var scopePill: View? = null
 
     private fun markChanged() {
+        M3Prefs.sp(this).edit().putBoolean("scope_dirty", true).apply()
         scopePill?.let { M3Actions.blinkLoop(it) }
     }
 
@@ -998,9 +1077,15 @@ class CameraSettingsActivity : AppCompatActivity() {
         bar.addView(M3Ui.text(this, "屏下显示区域", 22f, M3Color.ON_SURFACE, true))
         bar.addView(View(this), LinearLayout.LayoutParams(0, 1, 1f))
         scopePill = M3Actions.pill(this, "重启作用域", endMarginDp = 8) {
-            M3Actions.restartScope(this) { M3Actions.stopBlink(scopePill) }
+            M3Actions.restartScope(this) {
+                M3Prefs.sp(this).edit().putBoolean("scope_dirty", false).apply()
+                M3Actions.stopBlink(scopePill)
+            }
         }
         bar.addView(scopePill)
+        if (M3Prefs.sp(this).getBoolean("scope_dirty", false)) {
+            scopePill?.post { scopePill?.let { p -> M3Actions.blinkLoop(p) } }
+        }
         root.addView(bar)
 
         val scroll = ScrollView(this)

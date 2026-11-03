@@ -95,6 +95,24 @@ object MoonNotch : HookRegister() {
         }
     }
 
+    private var lastBeat = 0L
+
+    /** 给设置界面一个"模块确实在运行"的心跳：写入 elapsedRealtime|wallClock */
+    private fun beat(context: Context) {
+        val now = android.os.SystemClock.elapsedRealtime()
+        if (now - lastBeat < 20_000L) return
+        lastBeat = now
+        runCatching {
+            val values = android.content.ContentValues().apply {
+                put("v", now.toString() + "|" + System.currentTimeMillis())
+            }
+            context.contentResolver.insert(
+                android.net.Uri.parse("content://com.u9521.wooboxforredmagicos.mod.moon/heartbeat"),
+                values
+            )
+        }
+    }
+
     @SuppressLint("PrivateApi")
     private fun sync(feature: Any) {
         // 系统自己画的黑条也去掉
@@ -107,6 +125,7 @@ object MoonNotch : HookRegister() {
             ?: return
 
         ensureMoonView(context)
+        beat(context)
 
         val topSettings = runCatching {
             XposedHelpers.getIntField(feature, "currTopSettings")
