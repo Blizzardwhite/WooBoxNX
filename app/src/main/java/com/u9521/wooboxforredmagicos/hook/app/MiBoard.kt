@@ -32,22 +32,45 @@ object MiBoard : AppRegister() {
         }
         runCatching {
             val e = lpparam.classLoader.loadClass("com.zte.mifavor.miboard.add.e")
-            val g = e.getDeclaredMethod(
-                "G", Context::class.java, ArrayList::class.java
-            )
-            XposedBridge.hookMethod(g, object : XC_MethodHook() {
-                override fun beforeHookedMethod(param: MethodHookParam) {
-                    runCatching {
-                        val ctx = param.args[0] as Context
-                        @Suppress("UNCHECKED_CAST")
-                        val list = param.args[1] as? ArrayList<Any> ?: return
-                        inject(ctx, list, lpparam.classLoader)
-                    }.onFailure {
-                        Log.px("E", "inject miboard widgets failed: $it", it, logInRelease = true)
+
+            // 完整列表构建完成时注入（避免 G 被分片调用导致重复注入）
+            runCatching {
+                val y = e.getDeclaredMethod("y", Context::class.java)
+                XposedBridge.hookMethod(y, object : XC_MethodHook() {
+                    override fun afterHookedMethod(param: MethodHookParam) {
+                        runCatching {
+                            val ctx = param.args[0] as? Context ?: return
+                            @Suppress("UNCHECKED_CAST")
+                            val list = param.result as? ArrayList<Any> ?: return
+                            inject(ctx, list, lpparam.classLoader)
+                        }.onFailure {
+                            Log.px("E", "inject (y) failed: $it", it, logInRelease = true)
+                        }
                     }
-                }
-            })
-            Log.i("MiBoard widget unlock hooked")
+                })
+            }
+
+            // 网络/本地数据组装完成后、分片之前注入
+            val f = e.declaredMethods.firstOrNull {
+                it.name == "F" && it.parameterTypes.size == 3 &&
+                    it.parameterTypes[0] == Context::class.java &&
+                    it.parameterTypes[1] == ArrayList::class.java
+            }
+            if (f != null) {
+                XposedBridge.hookMethod(f, object : XC_MethodHook() {
+                    override fun beforeHookedMethod(param: MethodHookParam) {
+                        runCatching {
+                            val ctx = param.args[0] as? Context ?: return
+                            @Suppress("UNCHECKED_CAST")
+                            val list = param.args[1] as? ArrayList<Any> ?: return
+                            inject(ctx, list, lpparam.classLoader)
+                        }.onFailure {
+                            Log.px("E", "inject (F) failed: $it", it, logInRelease = true)
+                        }
+                    }
+                })
+            }
+            Log.i("MiBoard widget unlock hooked, F=$f")
         }.onFailure {
             Log.px("E", "MiBoard init failed: $it", it, logInRelease = true)
         }
