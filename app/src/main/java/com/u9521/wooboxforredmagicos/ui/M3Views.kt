@@ -353,7 +353,7 @@ class M3ScrollView(context: Context) : ScrollView(context) {
     private var bounce = 0f
     private var bounceVel = 0f
     private val density = resources.displayMetrics.density
-    private val maxBounce = 95f * density
+    private val maxBounce = 130f * density
 
     private val runner = object : Runnable {
         override fun run() {
@@ -368,13 +368,13 @@ class M3ScrollView(context: Context) : ScrollView(context) {
             if (next > maxScroll) {
                 next = maxScroll.toFloat()
                 if (velocity > 0f) {
-                    bounceVel = -velocity * 0.26f
+                    bounceVel = -velocity * 0.42f
                     velocity = 0f
                 }
             } else if (next < 0f) {
                 next = 0f
                 if (velocity < 0f) {
-                    bounceVel = -velocity * 0.26f
+                    bounceVel = -velocity * 0.42f
                     velocity = 0f
                 }
             }
