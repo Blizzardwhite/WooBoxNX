@@ -100,36 +100,81 @@ object M3Prefs {
  * 用来判断当前设置是否真的和已生效的配置不同（改了又改回去就不算脏）。
  */
 object M3Dirty {
+
+    class State(val restartTitles: List<String>, val rebootTitles: List<String>) {
+        val dirty get() = restartTitles.isNotEmpty() || rebootTitles.isNotEmpty()
+    }
+
     private const val FILE = "prefs_baseline.txt"
 
-    private fun snapshot(c: Context): String {
-        val all = M3Prefs.sp(c).all.filterKeys { it != "scope_dirty" }
-        return all.entries.sortedBy { it.key }.joinToString("\n") { "${it.key}=${it.value}" }
-    }
+    private fun snapshot(c: Context): Map<String, String> =
+        M3Prefs.sp(c).all.filterKeys { it != "scope_dirty" }
+            .mapValues { it.value.toString() }
 
     private fun file(c: Context) = java.io.File(c.filesDir, FILE)
 
-    private fun ensureBaseline(c: Context) {
-        val f = file(c)
-        if (!f.exists()) runCatching { f.writeText(snapshot(c)) }
+    private fun readBaseline(c: Context): MutableMap<String, String> {
+        val map = LinkedHashMap<String, String>()
+        runCatching {
+            file(c).readLines().forEach { line ->
+                val i = line.indexOf('=')
+                if (i > 0) map[line.substring(0, i)] = line.substring(i + 1)
+            }
+        }
+        return map
     }
 
-    /** 重启成功后调用：把当前配置当作已生效的基线 */
-    fun markBaseline(c: Context) {
-        runCatching { file(c).writeText(snapshot(c)) }
+    private fun writeBaseline(c: Context, map: Map<String, String>) {
+        runCatching {
+            file(c).writeText(map.entries.sortedBy { it.key }.joinToString("\n") { "${it.key}=${it.value}" })
+        }
+    }
+
+    fun ensureBaseline(c: Context) {
+        if (!file(c).exists()) writeBaseline(c, snapshot(c))
+    }
+
+    /** 与基线比较，返回待生效的项目（分成「重启手机」和「重启作用域」两组） */
+    fun check(c: Context): State {
+        ensureBaseline(c)
+        val base = readBaseline(c)
+        val cur = snapshot(c)
+        val restart = LinkedHashSet<String>()
+        val reboot = LinkedHashSet<String>()
+        val keys = HashSet<String>()
+        keys.addAll(base.keys)
+        keys.addAll(cur.keys)
+        for (k in keys) {
+            if (base[k] == cur[k]) continue
+            val title = SettingsModel.titleOf(k) ?: k
+            if (SettingsModel.scopeOf(k) == Row.REBOOT) reboot.add(title) else restart.add(title)
+        }
+        M3Prefs.sp(c).edit().putBoolean("scope_dirty", restart.isNotEmpty() || reboot.isNotEmpty()).apply()
+        return State(restart.toList(), reboot.toList())
+    }
+
+    /** 重启作用域之后：非「重启手机」类改动视为已生效 */
+    fun markRestarted(c: Context) {
+        val base = readBaseline(c)
+        val cur = snapshot(c)
+        val merged = LinkedHashMap(cur)
+        val keys = HashSet<String>()
+        keys.addAll(base.keys)
+        keys.addAll(cur.keys)
+        for (k in keys) {
+            if (SettingsModel.scopeOf(k) != Row.REBOOT) continue
+            if (base.containsKey(k)) merged[k] = base[k]!! else merged.remove(k)
+        }
+        writeBaseline(c, merged)
+        check(c)
+    }
+
+    /** 所有改动都已生效（重启手机后用不到，保留给恢复/重置场景） */
+    fun markAllApplied(c: Context) {
+        writeBaseline(c, snapshot(c))
         M3Prefs.sp(c).edit().putBoolean("scope_dirty", false).apply()
     }
-
-    /** 与基线比对，返回是否还有未生效的改动 */
-    fun check(c: Context): Boolean {
-        ensureBaseline(c)
-        val base = runCatching { file(c).readText() }.getOrNull() ?: return false
-        val dirty = runCatching { snapshot(c) != base }.getOrDefault(false)
-        M3Prefs.sp(c).edit().putBoolean("scope_dirty", dirty).apply()
-        return dirty
-    }
 }
-
 /** 模块运行状态（靠 SystemUI hook 写的心跳判断） */
 object M3Status {
     fun hookAlive(c: Context): Boolean = runCatching {
@@ -161,7 +206,9 @@ class Row(
     val action: String? = null,
     val switchKey: String? = null,
     val defStr: String = "",
-    val intValue: Boolean = false
+    val intValue: Boolean = false,
+    /** 生效方式：RESTART=重启作用域，REBOOT=重启手机 */
+    var scope: Int = RESTART
 ) {
     companion object {
         const val SWITCH = 0
@@ -169,9 +216,12 @@ class Row(
         const val ACTION = 2
         const val SWITCH_TEXT = 3
         const val SWITCH_SLIDER = 4
+
+        const val INSTANT = 0
+        const val RESTART = 1
+        const val REBOOT = 2
     }
 }
-
 class Group(val title: String?, val rows: List<Row>)
 
 class Category(
@@ -390,9 +440,65 @@ object SettingsModel {
         ))
     ))
 
+    /** 这些 key 属于系统框架（android 作用域），改动后必须重启手机 */
+    private val rebootKeys = setOf(
+        "alarm_volume_steps", "alarm_volume_steps_switch",
+        "media_volume_steps", "media_volume_steps_switch",
+        "notify_volume_steps", "notify_volume_steps_switch",
+        "ring_volume_steps", "ring_volume_steps_switch",
+        "vc_call_volume_steps", "vc_call_volume_steps_switch",
+        "rm_window_reply_restriction", "rm_window_reply_count_restriction",
+        "airplane_mode_keep_bt", "airplane_mode_keep_wlan",
+        "disable_flag_secure", "disable_flag_secure_enhanced",
+        "allow_untrusted_touches", "block_telemetry_service", "remove_intent_hijack",
+        "telecom_wlan_cc_val", "custom_wlan_countrycode",
+        "pin_sta_mac", "pin_sta_mac_sw", "pin_ap_bssid", "pin_ap_bssid_sw",
+        "long_power_key_wakeup_assist",
+        "remove_alert_windows_notification", "block_notification_sound_screen_on",
+        "block_system_server_log"
+    )
+
     private val all: List<Category> = listOf(
         camera, status, notify, qs, lock, framework, keys, apps, update, other
     )
+
+    init {
+        all.forEach { cat ->
+            cat.groups.forEach { g ->
+                g.rows.forEach { r ->
+                    if ((r.key != null && r.key in rebootKeys) ||
+                        (r.switchKey != null && r.switchKey in rebootKeys)
+                    ) {
+                        r.scope = Row.REBOOT
+                    }
+                }
+            }
+        }
+    }
+
+    /** key -> 生效方式 */
+    fun scopeOf(key: String): Int {
+        all.forEach { cat ->
+            cat.groups.forEach { g ->
+                g.rows.forEach { r ->
+                    if (r.key == key || r.switchKey == key) return r.scope
+                }
+            }
+        }
+        return Row.RESTART
+    }
+
+    /** key -> 显示标题（用于应用修改清单） */
+    fun titleOf(key: String): String? {
+        all.forEach { cat ->
+            cat.groups.forEach { g ->
+                g.rows.forEach { r ->
+                    if (r.key == key || r.switchKey == key) return r.title
+                }
+            }
+        }
+        return null
+    }
 
     fun categories(): List<Category> = all.filter { it.parent == null }
 
@@ -434,6 +540,72 @@ object M3Ui {
 
 // ---------------- 动作 ----------------
 object M3Actions {
+
+    /** 应用修改：列出待生效项，并给出「重启手机 / 重启作用域」两个入口 */
+    fun applyChanges(activity: Activity, onDone: () -> Unit) {
+        val state = M3Dirty.check(activity)
+        if (!state.dirty) {
+            Toast.makeText(activity, "当前没有未生效的修改", Toast.LENGTH_SHORT).show()
+            return
+        }
+        val msg = StringBuilder()
+        if (state.rebootTitles.isNotEmpty()) {
+            msg.append("需要重启手机（").append(state.rebootTitles.size).append(" 项）\n")
+            state.rebootTitles.take(8).forEach { msg.append("· ").append(it).append('\n') }
+            if (state.rebootTitles.size > 8) {
+                msg.append("· 等 ").append(state.rebootTitles.size).append(" 项\n")
+            }
+            msg.append('\n')
+        }
+        if (state.restartTitles.isNotEmpty()) {
+            msg.append("需要重启作用域（").append(state.restartTitles.size).append(" 项）\n")
+            state.restartTitles.take(8).forEach { msg.append("· ").append(it).append('\n') }
+            if (state.restartTitles.size > 8) {
+                msg.append("· 等 ").append(state.restartTitles.size).append(" 项\n")
+            }
+        }
+        val builder = MaterialAlertDialogBuilder(activity)
+            .setTitle("应用修改")
+            .setMessage(msg.toString().trim())
+            .setNegativeButton("取消", null)
+        if (state.rebootTitles.isNotEmpty()) {
+            builder.setPositiveButton("重启手机") { _, _ -> confirmReboot(activity) }
+        }
+        if (state.restartTitles.isNotEmpty()) {
+            builder.setNeutralButton("重启作用域") { _, _ -> restartScope(activity) { onDone() } }
+        }
+        builder.show()
+    }
+
+    private fun confirmReboot(activity: Activity) {
+        MaterialAlertDialogBuilder(activity)
+            .setTitle("重启手机")
+            .setMessage("有改动需要重启手机才能生效，现在重启？")
+            .setPositiveButton("重启") { _, _ ->
+                Toast.makeText(activity, "正在重启手机…", Toast.LENGTH_SHORT).show()
+                Thread {
+                    val hasRoot = runCatching {
+                        com.u9521.wooboxforredmagicos.util.ShellUtils.checkRootPermission()
+                    }.getOrDefault(false)
+                    if (!hasRoot) {
+                        activity.runOnUiThread {
+                            MaterialAlertDialogBuilder(activity)
+                                .setTitle("重启失败")
+                                .setMessage("没有获得 root 权限，无法重启手机。")
+                                .setPositiveButton("知道了", null)
+                                .show()
+                        }
+                        return@Thread
+                    }
+                    runCatching {
+                        com.u9521.wooboxforredmagicos.util.ShellUtils.execCommand("reboot", true)
+                    }
+                }.start()
+            }
+            .setNegativeButton("取消", null)
+            .show()
+    }
+
     fun restartScope(activity: Activity, onRestarted: (() -> Unit)? = null) {
         val pkgs: List<String> = runCatching {
             activity.resources.getStringArray(R.array.xposed_scope).filter { it != "android" }
@@ -466,6 +638,7 @@ object M3Actions {
                         if (result == null) {
                             Toast.makeText(activity, "重启失败：命令执行异常", Toast.LENGTH_LONG).show()
                         } else {
+                            M3Dirty.markRestarted(activity)
                             Toast.makeText(activity, "已重启作用域", Toast.LENGTH_SHORT).show()
                             onRestarted?.invoke()
                         }
@@ -475,7 +648,6 @@ object M3Actions {
             .setNegativeButton("取消", null)
             .show()
     }
-
     /** 设置被修改后持续缓慢闪烁外框（绿色），文字保持不动，直到点了「重启作用域」 */
     fun blinkLoop(v: View) {
         if (v.getTag(R.id.tag_blink) != null) return
@@ -628,7 +800,7 @@ class SettingsHomeActivity : AppCompatActivity() {
         super.onResume()
         refreshStatus()
         val p = scopePill ?: return
-        if (M3Dirty.check(this)) M3Actions.blinkLoop(p) else M3Actions.stopBlink(p)
+        if (M3Dirty.check(this).dirty) M3Actions.blinkLoop(p) else M3Actions.stopBlink(p)
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -730,11 +902,8 @@ class SettingsHomeActivity : AppCompatActivity() {
         chips.addView(statusChip)
         chips.addView(chip("作用域 $scopeCount 个", M3Color.ON_SURFACE_VAR, Color.TRANSPARENT))
         chips.addView(View(this), LinearLayout.LayoutParams(0, 1, 1f))
-        val homePill = M3Actions.pill(this, "重启作用域", true) {
-            M3Actions.restartScope(this) {
-                M3Dirty.markBaseline(this)
-                M3Actions.stopBlink(scopePill)
-            }
+        val homePill = M3Actions.pill(this, "应用修改", true) {
+            M3Actions.applyChanges(this) { refreshDirty() }
         }
         scopePill = homePill
         chips.addView(homePill)
@@ -805,7 +974,7 @@ class SettingsHomeActivity : AppCompatActivity() {
         })
         root.post {
             val p = scopePill
-            if (p != null && M3Dirty.check(this)) M3Actions.blinkLoop(p)
+            if (p != null && M3Dirty.check(this).dirty) M3Actions.blinkLoop(p)
         }
     }
 
@@ -947,8 +1116,10 @@ class SettingsHomeActivity : AppCompatActivity() {
         return card
     }
 
-    private fun markDirty() {
-        val dirty = M3Dirty.check(this)
+    private fun markDirty() = refreshDirty()
+
+    private fun refreshDirty() {
+        val dirty = M3Dirty.check(this).dirty
         scopePill?.let { if (dirty) M3Actions.blinkLoop(it) else M3Actions.stopBlink(it) }
     }
 
@@ -1064,14 +1235,11 @@ class CategoryActivity : AppCompatActivity() {
         })
         bar.addView(M3Ui.text(this, cat.title, 22f, M3Color.ON_SURFACE, true))
         bar.addView(View(this), LinearLayout.LayoutParams(0, 1, 1f))
-        scopePill = M3Actions.pill(this, "重启作用域", endMarginDp = 8) {
-            M3Actions.restartScope(this) {
-                M3Dirty.markBaseline(this)
-                M3Actions.stopBlink(scopePill)
-            }
+        scopePill = M3Actions.pill(this, "应用修改", endMarginDp = 8) {
+            M3Actions.applyChanges(this) { refreshDirty() }
         }
         bar.addView(scopePill)
-        if (M3Dirty.check(this)) {
+        if (M3Dirty.check(this).dirty) {
             scopePill?.post { scopePill?.let { p -> M3Actions.blinkLoop(p) } }
         }
         root.addView(bar)
@@ -1156,8 +1324,10 @@ class CategoryActivity : AppCompatActivity() {
             action == "restore" -> backup.confirmRestore()
         }
     }
-    private fun markChanged() {
-        val dirty = M3Dirty.check(this)
+    private fun markChanged() = refreshDirty()
+
+    private fun refreshDirty() {
+        val dirty = M3Dirty.check(this).dirty
         scopePill?.let { if (dirty) M3Actions.blinkLoop(it) else M3Actions.stopBlink(it) }
     }
 
@@ -1169,8 +1339,10 @@ class CameraSettingsActivity : AppCompatActivity() {
 
     private var scopePill: View? = null
 
-    private fun markChanged() {
-        val dirty = M3Dirty.check(this)
+    private fun markChanged() = refreshDirty()
+
+    private fun refreshDirty() {
+        val dirty = M3Dirty.check(this).dirty
         scopePill?.let { if (dirty) M3Actions.blinkLoop(it) else M3Actions.stopBlink(it) }
     }
 
@@ -1199,14 +1371,11 @@ class CameraSettingsActivity : AppCompatActivity() {
         })
         bar.addView(M3Ui.text(this, "屏下显示区域", 22f, M3Color.ON_SURFACE, true))
         bar.addView(View(this), LinearLayout.LayoutParams(0, 1, 1f))
-        scopePill = M3Actions.pill(this, "重启作用域", endMarginDp = 8) {
-            M3Actions.restartScope(this) {
-                M3Dirty.markBaseline(this)
-                M3Actions.stopBlink(scopePill)
-            }
+        scopePill = M3Actions.pill(this, "应用修改", endMarginDp = 8) {
+            M3Actions.applyChanges(this) { refreshDirty() }
         }
         bar.addView(scopePill)
-        if (M3Dirty.check(this)) {
+        if (M3Dirty.check(this).dirty) {
             scopePill?.post { scopePill?.let { p -> M3Actions.blinkLoop(p) } }
         }
         root.addView(bar)
