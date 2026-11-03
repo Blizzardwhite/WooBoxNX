@@ -344,6 +344,7 @@ class SwipeScrollView(context: Context, private val onSwipe: (Int) -> Unit) : Sc
 class M3ScrollView(context: Context) : ScrollView(context) {
 
     private var velocity = 0f
+    private var flingRunning = false
     private var lastTime = 0L
     private var maxScroll = 0
     private var bounce = 0f
@@ -393,12 +394,13 @@ class M3ScrollView(context: Context) : ScrollView(context) {
                 getChildAt(0)?.translationY = 0f
                 bounce = 0f
                 bounceVel = 0f
+                flingRunning = false
             }
         }
     }
 
     init {
-        overScrollMode = View.OVER_SCROLL_NEVER
+        overScrollMode = View.OVER_SCROLL_ALWAYS
     }
 
     override fun fling(velocityY: Int) {
@@ -406,6 +408,7 @@ class M3ScrollView(context: Context) : ScrollView(context) {
         maxScroll = (child.height + paddingTop + paddingBottom - height).coerceAtLeast(0)
         if (maxScroll <= 0) return
         velocity = velocityY.toFloat()
+        flingRunning = true
         lastTime = 0L
         bounce = 0f
         bounceVel = 0f
@@ -414,6 +417,7 @@ class M3ScrollView(context: Context) : ScrollView(context) {
     }
 
     override fun computeScroll() {
-        // 惯性由 runner 驱动
+        // 自己的惯性由 runner 驱动；空闲时交给父类处理拖拽越界的回弹
+        if (!flingRunning) super.computeScroll()
     }
 }
