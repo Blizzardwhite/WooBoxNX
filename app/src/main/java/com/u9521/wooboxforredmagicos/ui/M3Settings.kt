@@ -606,15 +606,25 @@ class SettingsHomeActivity : AppCompatActivity() {
     private var statusChip: TextView? = null
     private var listHost: LinearLayout? = null
     private var searchField: android.widget.EditText? = null
+    private var searchClear: TextView? = null
     private var currentTab = 0
     private var query = ""
+    private lateinit var navView: com.google.android.material.bottomnavigation.BottomNavigationView
+    private lateinit var backup: M3Backup
+    private lateinit var rowBuilder: M3RowBuilder
 
-    /** 每个 tab 下挂哪些分类 */
+    private class Tab(
+        val title: String,
+        val icon: Int,
+        val entries: List<String>,
+        val inline: Set<String> = emptySet()
+    )
+
     private val tabs = listOf(
-        listOf("camera", "status", "notify", "qs", "lock"),
-        listOf("framework", "keys"),
-        listOf("apps", "update"),
-        listOf("other", "about")
+        Tab("显示", R.drawable.ic_nav_display, listOf("camera", "status", "notify", "qs", "lock")),
+        Tab("系统", R.drawable.ic_nav_system, listOf("framework", "keys"), setOf("framework")),
+        Tab("应用", R.drawable.ic_nav_app, listOf("apps", "update"), setOf("apps")),
+        Tab("更多", R.drawable.ic_nav_more, listOf("other", "about"), setOf("other"))
     )
 
     private val aboutCategory = Category("about", "关于", "版本、开发者与致谢", 6, emptyList())
@@ -640,13 +650,15 @@ class SettingsHomeActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         M3Theme.apply(this)
+        backup = M3Backup(this)
+        rowBuilder = M3RowBuilder(this, { markDirty() }, { handleAction(it) })
 
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setBackgroundColor(M3Color.SURFACE)
         }
 
-        val scroll = ScrollView(this)
+        val scroll = SwipeScrollView(this) { dir -> shiftTab(dir) }
         val content = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(M3Ui.dp(this@SettingsHomeActivity, 20), M3Ui.dp(this@SettingsHomeActivity, 24),
@@ -718,45 +730,60 @@ class SettingsHomeActivity : AppCompatActivity() {
         ))
 
         // ---------- 搜索 ----------
+        val searchWrap = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(M3Ui.dp(this@SettingsHomeActivity, 14), 0,
+                M3Ui.dp(this@SettingsHomeActivity, 6), 0)
+            background = GradientDrawable().apply {
+                cornerRadius = M3Ui.dp(this@SettingsHomeActivity, 22).toFloat()
+                setColor(M3Color.SURFACE_CONT)
+            }
+        }
         val search = android.widget.EditText(this).apply {
             hint = "搜索设置项"
             setHintTextColor(M3Color.ON_SURFACE_VAR)
             setTextColor(M3Color.ON_SURFACE)
             textSize = 14f
             setSingleLine()
-            setPadding(M3Ui.dp(this@SettingsHomeActivity, 16), M3Ui.dp(this@SettingsHomeActivity, 9),
-                M3Ui.dp(this@SettingsHomeActivity, 16), M3Ui.dp(this@SettingsHomeActivity, 9))
-            background = GradientDrawable().apply {
-                cornerRadius = M3Ui.dp(this@SettingsHomeActivity, 22).toFloat()
-                setColor(M3Color.SURFACE_CONT)
-            }
+            setBackgroundColor(Color.TRANSPARENT)
+            setPadding(0, M3Ui.dp(this@SettingsHomeActivity, 9), 0, M3Ui.dp(this@SettingsHomeActivity, 9))
             addTextChangedListener(object : android.text.TextWatcher {
                 override fun beforeTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
                 override fun onTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
                 override fun afterTextChanged(s: android.text.Editable?) {
                     query = s?.toString().orEmpty()
+                    searchClear?.visibility = if (query.isEmpty()) View.GONE else View.VISIBLE
                     buildList()
                 }
             })
         }
         searchField = search
-        content.addView(search, LinearLayout.LayoutParams(
+        searchWrap.addView(search, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+        val clear = M3Ui.text(this, "✕", 16f, M3Color.ON_SURFACE_VAR).apply {
+            setPadding(M3Ui.dp(this@SettingsHomeActivity, 10), M3Ui.dp(this@SettingsHomeActivity, 8),
+                M3Ui.dp(this@SettingsHomeActivity, 10), M3Ui.dp(this@SettingsHomeActivity, 8))
+            visibility = View.GONE
+            isClickable = true
+            setOnClickListener { clearSearch() }
+        }
+        searchClear = clear
+        searchWrap.addView(clear)
+        content.addView(searchWrap, LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
         ).apply { topMargin = M3Ui.dp(this@SettingsHomeActivity, 12) })
-
         val host = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         listHost = host
         content.addView(host, LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
         ).apply { topMargin = M3Ui.dp(this@SettingsHomeActivity, 10) })
-
         // ---------- 底部导航 ----------
         val navWrap = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         navWrap.addView(View(this).apply {
             setBackgroundColor(M3Color.OUTLINE_VAR)
             layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 1)
         })
-        val nav = com.google.android.material.bottomnavigation.BottomNavigationView(this).apply {
+        navView = com.google.android.material.bottomnavigation.BottomNavigationView(this).apply {
             setBackgroundColor(M3Color.SURFACE)
             elevation = 0f
             labelVisibilityMode =
@@ -772,30 +799,37 @@ class SettingsHomeActivity : AppCompatActivity() {
                 itemActiveIndicatorColor = ColorStateList.valueOf(M3Color.PRIMARY_CONT)
             }
         }
-        val titles = listOf("显示", "系统", "应用", "更多")
-        val icons = listOf(R.drawable.ic_nav_display, R.drawable.ic_nav_system,
-            R.drawable.ic_nav_app, R.drawable.ic_nav_more)
-        titles.forEachIndexed { index, title ->
-            nav.menu.add(0, index + 1, index, title).setIcon(icons[index])
+        tabs.forEachIndexed { index, tab ->
+            navView.menu.add(0, index + 1, index, tab.title).setIcon(tab.icon)
         }
-        nav.setOnItemSelectedListener { item ->
+        navView.setOnItemSelectedListener { item ->
             currentTab = item.itemId - 1
             query = ""
             searchField?.setText("")
+            searchClear?.visibility = View.GONE
             buildList()
             scroll.smoothScrollTo(0, 0)
             true
         }
-        nav.selectedItemId = 1
-        navWrap.addView(nav, LinearLayout.LayoutParams(
+        navView.selectedItemId = 1
+        navWrap.addView(navView, LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
         ))
         root.addView(navWrap, LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
         ))
-
         setContentView(root)
         buildList()
+        onBackPressedDispatcher.addCallback(this, object : androidx.activity.OnBackPressedCallback(true) {
+            override fun handleOnBackPressed() {
+                if (query.isNotEmpty()) {
+                    clearSearch()
+                } else {
+                    isEnabled = false
+                    onBackPressedDispatcher.onBackPressed()
+                }
+            }
+        })
         content.post {
             val p = scopePill
             if (p != null && M3Dirty.check(this)) M3Actions.blinkLoop(p)
@@ -805,18 +839,75 @@ class SettingsHomeActivity : AppCompatActivity() {
     private fun buildList() {
         val host = listHost ?: return
         host.removeAllViews()
-        host.addView(if (query.isBlank()) tabList() else searchResultList(query))
+        runCatching { buildListInner(host) }.onFailure {
+            host.addView(M3Ui.text(this, "渲染失败：" + it, 12f, M3Color.ERROR_CONT))
+        }
     }
 
-    private fun tabList(): View {
+    private fun buildListInner(host: LinearLayout) {
+
+        if (query.isNotBlank()) {
+            host.addView(searchResultList(query))
+            return
+        }
+        val tab = tabs[currentTab]
+        val prefs = M3Prefs.sp(this)
+        val inlineCats = tab.entries.filter { it in tab.inline }
+            .mapNotNull { SettingsModel.byId(it) }
+        val rowCats = tab.entries.filter { it !in tab.inline }
+            .mapNotNull { if (it == "about") aboutCategory else SettingsModel.byId(it) }
+
+        inlineCats.forEach { host.addView(inlineCategory(it, prefs)) }
+        if (rowCats.isNotEmpty()) {
+            host.addView(rowsCard(rowCats), LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
+            ).apply { topMargin = M3Ui.dp(this@SettingsHomeActivity, 10) })
+        }
+    }
+
+    /** 把分类里的分组直接铺在 tab 上 */
+    private fun inlineCategory(cat: Category, prefs: SharedPreferences): View {
+        val box = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        cat.groups.forEachIndexed { groupIndex, group ->
+            if (!group.title.isNullOrEmpty()) {
+                box.addView(M3Ui.text(this, group.title, 13f, M3Color.ON_SURFACE_VAR, true).apply {
+                    setPadding(M3Ui.dp(this@SettingsHomeActivity, 6),
+                        M3Ui.dp(this@SettingsHomeActivity, if (groupIndex == 0) 12 else 16),
+                        M3Ui.dp(this@SettingsHomeActivity, 6), M3Ui.dp(this@SettingsHomeActivity, 6))
+                })
+            }
+            val card = M3Ui.card(this).apply {
+                setContentPadding(M3Ui.dp(this@SettingsHomeActivity, 16), M3Ui.dp(this@SettingsHomeActivity, 2),
+                    M3Ui.dp(this@SettingsHomeActivity, 16), M3Ui.dp(this@SettingsHomeActivity, 2))
+            }
+            val inner = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+            group.rows.forEachIndexed { index, row ->
+                val view = rowBuilder.build(prefs, row)
+                view.tag = row.key ?: row.title
+                inner.addView(view)
+                if (index != group.rows.lastIndex) {
+                    inner.addView(View(this).apply {
+                        setBackgroundColor(M3Color.OUTLINE_VAR)
+                        layoutParams = LinearLayout.LayoutParams(
+                            ViewGroup.LayoutParams.MATCH_PARENT, 1
+                        )
+                    })
+                }
+            }
+            card.addView(inner)
+            box.addView(card, LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
+            ))
+        }
+        return box
+    }
+
+    private fun rowsCard(cats: List<Category>): View {
         val card = M3Ui.card(this).apply {
             setContentPadding(M3Ui.dp(this@SettingsHomeActivity, 8), M3Ui.dp(this@SettingsHomeActivity, 4),
                 M3Ui.dp(this@SettingsHomeActivity, 8), M3Ui.dp(this@SettingsHomeActivity, 4))
         }
         val inner = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        val cats = tabs[currentTab].mapNotNull { id ->
-            if (id == "about") aboutCategory else SettingsModel.byId(id)
-        }
         cats.forEachIndexed { index, cat ->
             inner.addView(compactRow(cat.icon, cat.title, cat.subtitle) { openCategory(cat) })
             if (index != cats.lastIndex) inner.addView(divider())
@@ -825,6 +916,38 @@ class SettingsHomeActivity : AppCompatActivity() {
         return card
     }
 
+    private fun markDirty() {
+        val dirty = M3Dirty.check(this)
+        scopePill?.let { if (dirty) M3Actions.blinkLoop(it) else M3Actions.stopBlink(it) }
+    }
+
+    private fun shiftTab(dir: Int) {
+        val next = (currentTab + dir).coerceIn(0, tabs.lastIndex)
+        if (next != currentTab) navView.selectedItemId = next + 1
+    }
+
+    private fun clearSearch() {
+        query = ""
+        searchField?.setText("")
+        searchClear?.visibility = View.GONE
+        val imm = getSystemService(android.content.Context.INPUT_METHOD_SERVICE)
+            as? android.view.inputmethod.InputMethodManager
+        searchField?.let { imm?.hideSoftInputFromWindow(it.windowToken, 0); it.clearFocus() }
+        buildList()
+    }
+
+    private fun handleAction(action: String) {
+        when {
+            action.startsWith("page:") -> startActivity(Intent(this, CategoryActivity::class.java)
+                .putExtra("id", action.removePrefix("page:")))
+            action == "legacy" -> runCatching {
+                startActivity(Intent().setClassName(packageName,
+                    "com.u9521.wooboxforredmagicos.activity.SettingsActivity"))
+            }
+            action == "backup" -> backup.startBackup()
+            action == "restore" -> backup.confirmRestore()
+        }
+    }
     private fun compactRow(icon: Int, title: String, subtitle: String, onClick: () -> Unit): View {
         val row = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -1085,171 +1208,9 @@ class CategoryActivity : AppCompatActivity() {
         }
     }
 
-    private fun buildRow(prefs: SharedPreferences, row: Row): View {
-        return when (row.kind) {
-            Row.SLIDER -> {
-                val box = LinearLayout(this).apply {
-                    orientation = LinearLayout.VERTICAL
-                    setPadding(0, M3Ui.dp(this@CategoryActivity, 12), 0, M3Ui.dp(this@CategoryActivity, 8))
-                }
-                val head = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-                head.addView(M3Ui.text(this, row.title, 16f, M3Color.ON_SURFACE), LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
-                val valueText = M3Ui.text(this, "", 14f, M3Color.PRIMARY).apply {
-                    setPadding(M3Ui.dp(this@CategoryActivity, 8), 0, 0, 0)
-                }
-                head.addView(valueText)
-                box.addView(head)
-                if (!row.summary.isNullOrEmpty()) {
-                    box.addView(M3Ui.text(this, row.summary, 12f, M3Color.ON_SURFACE_VAR))
-                }
-                val slider = Slider(this).apply {
-                    valueFrom = row.min.toFloat()
-                    valueTo = row.max.toFloat()
-                    stepSize = 1f
-                    setTickVisible(false)
-                    value = prefs.getInt(row.key, row.def).toFloat().coerceIn(row.min.toFloat(), row.max.toFloat())
-                    valueText.text = value.toInt().toString()
-                    addOnChangeListener { _, v, _ ->
-                        valueText.text = v.toInt().toString()
-                        prefs.edit().putInt(row.key, v.toInt()).apply(); markChanged()
-                    }
-                }
-                box.addView(slider)
-                box
-            }
+    private val rowBuilder by lazy { M3RowBuilder(this, { markChanged() }, { handleAction(it) }) }
 
-            Row.SWITCH_SLIDER -> {
-                val box = LinearLayout(this).apply {
-                    orientation = LinearLayout.VERTICAL
-                    setPadding(0, M3Ui.dp(this@CategoryActivity, 12), 0, M3Ui.dp(this@CategoryActivity, 8))
-                }
-                val head = LinearLayout(this).apply {
-                    orientation = LinearLayout.HORIZONTAL
-                    gravity = Gravity.CENTER_VERTICAL
-                }
-                val texts = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-                texts.addView(M3Ui.text(this, row.title, 16f, M3Color.ON_SURFACE))
-                if (!row.summary.isNullOrEmpty()) {
-                    texts.addView(M3Ui.text(this, row.summary, 12f, M3Color.ON_SURFACE_VAR))
-                }
-                head.addView(texts, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
-                val valueText = M3Ui.text(this, "", 14f, M3Color.PRIMARY).apply {
-                    setPadding(M3Ui.dp(this@CategoryActivity, 8), 0, M3Ui.dp(this@CategoryActivity, 4), 0)
-                }
-                head.addView(valueText)
-                head.addView(MaterialSwitch(this).apply {
-                    val key = row.switchKey
-                    if (key != null) {
-                        isChecked = prefs.getBoolean(key, false)
-                        setOnCheckedChangeListener { _, c -> prefs.edit().putBoolean(key, c).apply(); markChanged() }
-                    }
-                })
-                box.addView(head)
-                val slider = Slider(this).apply {
-                    valueFrom = row.min.toFloat()
-                    valueTo = row.max.toFloat()
-                    stepSize = 1f
-                    setTickVisible(false)
-                    value = prefs.getInt(row.key, row.def).toFloat().coerceIn(row.min.toFloat(), row.max.toFloat())
-                    valueText.text = value.toInt().toString()
-                    addOnChangeListener { _, v, _ ->
-                        valueText.text = v.toInt().toString()
-                        prefs.edit().putInt(row.key, v.toInt()).apply(); markChanged()
-                    }
-                }
-                box.addView(slider)
-                box
-            }
-
-            Row.SWITCH_TEXT -> {
-                val texts = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-                texts.addView(M3Ui.text(this, row.title, 16f, M3Color.ON_SURFACE))
-                if (!row.summary.isNullOrEmpty()) {
-                    texts.addView(M3Ui.text(this, row.summary, 12f, M3Color.ON_SURFACE_VAR))
-                }
-                val valueView = M3Ui.text(this, "当前：" + currentValue(prefs, row), 12f, M3Color.PRIMARY)
-                texts.addView(valueView)
-                val line = LinearLayout(this).apply {
-                    orientation = LinearLayout.HORIZONTAL
-                    gravity = Gravity.CENTER_VERTICAL
-                    setPadding(0, M3Ui.dp(this@CategoryActivity, 10), 0, M3Ui.dp(this@CategoryActivity, 10))
-                    isClickable = true
-                    setOnClickListener {
-                        editValue(row) { saved -> valueView.text = "当前：$saved" }
-                    }
-                }
-                line.addView(texts, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
-                if (row.switchKey != null) {
-                    line.addView(MaterialSwitch(this).apply {
-                        val key = row.switchKey
-                        isChecked = prefs.getBoolean(key, false)
-                        setOnCheckedChangeListener { _, c -> prefs.edit().putBoolean(key, c).apply(); markChanged() }
-                    })
-                } else {
-                    line.addView(M3Ui.text(this, "›", 24f, M3Color.ON_SURFACE_VAR))
-                }
-                line
-            }
-
-            Row.ACTION -> {
-                LinearLayout(this).apply {
-                    orientation = LinearLayout.HORIZONTAL
-                    gravity = Gravity.CENTER_VERTICAL
-                    setPadding(0, M3Ui.dp(this@CategoryActivity, 16), 0, M3Ui.dp(this@CategoryActivity, 16))
-                    isClickable = true
-                    addView(LinearLayout(this@CategoryActivity).apply {
-                        orientation = LinearLayout.VERTICAL
-                        addView(M3Ui.text(this@CategoryActivity, row.title, 16f, M3Color.ON_SURFACE))
-                        if (row.summary != null) {
-                            addView(M3Ui.text(this@CategoryActivity, row.summary!!, 12f, M3Color.ON_SURFACE_VAR))
-                        }
-                    }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
-                    addView(M3Ui.text(this@CategoryActivity, "›", 24f, M3Color.ON_SURFACE_VAR))
-                    setOnClickListener {
-                        val action = row.action ?: return@setOnClickListener
-                        if (action.startsWith("page:")) {
-                            startActivity(Intent(this@CategoryActivity, CategoryActivity::class.java)
-                                .putExtra("id", action.removePrefix("page:")))
-                        } else if (action == "legacy") {
-                            runCatching {
-                                startActivity(Intent().setClassName(packageName,
-                                    "com.u9521.wooboxforredmagicos.activity.SettingsActivity"))
-                            }
-                        } else if (action == "backup") {
-                            backup.startBackup()
-                        } else if (action == "restore") {
-                            backup.confirmRestore()
-                        }
-                    }
-                }
-            }
-
-            else -> {
-                val line = LinearLayout(this).apply {
-                    orientation = LinearLayout.HORIZONTAL
-                    gravity = Gravity.CENTER_VERTICAL
-                    setPadding(0, M3Ui.dp(this@CategoryActivity, 10), 0, M3Ui.dp(this@CategoryActivity, 10))
-                }
-                val texts = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-                texts.addView(M3Ui.text(this, row.title, 16f, M3Color.ON_SURFACE))
-                if (!row.summary.isNullOrEmpty()) {
-                    texts.addView(M3Ui.text(this, row.summary, 12f, M3Color.ON_SURFACE_VAR).apply {
-                        setPadding(0, M3Ui.dp(this@CategoryActivity, 2), 0, 0)
-                    })
-                }
-                line.addView(texts, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
-                val sw = MaterialSwitch(this).apply {
-                    isChecked = prefs.getBoolean(row.key, false)
-                    setOnCheckedChangeListener { _, checked ->
-                        prefs.edit().putBoolean(row.key, checked).apply(); markChanged()
-                    }
-                }
-                line.addView(sw)
-                line
-            }
-        }
-    }
-
+    private fun buildRow(prefs: SharedPreferences, row: Row): View = rowBuilder.build(prefs, row)
     private fun findViewByTag(v: View, tag: String): View? {
         if (v.tag == tag) return v
         if (v is ViewGroup) {
@@ -1259,52 +1220,25 @@ class CategoryActivity : AppCompatActivity() {
         }
         return null
     }
+    private fun handleAction(action: String) {
+        when {
+            action.startsWith("page:") -> startActivity(Intent(this, CategoryActivity::class.java)
+                .putExtra("id", action.removePrefix("page:")))
+            action == "legacy" -> runCatching {
+                startActivity(Intent().setClassName(packageName,
+                    "com.u9521.wooboxforredmagicos.activity.SettingsActivity"))
+            }
+            action == "backup" -> backup.startBackup()
+            action == "restore" -> backup.confirmRestore()
+        }
+    }
     private fun markChanged() {
         val dirty = M3Dirty.check(this)
         scopePill?.let { if (dirty) M3Actions.blinkLoop(it) else M3Actions.stopBlink(it) }
     }
 
-    private fun currentValue(prefs: SharedPreferences, row: Row): String =
-        if (row.intValue) prefs.getInt(row.key, row.defStr.toIntOrNull() ?: 0).toString()
-        else prefs.getString(row.key, row.defStr).orEmpty()
-
-    private fun editValue(row: Row, onSaved: (String) -> Unit) {
-        val prefs = M3Prefs.sp(this)
-        val input = android.widget.EditText(this).apply {
-            setText(currentValue(prefs, row))
-            setSelection(text.length)
-            setSingleLine(true)
-            setTextColor(M3Color.ON_SURFACE)
-            setHintTextColor(M3Color.ON_SURFACE_VAR)
-        }
-        val wrap = LinearLayout(this).apply {
-            setPadding(M3Ui.dp(this@CategoryActivity, 24), M3Ui.dp(this@CategoryActivity, 8),
-                M3Ui.dp(this@CategoryActivity, 24), 0)
-            addView(input, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
-        }
-        MaterialAlertDialogBuilder(this)
-            .setTitle(row.title)
-            .setView(wrap)
-            .setPositiveButton("确定") { _, _ ->
-                val v = input.text.toString().trim()
-                if (v.isEmpty()) return@setPositiveButton
-                if (row.intValue) {
-                    val n = v.toIntOrNull()
-                    if (n == null) {
-                        Toast.makeText(this, "请输入整数", Toast.LENGTH_SHORT).show()
-                        return@setPositiveButton
-                    }
-                    prefs.edit().putInt(row.key, n).apply(); markChanged()
-                } else {
-                    prefs.edit().putString(row.key, v).apply(); markChanged()
-                }
-                onSaved(v)
-                Toast.makeText(this, "设置成功", Toast.LENGTH_SHORT).show()
-            }
-            .setNegativeButton("取消", null)
-            .show()
-    }
 }
+
 
 // ---------------- 屏下显示区域 ----------------
 class CameraSettingsActivity : AppCompatActivity() {
@@ -1751,4 +1685,208 @@ class GifCircleView(context: Context, resId: Int, sizePx: Int) : androidx.appcom
         super.onDraw(canvas)
         canvas.restoreToCount(save)
     }
+}
+
+/** 设置行构建器：分类页和首页展开共用 */
+class M3RowBuilder(
+    private val activity: AppCompatActivity,
+    private val onChanged: () -> Unit,
+    private val onAction: (String) -> Unit
+) {
+
+    fun build(prefs: SharedPreferences, row: Row): View {
+        return when (row.kind) {
+            Row.SLIDER -> {
+                val box = LinearLayout(activity).apply {
+                    orientation = LinearLayout.VERTICAL
+                    setPadding(0, M3Ui.dp(activity, 12), 0, M3Ui.dp(activity, 8))
+                }
+                val head = LinearLayout(activity).apply { orientation = LinearLayout.HORIZONTAL }
+                head.addView(M3Ui.text(activity, row.title, 16f, M3Color.ON_SURFACE), LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+                val valueText = M3Ui.text(activity, "", 14f, M3Color.PRIMARY).apply {
+                    setPadding(M3Ui.dp(activity, 8), 0, 0, 0)
+                }
+                head.addView(valueText)
+                box.addView(head)
+                if (!row.summary.isNullOrEmpty()) {
+                    box.addView(M3Ui.text(activity, row.summary, 12f, M3Color.ON_SURFACE_VAR))
+                }
+                val slider = Slider(activity).apply {
+                    valueFrom = row.min.toFloat()
+                    valueTo = row.max.toFloat()
+                    stepSize = 1f
+                    setTickVisible(false)
+                    value = prefs.getInt(row.key, row.def).toFloat().coerceIn(row.min.toFloat(), row.max.toFloat())
+                    valueText.text = value.toInt().toString()
+                    addOnChangeListener { _, v, _ ->
+                        valueText.text = v.toInt().toString()
+                        prefs.edit().putInt(row.key, v.toInt()).apply(); onChanged()
+                    }
+                }
+                box.addView(slider)
+                box
+            }
+
+            Row.SWITCH_SLIDER -> {
+                val box = LinearLayout(activity).apply {
+                    orientation = LinearLayout.VERTICAL
+                    setPadding(0, M3Ui.dp(activity, 12), 0, M3Ui.dp(activity, 8))
+                }
+                val head = LinearLayout(activity).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    gravity = Gravity.CENTER_VERTICAL
+                }
+                val texts = LinearLayout(activity).apply { orientation = LinearLayout.VERTICAL }
+                texts.addView(M3Ui.text(activity, row.title, 16f, M3Color.ON_SURFACE))
+                if (!row.summary.isNullOrEmpty()) {
+                    texts.addView(M3Ui.text(activity, row.summary, 12f, M3Color.ON_SURFACE_VAR))
+                }
+                head.addView(texts, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+                val valueText = M3Ui.text(activity, "", 14f, M3Color.PRIMARY).apply {
+                    setPadding(M3Ui.dp(activity, 8), 0, M3Ui.dp(activity, 4), 0)
+                }
+                head.addView(valueText)
+                head.addView(MaterialSwitch(activity).apply {
+                    val key = row.switchKey
+                    if (key != null) {
+                        isChecked = prefs.getBoolean(key, false)
+                        setOnCheckedChangeListener { _, c -> prefs.edit().putBoolean(key, c).apply(); onChanged() }
+                    }
+                })
+                box.addView(head)
+                val slider = Slider(activity).apply {
+                    valueFrom = row.min.toFloat()
+                    valueTo = row.max.toFloat()
+                    stepSize = 1f
+                    setTickVisible(false)
+                    value = prefs.getInt(row.key, row.def).toFloat().coerceIn(row.min.toFloat(), row.max.toFloat())
+                    valueText.text = value.toInt().toString()
+                    addOnChangeListener { _, v, _ ->
+                        valueText.text = v.toInt().toString()
+                        prefs.edit().putInt(row.key, v.toInt()).apply(); onChanged()
+                    }
+                }
+                box.addView(slider)
+                box
+            }
+
+            Row.SWITCH_TEXT -> {
+                val texts = LinearLayout(activity).apply { orientation = LinearLayout.VERTICAL }
+                texts.addView(M3Ui.text(activity, row.title, 16f, M3Color.ON_SURFACE))
+                if (!row.summary.isNullOrEmpty()) {
+                    texts.addView(M3Ui.text(activity, row.summary, 12f, M3Color.ON_SURFACE_VAR))
+                }
+                val valueView = M3Ui.text(activity, "当前：" + currentValue(prefs, row), 12f, M3Color.PRIMARY)
+                texts.addView(valueView)
+                val line = LinearLayout(activity).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    gravity = Gravity.CENTER_VERTICAL
+                    setPadding(0, M3Ui.dp(activity, 10), 0, M3Ui.dp(activity, 10))
+                    isClickable = true
+                    setOnClickListener {
+                        editValue(row) { saved -> valueView.text = "当前：$saved" }
+                    }
+                }
+                line.addView(texts, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+                if (row.switchKey != null) {
+                    line.addView(MaterialSwitch(activity).apply {
+                        val key = row.switchKey
+                        isChecked = prefs.getBoolean(key, false)
+                        setOnCheckedChangeListener { _, c -> prefs.edit().putBoolean(key, c).apply(); onChanged() }
+                    })
+                } else {
+                    line.addView(M3Ui.text(activity, "›", 24f, M3Color.ON_SURFACE_VAR))
+                }
+                line
+            }
+
+            Row.ACTION -> {
+                LinearLayout(activity).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    gravity = Gravity.CENTER_VERTICAL
+                    setPadding(0, M3Ui.dp(activity, 16), 0, M3Ui.dp(activity, 16))
+                    isClickable = true
+                    addView(LinearLayout(activity).apply {
+                        orientation = LinearLayout.VERTICAL
+                        addView(M3Ui.text(activity, row.title, 16f, M3Color.ON_SURFACE))
+                        if (row.summary != null) {
+                            addView(M3Ui.text(activity, row.summary!!, 12f, M3Color.ON_SURFACE_VAR))
+                        }
+                    }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+                    addView(M3Ui.text(activity, "›", 24f, M3Color.ON_SURFACE_VAR))
+                    setOnClickListener {
+                        onAction(row.action ?: return@setOnClickListener)
+                    }
+                }
+
+            }
+
+            else -> {
+                val line = LinearLayout(activity).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    gravity = Gravity.CENTER_VERTICAL
+                    setPadding(0, M3Ui.dp(activity, 10), 0, M3Ui.dp(activity, 10))
+                }
+                val texts = LinearLayout(activity).apply { orientation = LinearLayout.VERTICAL }
+                texts.addView(M3Ui.text(activity, row.title, 16f, M3Color.ON_SURFACE))
+                if (!row.summary.isNullOrEmpty()) {
+                    texts.addView(M3Ui.text(activity, row.summary, 12f, M3Color.ON_SURFACE_VAR).apply {
+                        setPadding(0, M3Ui.dp(activity, 2), 0, 0)
+                    })
+                }
+                line.addView(texts, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+                val sw = MaterialSwitch(activity).apply {
+                    isChecked = prefs.getBoolean(row.key, false)
+                    setOnCheckedChangeListener { _, checked ->
+                        prefs.edit().putBoolean(row.key, checked).apply(); onChanged()
+                    }
+                }
+                line.addView(sw)
+                line
+            }
+        }
+    }
+
+
+    private fun currentValue(prefs: SharedPreferences, row: Row): String =
+        if (row.intValue) prefs.getInt(row.key, row.defStr.toIntOrNull() ?: 0).toString()
+        else prefs.getString(row.key, row.defStr).orEmpty()
+
+    private fun editValue(row: Row, onSaved: (String) -> Unit) {
+        val prefs = M3Prefs.sp(activity)
+        val input = android.widget.EditText(activity).apply {
+            setText(currentValue(prefs, row))
+            setSelection(text.length)
+            setSingleLine(true)
+            setTextColor(M3Color.ON_SURFACE)
+            setHintTextColor(M3Color.ON_SURFACE_VAR)
+        }
+        val wrap = LinearLayout(activity).apply {
+            setPadding(M3Ui.dp(activity, 24), M3Ui.dp(activity, 8),
+                M3Ui.dp(activity, 24), 0)
+            addView(input, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+        }
+        MaterialAlertDialogBuilder(activity)
+            .setTitle(row.title)
+            .setView(wrap)
+            .setPositiveButton("确定") { _, _ ->
+                val v = input.text.toString().trim()
+                if (v.isEmpty()) return@setPositiveButton
+                if (row.intValue) {
+                    val n = v.toIntOrNull()
+                    if (n == null) {
+                        Toast.makeText(activity, "请输入整数", Toast.LENGTH_SHORT).show()
+                        return@setPositiveButton
+                    }
+                    prefs.edit().putInt(row.key, n).apply(); onChanged()
+                } else {
+                    prefs.edit().putString(row.key, v).apply(); onChanged()
+                }
+                onSaved(v)
+                Toast.makeText(activity, "设置成功", Toast.LENGTH_SHORT).show()
+            }
+            .setNegativeButton("取消", null)
+            .show()
+    }
+
 }

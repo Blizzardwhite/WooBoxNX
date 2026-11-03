@@ -12,7 +12,10 @@ import android.graphics.RectF
 import android.graphics.Shader
 import android.graphics.Typeface
 import android.util.TypedValue
+import android.view.GestureDetector
+import android.view.MotionEvent
 import android.view.View
+import android.widget.ScrollView
 
 /** 分类图标：在 tonal 圆底上画一个简单图形 */
 class IconView(context: Context, private val type: Int) : View(context) {
@@ -256,5 +259,31 @@ class CameraPreviewView(context: Context) : View(context) {
         p.lineTo(cx - r * 0.26f, cy - r * 0.26f)
         p.close()
         canvas.drawPath(p, fgPaint)
+    }
+}
+
+/** 支持左右滑动切换 tab 的 ScrollView */
+class SwipeScrollView(context: Context, private val onSwipe: (Int) -> Unit) : ScrollView(context) {
+
+    private val detector = GestureDetector(context, object : GestureDetector.SimpleOnGestureListener() {
+        override fun onFling(e1: MotionEvent?, e2: MotionEvent, vx: Float, vy: Float): Boolean {
+            if (e1 == null) return false
+            val dx = e2.x - e1.x
+            val dy = e2.y - e1.y
+            val threshold = 110 * resources.displayMetrics.density
+            if (kotlin.math.abs(dx) > kotlin.math.abs(dy) * 1.5f &&
+                kotlin.math.abs(dx) > threshold &&
+                kotlin.math.abs(vx) > 700f
+            ) {
+                onSwipe(if (dx < 0) 1 else -1)
+                return true
+            }
+            return false
+        }
+    })
+
+    override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
+        detector.onTouchEvent(ev)
+        return super.dispatchTouchEvent(ev)
     }
 }
