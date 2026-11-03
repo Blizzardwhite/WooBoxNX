@@ -169,6 +169,33 @@ object M3Dirty {
         check(c)
     }
 
+    /** 撤销所有未生效的修改，恢复到上次生效时的值 */
+    fun revertPending(c: Context) {
+        val base = readBaseline(c)
+        val all = M3Prefs.sp(c).all
+        val edit = M3Prefs.sp(c).edit()
+        for ((k, baseVal) in base) {
+            val curVal = all[k]
+            if (curVal == null) {
+                edit.putString(k, baseVal)
+                continue
+            }
+            if (curVal.toString() == baseVal) continue
+            when (curVal) {
+                is Boolean -> edit.putBoolean(k, baseVal.toBoolean())
+                is Int -> edit.putInt(k, baseVal.toIntOrNull() ?: 0)
+                is Long -> edit.putLong(k, baseVal.toLongOrNull() ?: 0L)
+                is Float -> edit.putFloat(k, baseVal.toFloatOrNull() ?: 0f)
+                else -> edit.putString(k, baseVal)
+            }
+        }
+        for (k in all.keys) {
+            if (k != "scope_dirty" && !base.containsKey(k)) edit.remove(k)
+        }
+        edit.apply()
+        check(c)
+    }
+
     /** 所有改动都已生效（重启手机后用不到，保留给恢复/重置场景） */
     fun markAllApplied(c: Context) {
         writeBaseline(c, snapshot(c))
@@ -548,6 +575,10 @@ object M3Actions {
             Toast.makeText(activity, "当前没有未生效的修改", Toast.LENGTH_SHORT).show()
             return
         }
+
+        val density = activity.resources.displayMetrics.density
+        fun dp(v: Int) = (v * density + 0.5f).toInt()
+
         val msg = StringBuilder()
         if (state.rebootTitles.isNotEmpty()) {
             msg.append("需要重启手机（").append(state.rebootTitles.size).append(" 项）\n")
@@ -564,19 +595,71 @@ object M3Actions {
                 msg.append("· 等 ").append(state.restartTitles.size).append(" 项\n")
             }
         }
-        val builder = MaterialAlertDialogBuilder(activity)
-            .setTitle("应用修改")
-            .setMessage(msg.toString().trim())
-            .setNegativeButton("取消", null)
-        if (state.rebootTitles.isNotEmpty()) {
-            builder.setPositiveButton("重启手机") { _, _ -> confirmReboot(activity) }
+
+        val box = LinearLayout(activity).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(24), dp(6), dp(24), dp(2))
+        }
+        box.addView(M3Ui.text(activity, msg.toString().trim(), 13f, M3Color.ON_SURFACE_VAR))
+
+        val actions = LinearLayout(activity).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.END
+            setPadding(0, dp(14), 0, 0)
+        }
+
+        fun addAction(label: String, filled: Boolean, onClick: () -> Unit) {
+            val b = MaterialButton(activity).apply {
+                text = label
+                textSize = 13f
+                cornerRadius = dp(18)
+                insetTop = 0
+                insetBottom = 0
+                minWidth = 0
+                minimumWidth = 0
+                setPadding(dp(14), dp(6), dp(14), dp(6))
+                if (filled) {
+                    backgroundTintList = ColorStateList.valueOf(M3Color.PRIMARY_CONT)
+                    setTextColor(M3Color.ON_PRIMARY_CONT)
+                } else {
+                    backgroundTintList = ColorStateList.valueOf(Color.TRANSPARENT)
+                    strokeWidth = dp(1)
+                    strokeColor = ColorStateList.valueOf(M3Color.OUTLINE_VAR)
+                    setTextColor(M3Color.ON_SURFACE)
+                }
+                setOnClickListener { onClick() }
+            }
+            actions.addView(b, LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT
+            ).apply { leftMargin = dp(8) })
+        }
+
+        addAction("取消修改", false) {
+            MaterialAlertDialogBuilder(activity)
+                .setTitle("取消修改")
+                .setMessage("把尚未生效的改动恢复为上次生效时的状态，确定吗？")
+                .setPositiveButton("恢复") { _, _ ->
+                    M3Dirty.revertPending(activity)
+                    Toast.makeText(activity, "已恢复为上次生效的配置", Toast.LENGTH_SHORT).show()
+                    onDone()
+                }
+                .setNegativeButton("取消", null)
+                .show()
         }
         if (state.restartTitles.isNotEmpty()) {
-            builder.setNeutralButton("重启作用域") { _, _ -> restartScope(activity) { onDone() } }
+            addAction("重启作用域", false) { restartScope(activity) { onDone() } }
         }
-        builder.show()
-    }
+        if (state.rebootTitles.isNotEmpty()) {
+            addAction("重启手机", true) { confirmReboot(activity) }
+        }
+        box.addView(actions)
 
+        MaterialAlertDialogBuilder(activity)
+            .setTitle("应用修改")
+            .setView(box)
+            .setNegativeButton("关闭", null)
+            .show()
+    }
     private fun confirmReboot(activity: Activity) {
         MaterialAlertDialogBuilder(activity)
             .setTitle("重启手机")
