@@ -382,7 +382,7 @@ class M3ScrollView(context: Context) : ScrollView(context) {
 
             // 2. 回弹（阻尼弹簧）
             if (bounce != 0f || bounceVel != 0f) {
-                bounceVel += (-bounce * 900f - bounceVel * 62f) * dt
+                bounceVel += (-bounce * 60f - bounceVel * 16f) * dt
                 bounce += bounceVel * dt
                 bounce = bounce.coerceIn(-maxBounce, maxBounce)
                 getChildAt(0)?.translationY = bounce
