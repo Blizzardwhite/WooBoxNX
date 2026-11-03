@@ -880,13 +880,20 @@ class SettingsHomeActivity : AppCompatActivity() {
                 return@forEach
             }
             cat.groups.forEach { group ->
+                // 命中分组名时，把该分组下的设置项都列出来
+                val groupHit = group.title?.contains(key, true) == true
                 group.rows.forEach { row ->
-                    if (row.title.contains(key, true) ||
+                    if (groupHit ||
+                        row.title.contains(key, true) ||
                         (row.summary?.contains(key, true) == true)
                     ) {
                         out.add(SearchHit(cat, row, group.title))
                     }
                 }
+            }
+            // 命中分类名时，也给出一个直达入口
+            if (cat.title.contains(key, true)) {
+                out.add(SearchHit(cat, null, null))
             }
         }
         return out
