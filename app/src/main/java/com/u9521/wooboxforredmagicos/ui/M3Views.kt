@@ -353,8 +353,8 @@ class M3ScrollView(context: Context) : ScrollView(context) {
     private var dragOver = 0f
     private var blockFling = false
     private val density = resources.displayMetrics.density
-    private val maxBounce = 130f * density
-    private val maxDrag get() = 170f * density
+    private val maxBounce = 85f * density
+    private val maxDrag get() = 125f * density
 
     private val runner = object : Runnable {
         override fun run() {
@@ -369,13 +369,13 @@ class M3ScrollView(context: Context) : ScrollView(context) {
             if (next > maxScroll) {
                 next = maxScroll.toFloat()
                 if (velocity > 0f) {
-                    bounceVel = -velocity * 0.42f
+                    bounceVel = -velocity * 0.30f
                     velocity = 0f
                 }
             } else if (next < 0f) {
                 next = 0f
                 if (velocity < 0f) {
-                    bounceVel = -velocity * 0.42f
+                    bounceVel = -velocity * 0.30f
                     velocity = 0f
                 }
             }
@@ -383,7 +383,7 @@ class M3ScrollView(context: Context) : ScrollView(context) {
 
             // 2. 回弹
             if (bounce != 0f || bounceVel != 0f) {
-                bounceVel += (-bounce * 60f - bounceVel * 16f) * dt
+                bounceVel += (-bounce * 150f - bounceVel * 25f) * dt
                 bounce += bounceVel * dt
                 bounce = bounce.coerceIn(-maxBounce, maxBounce)
                 getChildAt(0)?.translationY = bounce
@@ -442,10 +442,10 @@ class M3ScrollView(context: Context) : ScrollView(context) {
                 val atTop = scrollY <= 0
                 val atBottom = scrollY >= maxScroll
                 if (atTop) {
-                    dragOver = (dragOver + dy * 0.35f).coerceIn(0f, maxDrag)
+                    dragOver = (dragOver + dy * 0.30f).coerceIn(0f, maxDrag)
                     child.translationY = dragOver
                 } else if (atBottom) {
-                    dragOver = (dragOver + dy * 0.35f).coerceIn(-maxDrag, 0f)
+                    dragOver = (dragOver + dy * 0.30f).coerceIn(-maxDrag, 0f)
                     child.translationY = dragOver
                 } else if (dragOver != 0f) {
                     dragOver = 0f
