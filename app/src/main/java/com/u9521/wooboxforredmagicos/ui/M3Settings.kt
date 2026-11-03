@@ -383,14 +383,23 @@ object M3Actions {
             .show()
     }
 
-    /** 设置被修改时闪烁提示「重启作用域」 */
-    fun blink(v: View) {
-        v.animate().cancel()
-        val steps = floatArrayOf(0.22f, 1f, 0.22f, 1f, 0.22f, 1f)
-        val a = android.animation.ValueAnimator.ofFloat(*steps)
-        a.duration = 900
-        a.addUpdateListener { v.alpha = it.animatedValue as Float }
+    /** 设置被修改后持续缓慢闪烁，直到点了「重启作用域」 */
+    fun blinkLoop(v: View) {
+        (v.getTag(R.id.tag_blink) as? android.animation.Animator)?.let { if (it.isRunning) return }
+        val a = android.animation.ObjectAnimator.ofFloat(v, "alpha", 1f, 0.28f).apply {
+            duration = 850
+            repeatMode = android.animation.ValueAnimator.REVERSE
+            repeatCount = android.animation.ValueAnimator.INFINITE
+        }
+        v.setTag(R.id.tag_blink, a)
         a.start()
+    }
+
+    fun stopBlink(v: View?) {
+        v ?: return
+        (v.getTag(R.id.tag_blink) as? android.animation.Animator)?.cancel()
+        v.setTag(R.id.tag_blink, null)
+        v.alpha = 1f
     }
 
     fun pill(activity: Activity, label: String, chipStyle: Boolean = false, endMarginDp: Int = 0, onClick: () -> Unit): TextView {
@@ -679,7 +688,10 @@ class CategoryActivity : AppCompatActivity() {
         })
         bar.addView(M3Ui.text(this, cat.title, 22f, M3Color.ON_SURFACE, true))
         bar.addView(View(this), LinearLayout.LayoutParams(0, 1, 1f))
-        scopePill = M3Actions.pill(this, "重启作用域", endMarginDp = 8) { M3Actions.restartScope(this) }
+        scopePill = M3Actions.pill(this, "重启作用域", endMarginDp = 8) {
+            M3Actions.stopBlink(scopePill)
+            M3Actions.restartScope(this)
+        }
         bar.addView(scopePill)
         root.addView(bar)
 
@@ -889,7 +901,7 @@ class CategoryActivity : AppCompatActivity() {
     }
 
     private fun markChanged() {
-        scopePill?.let { M3Actions.blink(it) }
+        scopePill?.let { M3Actions.blinkLoop(it) }
     }
 
     private fun currentValue(prefs: SharedPreferences, row: Row): String =
@@ -940,7 +952,7 @@ class CameraSettingsActivity : AppCompatActivity() {
     private var scopePill: View? = null
 
     private fun markChanged() {
-        scopePill?.let { M3Actions.blink(it) }
+        scopePill?.let { M3Actions.blinkLoop(it) }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -967,7 +979,10 @@ class CameraSettingsActivity : AppCompatActivity() {
         })
         bar.addView(M3Ui.text(this, "屏下显示区域", 22f, M3Color.ON_SURFACE, true))
         bar.addView(View(this), LinearLayout.LayoutParams(0, 1, 1f))
-        scopePill = M3Actions.pill(this, "重启作用域", endMarginDp = 8) { M3Actions.restartScope(this) }
+        scopePill = M3Actions.pill(this, "重启作用域", endMarginDp = 8) {
+            M3Actions.stopBlink(scopePill)
+            M3Actions.restartScope(this)
+        }
         bar.addView(scopePill)
         root.addView(bar)
 
