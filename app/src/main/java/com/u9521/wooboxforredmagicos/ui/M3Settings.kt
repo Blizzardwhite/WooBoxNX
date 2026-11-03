@@ -604,6 +604,20 @@ class SettingsHomeActivity : AppCompatActivity() {
 
     private var scopePill: View? = null
     private var statusChip: TextView? = null
+    private var listHost: LinearLayout? = null
+    private var searchField: android.widget.EditText? = null
+    private var currentTab = 0
+    private var query = ""
+
+    /** 每个 tab 下挂哪些分类 */
+    private val tabs = listOf(
+        listOf("camera", "status", "notify", "qs", "lock"),
+        listOf("framework", "keys"),
+        listOf("apps", "update"),
+        listOf("other", "about")
+    )
+
+    private val aboutCategory = Category("about", "关于", "版本、开发者与致谢", 6, emptyList())
 
     /** 每次回到主页都重新判断模块是否在运行（心跳可能刚更新） */
     private fun refreshStatus() {
@@ -627,7 +641,6 @@ class SettingsHomeActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         M3Theme.apply(this)
 
-
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setBackgroundColor(M3Color.SURFACE)
@@ -637,50 +650,46 @@ class SettingsHomeActivity : AppCompatActivity() {
         val content = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(M3Ui.dp(this@SettingsHomeActivity, 20), M3Ui.dp(this@SettingsHomeActivity, 24),
-                M3Ui.dp(this@SettingsHomeActivity, 20), M3Ui.dp(this@SettingsHomeActivity, 24))
+                M3Ui.dp(this@SettingsHomeActivity, 20), M3Ui.dp(this@SettingsHomeActivity, 16))
         }
         scroll.addView(content)
         root.addView(scroll, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
-        setContentView(root)
 
-        // 标题 + 头像
+        // ---------- 头部 ----------
         val header = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
         }
         val titleBox = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        titleBox.addView(M3Ui.text(this, "WooBox NX", 34f, M3Color.ON_SURFACE, true))
+        titleBox.addView(M3Ui.text(this, "WooBox NX", 32f, M3Color.ON_SURFACE, true))
         val model = (Build.MANUFACTURER + " " + Build.MODEL).replaceFirstChar { it.uppercase() }
-        titleBox.addView(M3Ui.text(this, model + "  ·  v" + com.u9521.wooboxforredmagicos.BuildConfig.VERSION_NAME, 13f, M3Color.ON_SURFACE_VAR).apply {
+        titleBox.addView(M3Ui.text(this, model + "  ·  v" + com.u9521.wooboxforredmagicos.BuildConfig.VERSION_NAME,
+            12f, M3Color.ON_SURFACE_VAR).apply {
             setPadding(0, M3Ui.dp(this@SettingsHomeActivity, 2), 0, 0)
         })
         header.addView(titleBox, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
-        val rightCol = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            gravity = Gravity.CENTER_HORIZONTAL
-        }
         val avatar = avatarView()
-        rightCol.addView(avatar, LinearLayout.LayoutParams(M3Ui.dp(this, 46), M3Ui.dp(this, 46)))
-        header.addView(rightCol, LinearLayout.LayoutParams(
-            ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT
-        ).apply { rightMargin = M3Ui.dp(this@SettingsHomeActivity, 10) })
+        header.addView(avatar, LinearLayout.LayoutParams(M3Ui.dp(this, 42), M3Ui.dp(this, 42)).apply {
+            rightMargin = M3Ui.dp(this@SettingsHomeActivity, 8)
+        })
         header.setPadding(M3Ui.dp(this, 6), 0, M3Ui.dp(this, 6), 0)
         content.addView(header)
         header.post {
             val h = titleBox.height
             if (h > 0) {
-                val min = M3Ui.dp(this, 42)
-                val max = M3Ui.dp(this, 58)
-                val size = (h * 0.86f).toInt().coerceIn(min, max)
-                avatar.layoutParams = LinearLayout.LayoutParams(size, size)
+                val size = (h * 0.82f).toInt()
+                    .coerceIn(M3Ui.dp(this, 38), M3Ui.dp(this, 52))
+                avatar.layoutParams = LinearLayout.LayoutParams(size, size).apply {
+                    rightMargin = M3Ui.dp(this@SettingsHomeActivity, 8)
+                }
             }
         }
 
-        // 状态 chips
+        // ---------- 状态 chips ----------
         val chips = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            setPadding(0, M3Ui.dp(this@SettingsHomeActivity, 12), 0, M3Ui.dp(this@SettingsHomeActivity, 4))
+            setPadding(0, M3Ui.dp(this@SettingsHomeActivity, 10), 0, 0)
         }
         val scopeCount = runCatching {
             resources.getStringArray(R.array.xposed_scope).count { it != "android" }
@@ -708,51 +717,106 @@ class SettingsHomeActivity : AppCompatActivity() {
             ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
         ))
 
-        // 搜索框
+        // ---------- 搜索 ----------
         val search = android.widget.EditText(this).apply {
             hint = "搜索设置项"
             setHintTextColor(M3Color.ON_SURFACE_VAR)
             setTextColor(M3Color.ON_SURFACE)
             textSize = 14f
             setSingleLine()
-            setPadding(M3Ui.dp(this@SettingsHomeActivity, 16), M3Ui.dp(this@SettingsHomeActivity, 10),
-                M3Ui.dp(this@SettingsHomeActivity, 16), M3Ui.dp(this@SettingsHomeActivity, 10))
+            setPadding(M3Ui.dp(this@SettingsHomeActivity, 16), M3Ui.dp(this@SettingsHomeActivity, 9),
+                M3Ui.dp(this@SettingsHomeActivity, 16), M3Ui.dp(this@SettingsHomeActivity, 9))
             background = GradientDrawable().apply {
                 cornerRadius = M3Ui.dp(this@SettingsHomeActivity, 22).toFloat()
                 setColor(M3Color.SURFACE_CONT)
             }
+            addTextChangedListener(object : android.text.TextWatcher {
+                override fun beforeTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
+                override fun onTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
+                override fun afterTextChanged(s: android.text.Editable?) {
+                    query = s?.toString().orEmpty()
+                    buildList()
+                }
+            })
         }
+        searchField = search
         content.addView(search, LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
-        ).apply { topMargin = M3Ui.dp(this@SettingsHomeActivity, 14) })
+        ).apply { topMargin = M3Ui.dp(this@SettingsHomeActivity, 12) })
 
-        val listHost = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        content.addView(listHost, LinearLayout.LayoutParams(
+        val host = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        listHost = host
+        content.addView(host, LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
         ).apply { topMargin = M3Ui.dp(this@SettingsHomeActivity, 10) })
 
-        fun render(query: String) {
-            listHost.removeAllViews()
-            listHost.addView(if (query.isBlank()) categoryList() else searchResultList(query))
-        }
-        search.addTextChangedListener(object : android.text.TextWatcher {
-            override fun beforeTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
-            override fun onTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
-            override fun afterTextChanged(s: android.text.Editable?) {
-                render(s?.toString().orEmpty())
-            }
+        // ---------- 底部导航 ----------
+        val navWrap = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        navWrap.addView(View(this).apply {
+            setBackgroundColor(M3Color.OUTLINE_VAR)
+            layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 1)
         })
-        render("")
+        val nav = com.google.android.material.bottomnavigation.BottomNavigationView(this).apply {
+            setBackgroundColor(M3Color.SURFACE)
+            elevation = 0f
+            labelVisibilityMode =
+                com.google.android.material.bottomnavigation.LabelVisibilityMode.LABEL_VISIBILITY_LABELED
+            val colors = ColorStateList(
+                arrayOf(intArrayOf(android.R.attr.state_checked), intArrayOf()),
+                intArrayOf(M3Color.PRIMARY, M3Color.ON_SURFACE_VAR)
+            )
+            itemIconTintList = colors
+            itemTextColor = colors
+            runCatching {
+                isItemActiveIndicatorEnabled = true
+                itemActiveIndicatorColor = ColorStateList.valueOf(M3Color.PRIMARY_CONT)
+            }
+        }
+        val titles = listOf("显示", "系统", "应用", "更多")
+        val icons = listOf(R.drawable.ic_nav_display, R.drawable.ic_nav_system,
+            R.drawable.ic_nav_app, R.drawable.ic_nav_more)
+        titles.forEachIndexed { index, title ->
+            nav.menu.add(0, index + 1, index, title).setIcon(icons[index])
+        }
+        nav.setOnItemSelectedListener { item ->
+            currentTab = item.itemId - 1
+            query = ""
+            searchField?.setText("")
+            buildList()
+            scroll.smoothScrollTo(0, 0)
+            true
+        }
+        nav.selectedItemId = 1
+        navWrap.addView(nav, LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
+        ))
+        root.addView(navWrap, LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
+        ))
+
+        setContentView(root)
+        buildList()
+        content.post {
+            val p = scopePill
+            if (p != null && M3Dirty.check(this)) M3Actions.blinkLoop(p)
+        }
     }
 
-    /** 紧凑列表：所有分类放在一张卡里 */
-    private fun categoryList(): View {
+    private fun buildList() {
+        val host = listHost ?: return
+        host.removeAllViews()
+        host.addView(if (query.isBlank()) tabList() else searchResultList(query))
+    }
+
+    private fun tabList(): View {
         val card = M3Ui.card(this).apply {
-            setContentPadding(M3Ui.dp(this@SettingsHomeActivity, 8), M3Ui.dp(this@SettingsHomeActivity, 4), M3Ui.dp(this@SettingsHomeActivity, 8), M3Ui.dp(this@SettingsHomeActivity, 4))
+            setContentPadding(M3Ui.dp(this@SettingsHomeActivity, 8), M3Ui.dp(this@SettingsHomeActivity, 4),
+                M3Ui.dp(this@SettingsHomeActivity, 8), M3Ui.dp(this@SettingsHomeActivity, 4))
         }
         val inner = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        val cats = SettingsModel.categories() +
-            Category("about", "关于", "版本、开发者与致谢", 6, emptyList())
+        val cats = tabs[currentTab].mapNotNull { id ->
+            if (id == "about") aboutCategory else SettingsModel.byId(id)
+        }
         cats.forEachIndexed { index, cat ->
             inner.addView(compactRow(cat.icon, cat.title, cat.subtitle) { openCategory(cat) })
             if (index != cats.lastIndex) inner.addView(divider())
@@ -765,8 +829,8 @@ class SettingsHomeActivity : AppCompatActivity() {
         val row = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            setPadding(M3Ui.dp(this@SettingsHomeActivity, 8), M3Ui.dp(this@SettingsHomeActivity, 9),
-                M3Ui.dp(this@SettingsHomeActivity, 6), M3Ui.dp(this@SettingsHomeActivity, 9))
+            setPadding(M3Ui.dp(this@SettingsHomeActivity, 8), M3Ui.dp(this@SettingsHomeActivity, 10),
+                M3Ui.dp(this@SettingsHomeActivity, 6), M3Ui.dp(this@SettingsHomeActivity, 10))
             isClickable = true
             val tv = android.util.TypedValue()
             if (theme.resolveAttribute(android.R.attr.selectableItemBackground, tv, true)) {
@@ -842,7 +906,8 @@ class SettingsHomeActivity : AppCompatActivity() {
             }
         }
         val card = M3Ui.card(this).apply {
-            setContentPadding(M3Ui.dp(this@SettingsHomeActivity, 8), M3Ui.dp(this@SettingsHomeActivity, 4), M3Ui.dp(this@SettingsHomeActivity, 8), M3Ui.dp(this@SettingsHomeActivity, 4))
+            setContentPadding(M3Ui.dp(this@SettingsHomeActivity, 8), M3Ui.dp(this@SettingsHomeActivity, 4),
+                M3Ui.dp(this@SettingsHomeActivity, 8), M3Ui.dp(this@SettingsHomeActivity, 4))
         }
         val inner = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         hits.forEachIndexed { index, hit ->
@@ -889,7 +954,6 @@ class SettingsHomeActivity : AppCompatActivity() {
             d.setStroke(M3Ui.dp(this, 1), M3Color.OUTLINE_VAR)
         }
         tv.background = d
-        (tv.layoutParams as? LinearLayout.LayoutParams)?.rightMargin = M3Ui.dp(this, 8)
         return tv.apply {
             layoutParams = LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT
@@ -897,50 +961,8 @@ class SettingsHomeActivity : AppCompatActivity() {
         }
     }
 
-    private fun categoryCard(cat: Category): View {
-        val card = M3Ui.card(this, 16).apply {
-            setContentPadding(M3Ui.dp(this@SettingsHomeActivity, 16), M3Ui.dp(this@SettingsHomeActivity, 16),
-                M3Ui.dp(this@SettingsHomeActivity, 16), M3Ui.dp(this@SettingsHomeActivity, 16))
-            isClickable = true
-            isFocusable = true
-            setOnClickListener {
-                when (cat.id) {
-                    "camera" -> startActivity(Intent(this@SettingsHomeActivity, CameraSettingsActivity::class.java))
-                    "about" -> startActivity(Intent(this@SettingsHomeActivity, AboutActivity::class.java))
-                    else -> startActivity(Intent(this@SettingsHomeActivity, CategoryActivity::class.java).apply {
-                        putExtra("id", cat.id)
-                    })
-                }
-            }
-        }
-        val row = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-        }
-        row.addView(iconCircle(cat.icon))
-        val texts = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(M3Ui.dp(this@SettingsHomeActivity, 16), 0, 0, 0)
-        }
-        texts.addView(M3Ui.text(this, cat.title, 17f, M3Color.ON_SURFACE, true))
-        texts.addView(M3Ui.text(this, cat.subtitle, 13f, M3Color.ON_SURFACE_VAR).apply {
-            setPadding(0, M3Ui.dp(this@SettingsHomeActivity, 2), 0, 0)
-        })
-        row.addView(texts, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
-        row.addView(M3Ui.text(this, "›", 26f, M3Color.ON_SURFACE_VAR))
-        card.addView(row)
-        return card
-    }
-
-    private fun iconCircle(type: Int): View {
-        val size = M3Ui.dp(this, 44)
-        val v = IconView(this, type)
-        v.layoutParams = LinearLayout.LayoutParams(size, size)
-        return v
-    }
-
     private fun avatarView(): ImageView {
-        val size = M3Ui.dp(this, 46)
+        val size = M3Ui.dp(this, 42)
         val iv = ImageView(this)
         iv.scaleType = ImageView.ScaleType.CENTER_CROP
         val d: Drawable? = getDrawable(R.drawable.app_icon)
@@ -956,14 +978,8 @@ class SettingsHomeActivity : AppCompatActivity() {
         }
         return iv
     }
-
-    private fun openLegacy() {
-        runCatching {
-            startActivity(Intent().setClassName(packageName,
-                "com.u9521.wooboxforredmagicos.activity.SettingsActivity"))
-        }
-    }
 }
+
 
 // ---------------- 分类详情页 ----------------
 class CategoryActivity : AppCompatActivity() {
