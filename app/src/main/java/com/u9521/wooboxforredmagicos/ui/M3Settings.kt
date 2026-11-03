@@ -654,7 +654,7 @@ class SettingsHomeActivity : AppCompatActivity() {
         root.addView(View(this).apply { setBackgroundColor(M3Color.OUTLINE_VAR) },
             LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 1))
 
-        val scroll = ScrollView(this)
+        val scroll = M3ScrollView(this)
         val content = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(M3Ui.dp(this@SettingsHomeActivity, 20), M3Ui.dp(this@SettingsHomeActivity, 6),
@@ -1059,7 +1059,7 @@ class CategoryActivity : AppCompatActivity() {
         }
         root.addView(bar)
 
-        val scroll = ScrollView(this)
+        val scroll = M3ScrollView(this)
         val content = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(M3Ui.dp(this@CategoryActivity, 16), 0, M3Ui.dp(this@CategoryActivity, 16),
@@ -1194,7 +1194,7 @@ class CameraSettingsActivity : AppCompatActivity() {
         }
         root.addView(bar)
 
-        val scroll = ScrollView(this)
+        val scroll = M3ScrollView(this)
         val content = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(M3Ui.dp(this@CameraSettingsActivity, 16), 0, M3Ui.dp(this@CameraSettingsActivity, 16),
@@ -1353,7 +1353,7 @@ class AboutActivity : AppCompatActivity() {
         bar.addView(M3Ui.text(this, "关于", 22f, M3Color.ON_SURFACE, true))
         root.addView(bar)
 
-        val scroll = ScrollView(this)
+        val scroll = M3ScrollView(this)
         val content = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(M3Ui.dp(this@AboutActivity, 16), 0, M3Ui.dp(this@AboutActivity, 16),

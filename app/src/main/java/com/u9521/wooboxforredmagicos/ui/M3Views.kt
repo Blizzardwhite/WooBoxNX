@@ -328,3 +328,18 @@ class SwipeScrollView(context: Context, private val onSwipe: (Int) -> Unit) : Sc
         return super.dispatchTouchEvent(ev)
     }
 }
+
+/**
+ * 惯性滑动衰减的 ScrollView。
+ * 默认的 fling 会让列表在松手后继续滑很远，内容不长时会一下冲到顶/底，
+ * 看起来像"吸附"。这里把初速度压到 45%，滑得短一些。
+ */
+class M3ScrollView(context: Context) : ScrollView(context) {
+    init {
+        overScrollMode = View.OVER_SCROLL_NEVER
+    }
+
+    override fun fling(velocityY: Int) {
+        super.fling((velocityY * 0.45f).toInt())
+    }
+}
