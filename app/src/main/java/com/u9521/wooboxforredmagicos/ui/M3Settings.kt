@@ -300,7 +300,13 @@ object SettingsModel {
         key = key, title = title, kind = Row.SWITCH_TEXT, switchKey = sw, defStr = defStr
     )
 
-    private val camera = Category("camera", "屏下显示区域", "弯月 · 跟随深色模式", 0, emptyList())
+    private val camera = Category("camera", "屏下显示区域", "弯月 · 跟随深色模式", 0, listOf(
+        Group(null, listOf(
+            Row(key = "moon_notch", title = "屏下内容：启用", summary = "在摄像头位置绘制遮罩"),
+            Row(key = "moon_allow_light", title = "亮色模式也显示屏下内容"),
+            Row(key = "camera_battery", title = "屏下位置显示电量")
+        ))
+    ))
 
     private val status = Category("status", "状态栏", "双击锁屏、图标、网速", 1, listOf(
         Group("交互", listOf(
@@ -1257,7 +1263,7 @@ class SettingsHomeActivity : AppCompatActivity() {
             val title = hit.row?.title ?: hit.cat.title
             val path = hit.cat.title + (hit.group?.let { "  ·  $it" } ?: "")
             inner.addView(compactRow(hit.cat.icon, title, path) {
-                if (hit.row == null) {
+                if (hit.row == null || hit.cat.id == "camera") {
                     openCategory(hit.cat)
                 } else {
                     startActivity(Intent(this, CategoryActivity::class.java)
