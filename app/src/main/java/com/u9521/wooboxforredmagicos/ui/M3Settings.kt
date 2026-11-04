@@ -977,7 +977,8 @@ class SettingsHomeActivity : AppCompatActivity() {
 
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setBackgroundColor(M3Color.SURFACE)
+            // 透明，让顶部的背景箱子透出来；滚动区自带不透明底色，负责"切"掉箱子下半部分
+            setBackgroundColor(Color.TRANSPARENT)
         }
 
         // 顶栏固定不滚动
@@ -986,7 +987,6 @@ class SettingsHomeActivity : AppCompatActivity() {
             setPadding(M3Ui.dp(this@SettingsHomeActivity, 20), M3Ui.dp(this@SettingsHomeActivity, 24),
                 M3Ui.dp(this@SettingsHomeActivity, 20), 0)
         }
-        val topWrap = android.widget.FrameLayout(this).apply { clipChildren = false }
         val logoBg = ImageView(this).apply {
             setImageResource(R.drawable.ic_logo_box)
             setColorFilter(M3Color.ON_SURFACE)
@@ -994,16 +994,7 @@ class SettingsHomeActivity : AppCompatActivity() {
             scaleType = ImageView.ScaleType.FIT_XY
             isClickable = false
         }
-        topWrap.addView(logoBg, android.widget.FrameLayout.LayoutParams(
-            M3Ui.dp(this, 320), M3Ui.dp(this, 320), Gravity.TOP or Gravity.END
-        ).apply {
-            topMargin = M3Ui.dp(this@SettingsHomeActivity, -30)
-            rightMargin = M3Ui.dp(this@SettingsHomeActivity, -40)
-        })
-        topWrap.addView(topBar, android.widget.FrameLayout.LayoutParams(
-            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
-        ))
-        root.addView(topWrap, LinearLayout.LayoutParams(
+        root.addView(topBar, LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
         ))
 
@@ -1011,7 +1002,7 @@ class SettingsHomeActivity : AppCompatActivity() {
         val scroll = M3ScrollView(this).apply { setBackgroundColor(M3Color.SURFACE) }
         val content = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(M3Ui.dp(this@SettingsHomeActivity, 20), 0,
+            setPadding(M3Ui.dp(this@SettingsHomeActivity, 20), M3Ui.dp(this@SettingsHomeActivity, 4),
                 M3Ui.dp(this@SettingsHomeActivity, 20), M3Ui.dp(this@SettingsHomeActivity, 24))
         }
         scroll.addView(content)
@@ -1129,7 +1120,17 @@ class SettingsHomeActivity : AppCompatActivity() {
         content.addView(host, LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
         ).apply { topMargin = M3Ui.dp(this@SettingsHomeActivity, 4) })
-        setContentView(root)
+        val frame = android.widget.FrameLayout(this).apply { setBackgroundColor(M3Color.SURFACE) }
+        frame.addView(logoBg, android.widget.FrameLayout.LayoutParams(
+            M3Ui.dp(this, 320), M3Ui.dp(this, 320), Gravity.TOP or Gravity.END
+        ).apply {
+            topMargin = M3Ui.dp(this@SettingsHomeActivity, -30)
+            rightMargin = M3Ui.dp(this@SettingsHomeActivity, -40)
+        })
+        frame.addView(root, android.widget.FrameLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT
+        ))
+        setContentView(frame)
         buildList()
         onBackPressedDispatcher.addCallback(this, object : androidx.activity.OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
