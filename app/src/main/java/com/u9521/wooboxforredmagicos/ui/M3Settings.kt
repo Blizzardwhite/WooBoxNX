@@ -984,7 +984,7 @@ class SettingsHomeActivity : AppCompatActivity() {
         val topBar = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(M3Ui.dp(this@SettingsHomeActivity, 20), M3Ui.dp(this@SettingsHomeActivity, 24),
-                M3Ui.dp(this@SettingsHomeActivity, 20), M3Ui.dp(this@SettingsHomeActivity, 10))
+                M3Ui.dp(this@SettingsHomeActivity, 20), M3Ui.dp(this@SettingsHomeActivity, 2))
         }
         val topWrap = android.widget.FrameLayout(this)
         val logoBg = ImageView(this).apply {
@@ -995,10 +995,10 @@ class SettingsHomeActivity : AppCompatActivity() {
             isClickable = false
         }
         topWrap.addView(logoBg, android.widget.FrameLayout.LayoutParams(
-            M3Ui.dp(this, 230), M3Ui.dp(this, 230), Gravity.TOP or Gravity.END
+            M3Ui.dp(this, 220), M3Ui.dp(this, 220), Gravity.TOP or Gravity.END
         ).apply {
-            topMargin = M3Ui.dp(this@SettingsHomeActivity, 4)
-            rightMargin = M3Ui.dp(this@SettingsHomeActivity, -18)
+            topMargin = M3Ui.dp(this@SettingsHomeActivity, -30)
+            rightMargin = M3Ui.dp(this@SettingsHomeActivity, -40)
         })
         topWrap.addView(topBar, android.widget.FrameLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
@@ -1011,7 +1011,7 @@ class SettingsHomeActivity : AppCompatActivity() {
         val scroll = M3ScrollView(this)
         val content = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(M3Ui.dp(this@SettingsHomeActivity, 20), M3Ui.dp(this@SettingsHomeActivity, 6),
+            setPadding(M3Ui.dp(this@SettingsHomeActivity, 20), 0,
                 M3Ui.dp(this@SettingsHomeActivity, 20), M3Ui.dp(this@SettingsHomeActivity, 24))
         }
         scroll.addView(content)
@@ -1122,13 +1122,13 @@ class SettingsHomeActivity : AppCompatActivity() {
         searchWrap.addView(clear)
         content.addView(searchWrap, LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
-        ).apply { topMargin = M3Ui.dp(this@SettingsHomeActivity, 4) })
+        ).apply { topMargin = M3Ui.dp(this@SettingsHomeActivity, 2) })
 
         val host = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         listHost = host
         content.addView(host, LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
-        ).apply { topMargin = M3Ui.dp(this@SettingsHomeActivity, 10) })
+        ).apply { topMargin = M3Ui.dp(this@SettingsHomeActivity, 6) })
         setContentView(root)
         buildList()
         onBackPressedDispatcher.addCallback(this, object : androidx.activity.OnBackPressedCallback(true) {
