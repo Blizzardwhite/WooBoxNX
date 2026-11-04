@@ -134,8 +134,22 @@ object M3Dirty {
         }
     }
 
+    private fun marker(c: Context) = java.io.File(c.filesDir, "baseline_boot.txt")
+
     fun ensureBaseline(c: Context) {
-        if (!file(c).exists()) writeBaseline(c, snapshot(c))
+        val now = android.os.SystemClock.elapsedRealtime()
+        val stored = runCatching { marker(c).readText().trim().toLong() }.getOrNull() ?: -1L
+        if (!file(c).exists()) {
+            writeBaseline(c, snapshot(c))
+            runCatching { marker(c).writeText(now.toString()) }
+            return
+        }
+        if (stored > now) {
+            // 手机重启过：android 作用域的改动已经生效，重新建立基线
+            writeBaseline(c, snapshot(c))
+            M3Prefs.sp(c).edit().putBoolean("scope_dirty", false).apply()
+        }
+        runCatching { marker(c).writeText(now.toString()) }
     }
 
     /** 与基线比较，返回待生效的项目（分成「重启手机」和「重启作用域」两组） */
@@ -725,6 +739,7 @@ object M3Actions {
                         M3Dirty.revertPending(activity)
                         Toast.makeText(activity, "已恢复为上次生效的配置", Toast.LENGTH_SHORT).show()
                         onDone()
+                        activity.recreate()
                     }
                     .setNegativeButton("取消", null)
                     .show()
@@ -1378,23 +1393,6 @@ class SettingsHomeActivity : AppCompatActivity() {
         }
     }
 
-    private fun avatarView(): ImageView {
-        val size = M3Ui.dp(this, 46)
-        val iv = ImageView(this)
-        iv.scaleType = ImageView.ScaleType.CENTER_CROP
-        val d: Drawable? = getDrawable(R.drawable.app_icon)
-        if (d != null) {
-            val bmp = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
-            val c = Canvas(bmp)
-            c.clipPath(android.graphics.Path().apply {
-                addCircle(size / 2f, size / 2f, size / 2f, android.graphics.Path.Direction.CW)
-            })
-            d.setBounds(0, 0, size, size)
-            d.draw(c)
-            iv.setImageBitmap(bmp)
-        }
-        return iv
-    }
 }
 
 
