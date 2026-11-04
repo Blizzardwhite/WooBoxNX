@@ -12,6 +12,7 @@ import android.os.SystemClock
  * 设置界面据此判断"这个作用域到底有没有被注入"。
  */
 object HookBeat {
+    private const val MODULE_PKG = "com.u9521.wooboxforredmagicos.mod"
     private const val URI_HEARTBEAT = "content://com.u9521.wooboxforredmagicos.mod.moon/heartbeat"
     private val lastBeat = HashMap<String, Long>()
 
@@ -37,6 +38,12 @@ object HookBeat {
         return null
     }
 
+    /** 模块安装时间，用来判断某个进程里跑的到底是不是最新代码 */
+    private fun codeVersion(ctx: Context): String = runCatching {
+        val pi = ctx.packageManager.getPackageInfo(MODULE_PKG, 0)
+        pi.lastUpdateTime.toString()
+    }.getOrDefault("")
+
     private fun beatNow(pkg: String): Boolean {
         val ctx = context() ?: return false
         val now = SystemClock.elapsedRealtime()
@@ -46,7 +53,7 @@ object HookBeat {
                 Uri.parse(URI_HEARTBEAT),
                 ContentValues().apply {
                     put("pkg", pkg)
-                    put("v", now.toString() + "|" + System.currentTimeMillis())
+                    put("v", now.toString() + "|" + System.currentTimeMillis() + "|" + codeVersion(ctx))
                 }
             )
             true

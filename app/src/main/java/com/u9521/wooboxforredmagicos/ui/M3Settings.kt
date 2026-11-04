@@ -243,13 +243,27 @@ object M3Status {
     private fun aliveFile(f: java.io.File): Boolean {
         if (!f.exists()) return false
         val parts = f.readText().trim().split("|")
-        if (parts.size != 2) return false
+        if (parts.size < 2) return false
         val elapsed = parts[0].toLongOrNull() ?: return false
         val wall = parts[1].toLongOrNull() ?: return false
         val nowElapsed = android.os.SystemClock.elapsedRealtime()
         val nowWall = System.currentTimeMillis()
         if (elapsed <= 0L || elapsed > nowElapsed + 5000L) return false
         return kotlin.math.abs((wall - elapsed) - (nowWall - nowElapsed)) < 60_000L
+    }
+
+    /** 当前安装的模块版本（安装时间戳） */
+    private fun installedVersion(c: Context): String = runCatching {
+        c.packageManager.getPackageInfo(c.packageName, 0).lastUpdateTime.toString()
+    }.getOrDefault("")
+
+    /** 本次开机心跳存在，但来自旧版本代码（进程还没重启） */
+    fun scopeStale(c: Context, pkg: String): Boolean {
+        if (!scopeAlive(c, pkg)) return false
+        val f = java.io.File(c.filesDir, "beat_" + pkg.replace('.', '_') + ".txt")
+        val v = runCatching { f.readText().trim().split("|").getOrNull(2) }.getOrNull()
+        val cur = installedVersion(c)
+        return !v.isNullOrEmpty() && cur.isNotEmpty() && v != cur
     }
 
     /** 常驻进程：这几次开机后应该总能收到心跳，用来判断"是否整体生效" */
@@ -1379,14 +1393,41 @@ class SettingsHomeActivity : AppCompatActivity() {
         "com.zte.zdm" to "系统更新"
     )
 
+    /** 常驻作用域：开机后一定会启动，所以「有没有心跳」能真实反映是否注入 */
+    private val residentScopes = listOf(
+        "com.android.systemui" to "系统界面",
+        "com.zte.mifavor.launcher" to "桌面",
+        "com.fingerprint.sensorservice" to "指纹服务",
+        "android" to "系统框架"
+    )
+
     private fun showStatusDialog() {
         val sb = StringBuilder()
-        scopeLabels.forEach { (pkg, label) ->
+        var stale = 0
+        var missing = 0
+        sb.append("常驻作用域\n")
+        residentScopes.forEach { (pkg, label) ->
             val ok = M3Status.scopeAlive(this, pkg)
-            sb.append(if (ok) "● " else "○ ").append(label).append('\n')
+            val old = M3Status.scopeStale(this, pkg)
+            if (old) stale++
+            if (!ok) missing++
+            sb.append(if (ok) "● " else "○ ").append(label)
+            if (old) sb.append("（旧版本）")
+            if (pkg == "android" && !ok) sb.append("（重启手机后生效）")
+            sb.append('\n')
         }
-        sb.append("\n● 已注入　○ 本次开机还没收到心跳（LSPosed 未勾选，或改过作用域后没重启）")
-        sb.append("\n常驻进程（系统界面 / 桌面 / 指纹服务）全部注入后，胶囊才显示「运行中」")
+        val others = scopeLabels.filter { p -> residentScopes.none { it.first == p.first } && M3Status.scopeAlive(this, p.first) }
+        if (others.isNotEmpty()) {
+            sb.append("\n已上报的其它作用域：").append(others.joinToString("、") { it.second }).append('\n')
+        }
+        sb.append("\n● 已注入　○ 没收到心跳")
+        sb.append("\n其余作用域（安装器、文件管理等）只在对应应用打开时才会上报，不显示不代表没注入。")
+        if (stale > 0) {
+            sb.append("\n\n有 ").append(stale).append(" 个作用域还在跑安装前的旧代码，重启对应应用或手机后才会用上新版本。")
+        }
+        if (missing > 0) {
+            sb.append("\n\n常驻作用域缺失时，检查 LSPosed 作用域是否勾选，或重启对应进程。")
+        }
         val level = M3Status.level(this)
         MaterialAlertDialogBuilder(this)
             .setTitle(
