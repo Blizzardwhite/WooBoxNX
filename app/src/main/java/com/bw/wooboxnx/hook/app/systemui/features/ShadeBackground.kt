@@ -44,6 +44,31 @@ object ShadeBackground : HookRegister() {
                     Log.px("W", "ShadeBackground skip $name", it, logInRelease = true)
                 }
             }
+            // 通知页额外有一层从上往下的渐变遮罩（ScrimView 绘制），
+            // 盖住它会和快速设置页不一致，这里对通知面板的 ScrimView 跳过渐变设置。
+            runCatching {
+                val scrim = getDefaultCL().loadClass("com.android.systemui.scrim.ScrimView")
+                val gradient = getDefaultCL().loadClass(
+                    "com.android.internal.colorextraction.ColorExtractor\$GradientColors"
+                )
+                val setColors = scrim.getDeclaredMethod(
+                    "setColors", gradient, Boolean::class.javaPrimitiveType
+                )
+                XposedBridge.hookMethod(setColors, object : XC_MethodHook() {
+                    override fun beforeHookedMethod(param: MethodHookParam) {
+                        runCatching {
+                            val v = param.thisObject as? View ?: return
+                            val root = v.rootView?.javaClass?.simpleName.orEmpty()
+                            if (root.contains("NotificationShade")) {
+                                param.result = null
+                            }
+                        }
+                    }
+                })
+            }.onFailure {
+                Log.px("W", "ScrimView hook skipped", it, logInRelease = true)
+            }
+
             Log.px("I", "ShadeBackground hooked", logInRelease = true)
         }.onFailure {
             Log.px("E", "ShadeBackground init failed", it, logInRelease = true)
