@@ -1,0 +1,579 @@
+package com.bw.wooboxnx.ui
+
+import android.content.Context
+import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.graphics.Color
+import android.graphics.LinearGradient
+import android.graphics.Paint
+import android.graphics.Path
+import android.graphics.Rect
+import android.graphics.RectF
+import android.graphics.Shader
+import android.graphics.Typeface
+import android.util.TypedValue
+import android.view.GestureDetector
+import android.view.MotionEvent
+import android.view.View
+import android.view.ViewGroup
+import android.widget.ScrollView
+
+/** 分类图标：在 tonal 圆底上画一个简单图形 */
+class IconView(context: Context, private val type: Int) : View(context) {
+
+    private val bg = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = M3Color.PRIMARY_CONT }
+    private val fg = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = M3Color.ON_PRIMARY_CONT
+        style = Paint.Style.STROKE
+        strokeWidth = dp(2.2f)
+        strokeCap = Paint.Cap.ROUND
+        strokeJoin = Paint.Join.ROUND
+    }
+
+    private fun dp(v: Float) = v * resources.displayMetrics.density
+
+    override fun onDraw(canvas: Canvas) {
+        val w = width.toFloat()
+        val h = height.toFloat()
+        val cx = w / 2f
+        val cy = h / 2f
+        val r = minOf(w, h) / 2f
+        canvas.drawCircle(cx, cy, r, bg)
+
+        val s = r * 0.5f
+        when (type) {
+            0 -> { // 弯月
+                val outer = Path().apply { addCircle(cx - s * 0.15f, cy, s, Path.Direction.CW) }
+                val inner = Path().apply { addCircle(cx + s * 0.50f, cy - s * 0.50f, s * 0.92f, Path.Direction.CW) }
+                outer.op(inner, Path.Op.DIFFERENCE)
+                canvas.drawPath(outer, Paint(fg).apply { style = Paint.Style.FILL })
+            }
+            1 -> { // 状态栏三条
+                canvas.drawLine(cx - s, cy - s * 0.6f, cx + s, cy - s * 0.6f, fg)
+                canvas.drawLine(cx - s, cy, cx + s * 0.4f, cy, fg)
+                canvas.drawLine(cx - s, cy + s * 0.6f, cx + s * 0.8f, cy + s * 0.6f, fg)
+            }
+            2 -> { // 通知铃铛
+                canvas.drawArc(RectF(cx - s, cy - s, cx + s, cy + s * 0.7f), 180f, 180f, false, fg)
+                canvas.drawLine(cx - s * 1.02f, cy + s * 0.35f, cx + s * 1.02f, cy + s * 0.35f, fg)
+                canvas.drawCircle(cx, cy + s * 0.75f, dp(1.6f), fg)
+            }
+            3 -> { // 快速设置 2x2
+                val p = Paint(fg).apply { style = Paint.Style.FILL }
+                val q = s * 0.42f
+                canvas.drawRoundRect(RectF(cx - s, cy - s, cx - s + q * 1.5f, cy - s + q * 1.5f), dp(1.5f), dp(1.5f), p)
+                canvas.drawRoundRect(RectF(cx + s - q * 1.5f, cy - s, cx + s, cy - s + q * 1.5f), dp(1.5f), dp(1.5f), p)
+                canvas.drawRoundRect(RectF(cx - s, cy + s - q * 1.5f, cx - s + q * 1.5f, cy + s), dp(1.5f), dp(1.5f), p)
+                canvas.drawRoundRect(RectF(cx + s - q * 1.5f, cy + s - q * 1.5f, cx + s, cy + s), dp(1.5f), dp(1.5f), p)
+            }
+            4 -> { // 锁
+                canvas.drawArc(RectF(cx - s * 0.6f, cy - s * 1.1f, cx + s * 0.6f, cy + s * 0.2f), 180f, 180f, false, fg)
+                val p = Paint(fg).apply { style = Paint.Style.FILL }
+                canvas.drawRoundRect(RectF(cx - s * 0.9f, cy - s * 0.1f, cx + s * 0.9f, cy + s * 0.9f), dp(3f), dp(3f), p)
+            }
+            6 -> { // 信息
+                val p = Paint(fg).apply { style = Paint.Style.FILL }
+                canvas.drawCircle(cx, cy - s * 0.55f, dp(1.8f), p)
+                canvas.drawRoundRect(RectF(cx - dp(1.2f), cy - s * 0.15f, cx + dp(1.2f), cy + s * 0.7f), dp(1.2f), dp(1.2f), p)
+            }
+            7 -> { // 齿轮（系统）
+                val p = Paint(fg).apply { style = Paint.Style.STROKE; strokeWidth = dp(2.0f) }
+                canvas.drawCircle(cx, cy, s * 0.5f, p)
+                canvas.drawCircle(cx, cy, s * 0.18f, p)
+                for (i in 0 until 8) {
+                    val a = Math.toRadians(i * 45.0)
+                    val x1 = cx + (s * 0.6f * Math.cos(a)).toFloat()
+                    val y1 = cy + (s * 0.6f * Math.sin(a)).toFloat()
+                    val x2 = cx + (s * 0.92f * Math.cos(a)).toFloat()
+                    val y2 = cy + (s * 0.92f * Math.sin(a)).toFloat()
+                    canvas.drawLine(x1, y1, x2, y2, p)
+                }
+            }
+            8 -> { // 向下箭头（系统更新）
+                val p = Paint(fg).apply { style = Paint.Style.STROKE; strokeWidth = dp(2.0f) }
+                canvas.drawLine(cx, cy - s * 0.8f, cx, cy + s * 0.3f, p)
+                canvas.drawLine(cx - s * 0.4f, cy - s * 0.1f, cx, cy + s * 0.3f, p)
+                canvas.drawLine(cx + s * 0.4f, cy - s * 0.1f, cx, cy + s * 0.3f, p)
+                canvas.drawLine(cx - s * 0.8f, cy + s * 0.8f, cx + s * 0.8f, cy + s * 0.8f, p)
+            }
+            9 -> { // 手势：屏幕 + 底部手势点
+                val p = Paint(fg).apply { style = Paint.Style.STROKE; strokeWidth = dp(2.0f) }
+                canvas.drawRoundRect(
+                    RectF(cx - s * 0.6f, cy - s * 0.85f, cx + s * 0.6f, cy + s * 0.85f),
+                    dp(3f), dp(3f), p
+                )
+                canvas.drawCircle(cx, cy + s * 0.45f, s * 0.16f,
+                    Paint(fg).apply { style = Paint.Style.FILL })
+                canvas.drawLine(cx - s * 0.3f, cy + s * 0.12f, cx + s * 0.3f, cy + s * 0.12f, p)
+            }
+            10 -> { // 应用方块
+                val p = Paint(fg).apply { style = Paint.Style.STROKE; strokeWidth = dp(2.0f) }
+                canvas.drawRoundRect(RectF(cx - s * 0.75f, cy - s * 0.75f, cx + s * 0.75f, cy + s * 0.75f), dp(4f), dp(4f), p)
+                canvas.drawCircle(cx, cy, s * 0.22f, Paint(fg).apply { style = Paint.Style.FILL })
+            }
+            else -> { // 三个点
+                val p = Paint(fg).apply { style = Paint.Style.FILL }
+                canvas.drawCircle(cx - s, cy, dp(2.2f), p)
+                canvas.drawCircle(cx, cy, dp(2.2f), p)
+                canvas.drawCircle(cx + s, cy, dp(2.2f), p)
+            }
+        }
+    }
+}
+
+/** 摄像头位置预览：模拟状态栏 + 黑圆 + 当前样式 */
+class CameraPreviewView(context: Context) : View(context) {
+
+    var styleProvider: () -> Int = { 0 }
+    var batteryProvider: () -> Boolean = { false }
+    var enabledProvider: () -> Boolean = { true }
+
+    private val bgPaint = Paint(Paint.ANTI_ALIAS_FLAG)
+    private val discPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.BLACK }
+    private val fgPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = 0xFFF2F2F2.toInt()
+        style = Paint.Style.FILL
+    }
+    private val bitmapPaint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
+    private var iconCache: android.graphics.Bitmap? = null
+    private var monoCache: android.graphics.Bitmap? = null
+    private val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = 0xFFCFCFCF.toInt()
+        textSize = dp(11f)
+        typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+    }
+
+
+    private fun dp(v: Float) = v * resources.displayMetrics.density
+
+    override fun onDraw(canvas: Canvas) {
+        val w = width.toFloat()
+        val h = height.toFloat()
+        bgPaint.shader = LinearGradient(0f, 0f, 0f, h, 0xFF1A2A30.toInt(), 0xFF101820.toInt(), Shader.TileMode.CLAMP)
+        canvas.drawRoundRect(RectF(0f, 0f, w, h), dp(14f), dp(14f), bgPaint)
+
+        // 模拟状态栏
+        canvas.drawText("04:20", dp(14f), dp(20f), textPaint)
+        val dot = Paint(fgPaint).apply { color = 0xFFBFBFBF.toInt() }
+        canvas.drawCircle(w - dp(16f), dp(16f), dp(1.8f), dot)
+        canvas.drawCircle(w - dp(24f), dp(16f), dp(1.8f), dot)
+
+        // 总开关关闭时不画任何东西，和真机一致
+        if (!enabledProvider()) {
+            drawContentMock(canvas, w, h, dp(55f))
+            return
+        }
+
+        // 摄像头位置
+        val cx = w / 2f
+        val cy = dp(36f)
+        val r = dp(19f)
+        canvas.drawCircle(cx, cy, r, discPaint)
+
+        if (batteryProvider()) {
+            drawBatteryPreview(canvas, cx, cy, r)
+            drawContentMock(canvas, w, h, cy + r)
+            return
+        }
+
+        when (styleProvider()) {
+            1 -> { // 彩色图标：直接用模块自身的图标铺满，效果和真机一致
+                val icon = appIconBitmap() ?: return
+                val save = canvas.save()
+                canvas.clipPath(Path().apply { addCircle(cx, cy, r, Path.Direction.CW) })
+                canvas.drawBitmap(icon, null, RectF(cx - r, cy - r, cx + r, cy + r), bitmapPaint)
+                canvas.restoreToCount(save)
+            }
+            2 -> { // 剪影：黑底 + 白色字形（模拟真实的反色字形提取）
+                val glyph = monoBitmap() ?: return
+                val t = r * 0.64f
+                canvas.drawBitmap(glyph, null, RectF(cx - t, cy - t, cx + t, cy + t), bitmapPaint)
+            }
+            3 -> Unit // 纯黑遮罩
+            else -> { // 弯月 + 星
+                val mr = r * 0.62f
+                val outer = Path().apply { addCircle(cx - mr * 0.12f, cy, mr, Path.Direction.CW) }
+                val inner = Path().apply { addCircle(cx + mr * 0.52f, cy - mr * 0.52f, mr * 0.90f, Path.Direction.CW) }
+                outer.op(inner, Path.Op.DIFFERENCE)
+                canvas.drawPath(outer, fgPaint)
+                star(canvas, cx + r * 0.48f, cy - r * 0.40f, r * 0.17f)
+            }
+        }
+
+        drawContentMock(canvas, w, h, cy + r)
+    }
+
+    /** 屏幕内容示意（状态栏下方几条灰色块） */
+    private fun drawContentMock(canvas: Canvas, w: Float, h: Float, top: Float) {
+        val content = Paint(fgPaint).apply { color = 0x18FFFFFF }
+        canvas.drawRoundRect(RectF(dp(14f), top + dp(14f), w - dp(14f), top + dp(22f)), dp(4f), dp(4f), content)
+        canvas.drawRoundRect(RectF(dp(14f), top + dp(30f), w * 0.66f, top + dp(38f)), dp(4f), dp(4f), content)
+        canvas.drawRoundRect(RectF(dp(14f), top + dp(52f), w - dp(14f), h - dp(14f)), dp(8f), dp(8f), content)
+    }
+
+    /** 摄像头位置的电池预览：黑圆 + 绿色水位 + 白色描边 + 百分比 */
+    private fun drawBatteryPreview(canvas: Canvas, cx: Float, cy: Float, r: Float) {
+        val level = 0.68f
+        val water = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFF34C759.toInt() }
+        val border = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.STROKE
+            strokeWidth = dp(1.6f)
+            color = 0xFFF2F2F2.toInt()
+        }
+        val text = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.WHITE
+            textSize = r * 0.95f
+            textAlign = Paint.Align.CENTER
+            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+        }
+        val save = canvas.save()
+        canvas.clipPath(Path().apply { addCircle(cx, cy, r, Path.Direction.CW) })
+        canvas.drawRect(cx - r, cy + r - 2f * r * level, cx + r, cy + r, water)
+        canvas.restoreToCount(save)
+        canvas.drawCircle(cx, cy, r - dp(0.8f), border)
+        canvas.drawText("68", cx, cy + r * 0.34f, text)
+    }
+
+    /** 模块图标位图（用于彩色图标预览），按 4 倍预览尺寸渲染保证清晰 */
+    private fun appIconBitmap(): android.graphics.Bitmap? {
+        iconCache?.let { return it }
+        val size = 256
+        val d = context.getDrawable(com.bw.wooboxnx.R.drawable.app_icon) ?: return null
+        val bmp = android.graphics.Bitmap.createBitmap(size, size, android.graphics.Bitmap.Config.ARGB_8888)
+        val cc = Canvas(bmp)
+        d.setBounds(0, 0, size, size)
+        d.draw(cc)
+        iconCache = bmp
+        return bmp
+    }
+
+    /**
+     * 剪影预览：直接用启动图标的白色前景矢量（Woo + 方块），
+     * 裁掉透明边后缩放，和真机上提取出的字形观感一致，也干净。
+     */
+    private fun monoBitmap(): android.graphics.Bitmap? {
+        monoCache?.let { return it }
+        val d = context.getDrawable(com.bw.wooboxnx.R.drawable.ic_launcher_foreground) ?: return null
+        val n = 256
+        val src = Bitmap.createBitmap(n, n, Bitmap.Config.ARGB_8888)
+        val cc = Canvas(src)
+        d.setBounds(0, 0, n, n)
+        d.draw(cc)
+
+        val px = IntArray(n * n)
+        src.getPixels(px, 0, n, 0, 0, n, n)
+        var minX = n
+        var minY = n
+        var maxX = -1
+        var maxY = -1
+        for (y in 0 until n) {
+            for (x in 0 until n) {
+                if (Color.alpha(px[y * n + x]) > 16) {
+                    if (x < minX) minX = x
+                    if (x > maxX) maxX = x
+                    if (y < minY) minY = y
+                    if (y > maxY) maxY = y
+                }
+            }
+        }
+        if (maxX < 0) return null
+        val w = maxX - minX + 1
+        val h = maxY - minY + 1
+        val side = maxOf(w, h)
+        val out = Bitmap.createBitmap(side, side, Bitmap.Config.ARGB_8888)
+        val c2 = Canvas(out)
+        val dx = (side - w) / 2
+        val dy = (side - h) / 2
+        c2.drawBitmap(src, Rect(minX, minY, maxX + 1, maxY + 1),
+            Rect(dx, dy, dx + w, dy + h), bitmapPaint)
+        monoCache = out
+        return out
+    }
+    private fun star(canvas: Canvas, cx: Float, cy: Float, r: Float) {
+        val p = Path()
+        p.moveTo(cx, cy - r)
+        p.lineTo(cx + r * 0.26f, cy - r * 0.26f)
+        p.lineTo(cx + r, cy)
+        p.lineTo(cx + r * 0.26f, cy + r * 0.26f)
+        p.lineTo(cx, cy + r)
+        p.lineTo(cx - r * 0.26f, cy + r * 0.26f)
+        p.lineTo(cx - r, cy)
+        p.lineTo(cx - r * 0.26f, cy - r * 0.26f)
+        p.close()
+        canvas.drawPath(p, fgPaint)
+    }
+}
+
+/** 支持左右滑动切换 tab 的 ScrollView */
+class SwipeScrollView(context: Context, private val onSwipe: (Int) -> Unit) : ScrollView(context) {
+
+    private val detector = GestureDetector(context, object : GestureDetector.SimpleOnGestureListener() {
+        override fun onFling(e1: MotionEvent?, e2: MotionEvent, vx: Float, vy: Float): Boolean {
+            if (e1 == null) return false
+            val dx = e2.x - e1.x
+            val dy = e2.y - e1.y
+            val threshold = 110 * resources.displayMetrics.density
+            if (kotlin.math.abs(dx) > kotlin.math.abs(dy) * 1.5f &&
+                kotlin.math.abs(dx) > threshold &&
+                kotlin.math.abs(vx) > 700f
+            ) {
+                onSwipe(if (dx < 0) 1 else -1)
+                return true
+            }
+            return false
+        }
+    })
+
+    private var blocked = false
+
+    private fun collectInteractive(v: View, out: MutableList<View>) {
+        if (v is android.widget.SeekBar || v is com.google.android.material.slider.Slider) {
+            // 整块滑块区域都算，避免手指稍微偏一点就切换 tab
+            out.add(v)
+            (v.parent as? View)?.let { out.add(it) }
+        } else if (v is androidx.appcompat.widget.SwitchCompat || v is android.widget.Switch) {
+            out.add(v)
+        }
+        if (v is ViewGroup) {
+            for (i in 0 until v.childCount) collectInteractive(v.getChildAt(i), out)
+        }
+    }
+
+    /** 触摸点是否落在滑块/开关上（按屏幕坐标判断，带一点纵向容差） */
+    private fun hitInteractive(x: Float, y: Float): Boolean {
+        val list = ArrayList<View>()
+        collectInteractive(this, list)
+        if (list.isEmpty()) return false
+        val selfLoc = IntArray(2)
+        getLocationOnScreen(selfLoc)
+        val pad = 12 * resources.displayMetrics.density
+        val loc = IntArray(2)
+        for (v in list) {
+            if (v.visibility != View.VISIBLE) continue
+            v.getLocationOnScreen(loc)
+            val left = loc[0] - selfLoc[0]
+            val top = loc[1] - selfLoc[1]
+            if (x >= left && x <= left + v.width &&
+                y >= top - pad && y <= top + v.height + pad
+            ) {
+                return true
+            }
+        }
+        return false
+    }
+    override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
+        if (ev.actionMasked == MotionEvent.ACTION_DOWN) {
+            blocked = hitInteractive(ev.x, ev.y)
+        }
+        if (!blocked) detector.onTouchEvent(ev)
+        return super.dispatchTouchEvent(ev)
+    }
+}
+
+/**
+ * 惯性滑动衰减的 ScrollView。
+ * 默认的 fling 会让列表在松手后继续滑很远，内容不长时会一下冲到顶/底，
+ * 看起来像"吸附"。这里把初速度压到 45%，滑得短一些。
+ */
+/**
+ * 自己接管惯性滑动的 ScrollView。
+ * 系统 ScrollView 的 fling 在接近边缘时会被框架"贴边"，看起来像突然吸附；
+ * 这里用独立的 OverScroller 逐帧滚动，并在边界处自然停住，不做贴边/回弹。
+ */
+/** 设置页用的 ScrollView：松手即停，不做惯性滑动，避免一路滑到顶/底 */
+/** 设置页用的 ScrollView：标准惯性 + 边缘回弹 */
+class M3ScrollView(context: Context) : ScrollView(context) {
+
+    private var velocity = 0f
+    private var lastTime = 0L
+    private var maxScroll = 0
+    private var bounce = 0f
+    private var bounceVel = 0f
+    private var flingRunning = false
+    private var lastTouchY = 0f
+    private var dragOver = 0f
+    private var blockFling = false
+    private val density = resources.displayMetrics.density
+    private val maxBounce = 85f * density
+    private val maxDrag get() = 125f * density
+
+    private val runner = object : Runnable {
+        override fun run() {
+            val now = android.os.SystemClock.uptimeMillis()
+            if (lastTime == 0L) lastTime = now
+            val dt = ((now - lastTime) / 1000f).coerceIn(0.001f, 0.04f)
+            lastTime = now
+
+            // 1. 惯性
+            velocity *= Math.pow(0.15, dt.toDouble()).toFloat()
+            var next = scrollY + velocity * dt
+            if (next > maxScroll) {
+                next = maxScroll.toFloat()
+                if (velocity > 0f) {
+                    bounceVel = -velocity * 0.30f
+                    bounce = 0f
+                    bounceCap = maxBounce
+                    velocity = 0f
+                }
+            } else if (next < 0f) {
+                next = 0f
+                if (velocity < 0f) {
+                    bounceVel = -velocity * 0.30f
+                    bounce = 0f
+                    bounceCap = maxBounce
+                    velocity = 0f
+                }
+            }
+            scrollTo(0, next.toInt())
+
+            // 2. 回弹
+            if (bounce != 0f || bounceVel != 0f) {
+                bounceVel += (-bounce * 150f - bounceVel * 25f) * dt
+                bounce += bounceVel * dt
+                bounce = bounce.coerceIn(-bounceCap, bounceCap)
+                getChildAt(0)?.translationY = bounce
+            }
+
+            val moving = kotlin.math.abs(velocity) > 25f ||
+                kotlin.math.abs(bounce) > 0.5f ||
+                kotlin.math.abs(bounceVel) > 8f
+            if (moving) {
+                postOnAnimation(this)
+            } else {
+                getChildAt(0)?.translationY = 0f
+                bounce = 0f
+                bounceVel = 0f
+                flingRunning = false
+            }
+        }
+    }
+
+    init {
+        overScrollMode = View.OVER_SCROLL_NEVER
+    }
+
+    private fun beginTouch(y: Float) {
+        // 手指按下就打断惯性，符合系统列表的行为
+        removeCallbacks(runner)
+        velocity = 0f
+        flingRunning = false
+        blockFling = false
+        lastTouchY = y
+        dragOver = 0f
+        bounce = 0f
+        bounceVel = 0f
+        val child = getChildAt(0)
+        if (child != null) {
+            child.translationY = 0f
+            maxScroll = (child.height + paddingTop + paddingBottom - height).coerceAtLeast(0)
+        }
+    }
+
+    override fun onInterceptTouchEvent(ev: MotionEvent): Boolean {
+        // DOWN 可能被可点击的子 View 吃掉，这里先初始化手势起点
+        if (ev.actionMasked == MotionEvent.ACTION_DOWN) beginTouch(ev.y)
+        return super.onInterceptTouchEvent(ev)
+    }
+
+    private var overMode = false
+    private var bounceCap = 0f
+
+    private fun resyncGesture(ev: MotionEvent) {
+        val cancel = MotionEvent.obtain(ev)
+        cancel.action = MotionEvent.ACTION_CANCEL
+        super.onTouchEvent(cancel)
+        cancel.recycle()
+        val down = MotionEvent.obtain(ev)
+        down.action = MotionEvent.ACTION_DOWN
+        super.onTouchEvent(down)
+        down.recycle()
+    }
+
+    private fun startBounce(from: Float) {
+        bounceCap = kotlin.math.max(maxBounce, kotlin.math.abs(from))
+        bounce = from
+        bounceVel = 0f
+        dragOver = 0f
+        flingRunning = true
+        lastTime = android.os.SystemClock.uptimeMillis()
+        postOnAnimation(runner)
+    }
+
+    override fun onTouchEvent(ev: MotionEvent): Boolean {
+        val child = getChildAt(0) ?: return super.onTouchEvent(ev)
+        when (ev.actionMasked) {
+            MotionEvent.ACTION_DOWN -> {
+                beginTouch(ev.y)
+                overMode = false
+                lastTouchY = ev.y
+                return super.onTouchEvent(ev)
+            }
+            MotionEvent.ACTION_MOVE -> {
+                val dy = ev.y - lastTouchY
+                if (!overMode) {
+                    val pullDownAtTop = scrollY <= 0 && dy > 0
+                    val pullUpAtBottom = scrollY >= maxScroll && dy < 0
+                    if (pullDownAtTop || pullUpAtBottom) overMode = true
+                }
+                if (overMode) {
+                    // 越界拖拽期间完全由我们接管，内容跟手偏移
+                    dragOver = (dragOver + dy * 0.30f).coerceIn(-maxDrag, maxDrag)
+                    if (scrollY <= 0 && dragOver < 0f) dragOver = 0f
+                    if (scrollY >= maxScroll && dragOver > 0f) dragOver = 0f
+                    child.translationY = dragOver
+                    lastTouchY = ev.y
+                    if (dragOver == 0f) {
+                        // 拖回边界，交还给 ScrollView 继续正常滚动
+                        overMode = false
+                        resyncGesture(ev)
+                    }
+                    return true
+                }
+                lastTouchY = ev.y
+                return super.onTouchEvent(ev)
+            }
+            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                if (dragOver != 0f) startBounce(dragOver)
+                lastTouchY = ev.y
+                if (overMode) {
+                    overMode = false
+                    val cancel = MotionEvent.obtain(ev)
+                    cancel.action = MotionEvent.ACTION_CANCEL
+                    super.onTouchEvent(cancel)
+                    cancel.recycle()
+                    return true
+                }
+                return super.onTouchEvent(ev)
+            }
+            else -> {
+                lastTouchY = ev.y
+                return super.onTouchEvent(ev)
+            }
+        }
+    }
+    override fun fling(velocityY: Int) {
+        if (blockFling) {
+            blockFling = false
+            return
+        }
+        val child = getChildAt(0) ?: return
+        maxScroll = (child.height + paddingTop + paddingBottom - height).coerceAtLeast(0)
+        if (maxScroll <= 0) return
+        val vc = android.view.ViewConfiguration.get(context)
+        val minV = vc.scaledMinimumFlingVelocity
+        val maxV = vc.scaledMaximumFlingVelocity
+        val v = velocityY.coerceIn(-maxV, maxV)
+        if (kotlin.math.abs(v) < minV) return
+        velocity = v.toFloat()
+        flingRunning = true
+        lastTime = android.os.SystemClock.uptimeMillis()
+        bounce = 0f
+        bounceVel = 0f
+        child.translationY = 0f
+        postOnAnimation(runner)
+    }
+
+    override fun computeScroll() {
+        if (!flingRunning) super.computeScroll()
+    }
+}

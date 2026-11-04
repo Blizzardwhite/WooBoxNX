@@ -17,13 +17,13 @@
         android:theme="@style/AppTheme">
 
         <provider
-            android:name="com.u9521.wooboxforredmagicos.activity.MoonProvider"
-            android:authorities="com.u9521.wooboxforredmagicos.mod.moon"
+            android:name="com.bw.wooboxnx.activity.MoonProvider"
+            android:authorities="com.bw.wooboxnx.moon"
             android:exported="true"
             android:grantUriPermissions="true" />
 
         <activity
-            android:name="com.u9521.wooboxforredmagicos.ui.SettingsHomeActivity"
+            android:name="com.bw.wooboxnx.ui.SettingsHomeActivity"
             android:exported="true"
             android:theme="@style/Theme.WooBoxM3"
             android:screenOrientation="portrait">
@@ -34,25 +34,25 @@
         </activity>
 
         <activity
-            android:name="com.u9521.wooboxforredmagicos.ui.CategoryActivity"
+            android:name="com.bw.wooboxnx.ui.CategoryActivity"
             android:exported="false"
             android:theme="@style/Theme.WooBoxM3"
             android:screenOrientation="portrait" />
 
         <activity
-            android:name="com.u9521.wooboxforredmagicos.ui.AboutActivity"
+            android:name="com.bw.wooboxnx.ui.AboutActivity"
             android:exported="false"
             android:theme="@style/Theme.WooBoxM3"
             android:screenOrientation="portrait" />
 
         <activity
-            android:name="com.u9521.wooboxforredmagicos.ui.CameraSettingsActivity"
+            android:name="com.bw.wooboxnx.ui.CameraSettingsActivity"
             android:exported="false"
             android:theme="@style/Theme.WooBoxM3"
             android:screenOrientation="portrait" />
 
         <activity
-            android:name="com.u9521.wooboxforredmagicos.activity.SettingsActivity"
+            android:name="com.bw.wooboxnx.activity.SettingsActivity"
             android:exported="true"
             android:launchMode="singleTop"
             android:screenOrientation="portrait">
@@ -63,7 +63,7 @@
         </activity>
 
         <activity
-            android:name="com.u9521.wooboxforredmagicos.activity.MoonAppListActivity"
+            android:name="com.bw.wooboxnx.activity.MoonAppListActivity"
             android:exported="true"
             android:theme="@style/Theme.WooBoxM3"
             android:label="@string/moon_apps_title"
@@ -74,7 +74,7 @@
             android:enabled="true"
             android:exported="true"
             android:label="@string/app_name"
-            android:targetActivity="com.u9521.wooboxforredmagicos.ui.SettingsHomeActivity">
+            android:targetActivity="com.bw.wooboxnx.ui.SettingsHomeActivity">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />

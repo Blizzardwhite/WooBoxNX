@@ -19,7 +19,7 @@ fun getSigningProperties(): Properties {
 
 
 android {
-    namespace = "com.u9521.wooboxforredmagicos"
+    namespace = "com.bw.wooboxnx"
     signingConfigs {
         getByName("debug") {
             storeFile = rootProject.file("keystore/testkey.p12")
@@ -54,8 +54,7 @@ android {
         buildConfig = true
     }
     defaultConfig {
-        applicationId = "com.u9521.wooboxforredmagicos"
-        applicationIdSuffix = ".mod"
+        applicationId = "com.bw.wooboxnx"
         minSdk = 31
         targetSdk = 34
         versionCode = 7
