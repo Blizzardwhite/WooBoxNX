@@ -75,6 +75,7 @@ object ShadeBackground : HookRegister() {
     }
 
     private fun attach(root: ViewGroup) {
+
         if (root.findViewWithTag<View>(TAG) != null) return
         val v = View(root.context).apply {
             tag = TAG
