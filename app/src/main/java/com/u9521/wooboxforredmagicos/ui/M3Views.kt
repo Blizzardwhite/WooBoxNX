@@ -370,12 +370,16 @@ class M3ScrollView(context: Context) : ScrollView(context) {
                 next = maxScroll.toFloat()
                 if (velocity > 0f) {
                     bounceVel = -velocity * 0.30f
+                    bounce = 0f
+                    bounceCap = maxBounce
                     velocity = 0f
                 }
             } else if (next < 0f) {
                 next = 0f
                 if (velocity < 0f) {
                     bounceVel = -velocity * 0.30f
+                    bounce = 0f
+                    bounceCap = maxBounce
                     velocity = 0f
                 }
             }
@@ -385,7 +389,7 @@ class M3ScrollView(context: Context) : ScrollView(context) {
             if (bounce != 0f || bounceVel != 0f) {
                 bounceVel += (-bounce * 150f - bounceVel * 25f) * dt
                 bounce += bounceVel * dt
-                bounce = bounce.coerceIn(-maxBounce, maxBounce)
+                bounce = bounce.coerceIn(-bounceCap, bounceCap)
                 getChildAt(0)?.translationY = bounce
             }
 
@@ -431,6 +435,7 @@ class M3ScrollView(context: Context) : ScrollView(context) {
     }
 
     private var overMode = false
+    private var bounceCap = 0f
 
     private fun resyncGesture(ev: MotionEvent) {
         val cancel = MotionEvent.obtain(ev)
@@ -444,11 +449,12 @@ class M3ScrollView(context: Context) : ScrollView(context) {
     }
 
     private fun startBounce(from: Float) {
+        bounceCap = kotlin.math.max(maxBounce, kotlin.math.abs(from))
         bounce = from
         bounceVel = 0f
         dragOver = 0f
         flingRunning = true
-        lastTime = 0L
+        lastTime = android.os.SystemClock.uptimeMillis()
         postOnAnimation(runner)
     }
 
@@ -519,7 +525,7 @@ class M3ScrollView(context: Context) : ScrollView(context) {
         if (kotlin.math.abs(v) < minV) return
         velocity = v.toFloat()
         flingRunning = true
-        lastTime = 0L
+        lastTime = android.os.SystemClock.uptimeMillis()
         bounce = 0f
         bounceVel = 0f
         child.translationY = 0f
