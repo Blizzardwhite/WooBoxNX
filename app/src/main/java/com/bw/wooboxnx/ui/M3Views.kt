@@ -49,11 +49,12 @@ class IconView(context: Context, private val type: Int) : View(context) {
 
         val s = r * 0.5f
         when (type) {
-            0 -> { // 弯月
+            0 -> { // 屏下区域：实心屏幕 + 顶部挖孔
+                rect.set(cx - s * 0.74f, cy - s * 1.02f, cx + s * 0.74f, cy + s * 1.02f)
                 path.reset()
-                path.addCircle(cx - s * 0.15f, cy, s, Path.Direction.CW)
+                path.addRoundRect(rect, dp(3.5f), dp(3.5f), Path.Direction.CW)
                 innerPath.reset()
-                innerPath.addCircle(cx + s * 0.50f, cy - s * 0.50f, s * 0.92f, Path.Direction.CW)
+                innerPath.addCircle(cx, cy - s * 0.62f, s * 0.21f, Path.Direction.CW)
                 path.op(innerPath, Path.Op.DIFFERENCE)
                 canvas.drawPath(path, fillPaint)
             }

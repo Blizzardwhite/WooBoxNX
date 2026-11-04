@@ -417,11 +417,11 @@ object SettingsModel {
         )),
         Group("自定义行列", listOf(
             Row(key = "qs_custom_switch", title = "自定义行列数", summary = "总开关，关闭后下方设置均不生效"),
-            Row(key = "qs_custom_rows", title = "行数", kind = Row.SLIDER, min = 1, max = 9, def = 3),
+            Row(key = "qs_custom_rows", title = "行数", kind = Row.SLIDER, min = 1, max = 9, def = 4),
             Row(key = "qs_custom_rows_landscape", title = "行数（横屏）", kind = Row.SLIDER, min = 1, max = 4, def = 1),
             Row(key = "qs_custom_columns", title = "列数", kind = Row.SLIDER, min = 1, max = 9, def = 5),
             Row(key = "qs_custom_columns_landscape", title = "列数（横屏）", kind = Row.SLIDER, min = 1, max = 10, def = 7),
-            Row(key = "qs_custom_columns_editor", title = "编辑模式列数", kind = Row.SLIDER, min = 1, max = 9, def = 4),
+            Row(key = "qs_custom_columns_editor", title = "编辑模式列数", kind = Row.SLIDER, min = 1, max = 9, def = 5),
             Row(key = "qs_custom_columns_landscape_editor", title = "编辑模式列数（横屏）", kind = Row.SLIDER, min = 1, max = 10, def = 6)
         ))
     ))
