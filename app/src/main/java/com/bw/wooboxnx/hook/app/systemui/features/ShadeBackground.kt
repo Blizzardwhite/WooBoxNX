@@ -26,6 +26,7 @@ import de.robv.android.xposed.XposedBridge
 object ShadeBackground : HookRegister() {
 
     private const val TAG = "woobox_shade_bg"
+    private var containerId = 0
 
     override fun init() {
         runCatching {
@@ -84,6 +85,17 @@ object ShadeBackground : HookRegister() {
                     }
                 })
             }.onFailure { Log.px("W", "status bar bg hook skipped", it, logInRelease = true) }
+            // 只要面板背景功能开启，就拦截通知/QS 容器再次设置那层黑色渐变
+            XposedBridge.hookAllMethods(View::class.java, "setBackground", object : XC_MethodHook() {
+                override fun beforeHookedMethod(param: MethodHookParam) {
+                    runCatching {
+                        if (containerId == 0) return
+                        val v = param.thisObject as? View ?: return
+                        if (v.id == containerId) param.args[0] = null
+                    }
+                }
+            })
+
             Log.px("I", "ShadeBackground hooked", logInRelease = true)
         }.onFailure {
             Log.px("E", "ShadeBackground init failed", it, logInRelease = true)
@@ -104,6 +116,19 @@ object ShadeBackground : HookRegister() {
             scaleType = ImageView.ScaleType.CENTER_CROP
         }
         runCatching { root.addView(iv, 0, ViewGroup.LayoutParams(-1, -1)) }
+
+        // 通知/QS 容器自带的黑色渐变背景（#FF000000 → #59*），
+        // 它就是切换时看到的那层"上黑下浅"，用统一背景时去掉它。
+        root.postDelayed({
+            runCatching {
+                if (containerId == 0) {
+                    containerId = root.resources.getIdentifier(
+                        "notification_container_parent", "id", "com.android.systemui"
+                    )
+                }
+                if (containerId != 0) root.findViewById<View>(containerId)?.background = null
+            }
+        }, 1200)
 
         if (mode == 1) {
             iv.setBackgroundColor(0xFF1C1C20.toInt())
