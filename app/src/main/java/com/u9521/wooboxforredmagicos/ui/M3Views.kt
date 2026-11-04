@@ -364,7 +364,7 @@ class M3ScrollView(context: Context) : ScrollView(context) {
             lastTime = now
 
             // 1. 惯性
-            velocity *= Math.pow(0.35, dt.toDouble()).toFloat()
+            velocity *= Math.pow(0.15, dt.toDouble()).toFloat()
             var next = scrollY + velocity * dt
             if (next > maxScroll) {
                 next = maxScroll.toFloat()
@@ -408,6 +408,10 @@ class M3ScrollView(context: Context) : ScrollView(context) {
     }
 
     private fun beginTouch(y: Float) {
+        // 手指按下就打断惯性，符合系统列表的行为
+        removeCallbacks(runner)
+        velocity = 0f
+        flingRunning = false
         blockFling = false
         lastTouchY = y
         dragOver = 0f
@@ -475,7 +479,12 @@ class M3ScrollView(context: Context) : ScrollView(context) {
         val child = getChildAt(0) ?: return
         maxScroll = (child.height + paddingTop + paddingBottom - height).coerceAtLeast(0)
         if (maxScroll <= 0) return
-        velocity = velocityY.toFloat()
+        val vc = android.view.ViewConfiguration.get(context)
+        val minV = vc.scaledMinimumFlingVelocity
+        val maxV = vc.scaledMaximumFlingVelocity
+        val v = velocityY.coerceIn(-maxV, maxV)
+        if (kotlin.math.abs(v) < minV) return
+        velocity = v.toFloat()
         flingRunning = true
         lastTime = 0L
         bounce = 0f
