@@ -989,8 +989,8 @@ class SettingsHomeActivity : AppCompatActivity() {
         }
         val logoBg = ImageView(this).apply {
             setImageResource(R.drawable.ic_logo_box)
-            setColorFilter(M3Color.ON_SURFACE)
-            alpha = 0.17f
+            setColorFilter(M3Color.SURFACE_CONT)
+            alpha = 1f
             scaleType = ImageView.ScaleType.FIT_XY
             isClickable = false
         }
@@ -1122,7 +1122,7 @@ class SettingsHomeActivity : AppCompatActivity() {
         ).apply { topMargin = M3Ui.dp(this@SettingsHomeActivity, 12) })
         val frame = android.widget.FrameLayout(this).apply { setBackgroundColor(M3Color.SURFACE) }
         frame.addView(logoBg, android.widget.FrameLayout.LayoutParams(
-            M3Ui.dp(this, 235), M3Ui.dp(this, 235), Gravity.TOP or Gravity.END
+            M3Ui.dp(this, 300), M3Ui.dp(this, 300), Gravity.TOP or Gravity.END
         ).apply {
             topMargin = M3Ui.dp(this@SettingsHomeActivity, -40)
             rightMargin = M3Ui.dp(this@SettingsHomeActivity, -52)
@@ -1135,11 +1135,11 @@ class SettingsHomeActivity : AppCompatActivity() {
             )
         }
         frame.addView(topFade, android.widget.FrameLayout.LayoutParams(
-            ViewGroup.LayoutParams.MATCH_PARENT, M3Ui.dp(this, 90), Gravity.TOP
+            ViewGroup.LayoutParams.MATCH_PARENT, M3Ui.dp(this, 60), Gravity.TOP
         ))
 
         // 底部渐隐：很短的一段，让箱子和下面内容衔接
-        val boxFadeHeight = M3Ui.dp(this, 56)
+        val boxFadeHeight = M3Ui.dp(this, 40)
         val boxFade = View(this).apply {
             background = GradientDrawable(
                 GradientDrawable.Orientation.TOP_BOTTOM,
