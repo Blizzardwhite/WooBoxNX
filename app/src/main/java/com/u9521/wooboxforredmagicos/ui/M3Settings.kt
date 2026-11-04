@@ -1127,16 +1127,6 @@ class SettingsHomeActivity : AppCompatActivity() {
             topMargin = M3Ui.dp(this@SettingsHomeActivity, 6)
             rightMargin = M3Ui.dp(this@SettingsHomeActivity, 14)
         })
-        // 顶部渐隐：让箱子从状态栏下方淡入
-        val topFade = View(this).apply {
-            background = GradientDrawable(
-                GradientDrawable.Orientation.TOP_BOTTOM,
-                intArrayOf(M3Color.SURFACE, Color.TRANSPARENT)
-            )
-        }
-        frame.addView(topFade, android.widget.FrameLayout.LayoutParams(
-            ViewGroup.LayoutParams.MATCH_PARENT, M3Ui.dp(this, 26), Gravity.TOP
-        ))
 
         // 底部渐隐：很短的一段，让箱子和下面内容衔接
         val boxFadeHeight = M3Ui.dp(this, 26)
