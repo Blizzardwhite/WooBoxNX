@@ -812,50 +812,13 @@ object M3Actions {
             .setNegativeButton("取消", null)
             .show()
     }
-    /** 设置被修改后持续缓慢闪烁外框（绿色），文字保持不动，直到点了「重启作用域」 */
-    fun blinkLoop(v: View) {
-        if (v.getTag(R.id.tag_blink) != null) return
-        val bg = v.background as? GradientDrawable ?: return
-        val density = v.resources.displayMetrics.density
-        val thin = (1f * density + 0.5f).toInt()
-        val thick = (2f * density + 0.5f).toInt()
-        val evaluator = android.animation.ArgbEvaluator()
-        val fillTo = (0x52 shl 24) or (M3Color.PRIMARY and 0x00FFFFFF)
-        val a = android.animation.ValueAnimator.ofFloat(0f, 1f).apply {
-            duration = 900
-            repeatMode = android.animation.ValueAnimator.REVERSE
-            repeatCount = android.animation.ValueAnimator.INFINITE
-            addUpdateListener {
-                val f = it.animatedValue as Float
-                val stroke = evaluator.evaluate(f, M3Color.OUTLINE_VAR, M3Color.PRIMARY) as Int
-                bg.setStroke((thin + (thick - thin) * f).toInt(), stroke)
-                bg.setColor(evaluator.evaluate(f, Color.TRANSPARENT, fillTo) as Int)
-                v.invalidate()
-            }
-        }
-        v.setTag(R.id.tag_blink, a)
-        a.start()
-    }
 
-    /** 一次性高亮（搜索结果跳转后用） */
+    /** 一次性高亮（搜索结果 / 应用修改跳转后用） */
     fun flash(v: View) {
         val a = android.animation.ObjectAnimator.ofFloat(v, "alpha", 1f, 0.3f, 1f, 0.3f, 1f)
         a.duration = 900
         a.start()
     }
-
-    fun stopBlink(v: View?) {
-        v ?: return
-        (v.getTag(R.id.tag_blink) as? android.animation.Animator)?.cancel()
-        v.setTag(R.id.tag_blink, null)
-        val density = v.resources.displayMetrics.density
-        (v.background as? GradientDrawable)?.apply {
-            setStroke((1f * density + 0.5f).toInt(), M3Color.OUTLINE_VAR)
-            setColor(Color.TRANSPARENT)
-        }
-        v.invalidate()
-    }
-
     fun pill(activity: Activity, label: String, chipStyle: Boolean = false, endMarginDp: Int = 0, onClick: () -> Unit): TextView {
         val tv = M3Ui.text(activity, label, if (chipStyle) 13f else 12f, M3Color.ON_SURFACE_VAR)
         if (chipStyle) {
@@ -885,8 +848,13 @@ class M3Backup(private val activity: AppCompatActivity) {
     ) { uri ->
         if (uri == null) return@registerForActivityResult
         runCatching {
-            val json = org.json.JSONObject(M3Prefs.sp(activity).all as Map<*, *>).toString()
-            activity.contentResolver.openOutputStream(uri)?.use { it.write(json.toByteArray()) }
+            val obj = org.json.JSONObject()
+            obj.put(Meta.MODULE, Meta.MODULE_ID)
+            obj.put(Meta.VERSION, Meta.VERSION_CODE)
+            M3Prefs.sp(activity).all.forEach { (k, v) ->
+                if (!k.startsWith("_")) obj.put(k, v)
+            }
+            activity.contentResolver.openOutputStream(uri)?.use { it.write(obj.toString().toByteArray()) }
             Toast.makeText(activity, "备份成功", Toast.LENGTH_SHORT).show()
         }.onFailure {
             Toast.makeText(activity, "备份失败：${it.message}", Toast.LENGTH_SHORT).show()
@@ -901,23 +869,43 @@ class M3Backup(private val activity: AppCompatActivity) {
             val text = activity.contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() }
                 ?: return@runCatching
             val obj = org.json.JSONObject(text)
-            val edit = M3Prefs.sp(activity).edit().clear()
-            obj.keys().forEach { k ->
-                when (val v = obj[k]) {
-                    is Boolean -> edit.putBoolean(k, v)
-                    is Int -> edit.putInt(k, v)
-                    is Long -> edit.putLong(k, v)
-                    is Double -> edit.putFloat(k, v.toFloat())
-                    is String -> edit.putString(k, v)
-                    else -> edit.putString(k, v.toString())
+            val module = obj.optString(Meta.MODULE, "")
+            when {
+                module == Meta.MODULE_ID -> applyRestore(obj)
+                module.isEmpty() -> {
+                    // 旧版本备份没有来源标记，让用户确认
+                    MaterialAlertDialogBuilder(activity)
+                        .setTitle("备份没有来源标记")
+                        .setMessage("这个文件不是本模块新版本导出的备份，可能来自其他模块或旧版本。\n\n继续恢复会覆盖当前配置，确定吗？")
+                        .setPositiveButton("继续恢复") { _, _ -> applyRestore(obj) }
+                        .setNegativeButton("取消", null)
+                        .show()
+                }
+                else -> {
+                    Toast.makeText(activity, "这不是本模块的备份文件", Toast.LENGTH_LONG).show()
                 }
             }
-            edit.apply()
-            Toast.makeText(activity, "已恢复配置，建议重启作用域", Toast.LENGTH_LONG).show()
-            activity.recreate()
         }.onFailure {
             Toast.makeText(activity, "恢复失败：${it.message}", Toast.LENGTH_SHORT).show()
         }
+    }
+
+    private fun applyRestore(obj: org.json.JSONObject) {
+        val edit = M3Prefs.sp(activity).edit().clear()
+        obj.keys().forEach { k ->
+            if (k.startsWith("_")) return@forEach
+            when (val v = obj[k]) {
+                is Boolean -> edit.putBoolean(k, v)
+                is Int -> edit.putInt(k, v)
+                is Long -> edit.putLong(k, v)
+                is Double -> edit.putFloat(k, v.toFloat())
+                is String -> edit.putString(k, v)
+                else -> edit.putString(k, v.toString())
+            }
+        }
+        edit.apply()
+        Toast.makeText(activity, "已恢复配置，请检查「应用修改」", Toast.LENGTH_LONG).show()
+        activity.recreate()
     }
 
     fun startBackup() {
@@ -934,8 +922,14 @@ class M3Backup(private val activity: AppCompatActivity) {
             .setNegativeButton("取消", null)
             .show()
     }
+
+    private object Meta {
+        const val MODULE = "_module"
+        const val VERSION = "_version"
+        const val MODULE_ID = "woobox-nx"
+        const val VERSION_CODE = 1
+    }
 }
-// ---------------- 主页 ----------------
 class SettingsHomeActivity : AppCompatActivity() {
 
     private var scopePill: View? = null
@@ -1569,6 +1563,7 @@ class CameraSettingsActivity : AppCompatActivity() {
         val preview = CameraPreviewView(this).apply {
             layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, M3Ui.dp(this@CameraSettingsActivity, 150))
             styleProvider = { com.u9521.wooboxforredmagicos.activity.MoonStyle.get(this@CameraSettingsActivity) }
+            batteryProvider = { prefs.getBoolean("camera_battery", false) }
         }
         previewCard.addView(preview)
         content.addView(previewCard, LinearLayout.LayoutParams(
@@ -1613,7 +1608,9 @@ class CameraSettingsActivity : AppCompatActivity() {
             Triple("moon_allow_light", "亮色模式也显示", "默认只在深色模式显示"),
             Triple("camera_battery", "显示电量", "替代弯月显示充电状态")
         ).forEachIndexed { i, t ->
-            inner.addView(switchRow(prefs, t.first, t.second, t.third))
+            inner.addView(switchRow(prefs, t.first, t.second, t.third) {
+                if (t.first == "camera_battery") preview.invalidate()
+            })
             if (i < 2) inner.addView(View(this).apply {
                 setBackgroundColor(M3Color.OUTLINE_VAR)
                 layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 1)
@@ -1663,7 +1660,13 @@ class CameraSettingsActivity : AppCompatActivity() {
             layoutParams = LinearLayout.LayoutParams(0, M3Ui.dp(this@CameraSettingsActivity, 44), 1f)
         }
 
-    private fun switchRow(prefs: SharedPreferences, key: String, title: String, summary: String): View {
+    private fun switchRow(
+        prefs: SharedPreferences,
+        key: String,
+        title: String,
+        summary: String,
+        onChange: () -> Unit = {}
+    ): View {
         val line = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
@@ -1675,7 +1678,11 @@ class CameraSettingsActivity : AppCompatActivity() {
         line.addView(texts, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
         line.addView(MaterialSwitch(this).apply {
             isChecked = prefs.getBoolean(key, false)
-            setOnCheckedChangeListener { _, c -> prefs.edit().putBoolean(key, c).apply(); markChanged() }
+            setOnCheckedChangeListener { _, c ->
+                prefs.edit().putBoolean(key, c).apply()
+                markChanged()
+                onChange()
+            }
         })
         return line
     }

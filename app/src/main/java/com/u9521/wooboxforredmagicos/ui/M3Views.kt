@@ -125,6 +125,7 @@ class IconView(context: Context, private val type: Int) : View(context) {
 class CameraPreviewView(context: Context) : View(context) {
 
     var styleProvider: () -> Int = { 0 }
+    var batteryProvider: () -> Boolean = { false }
 
     private val bgPaint = Paint(Paint.ANTI_ALIAS_FLAG)
     private val discPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.BLACK }
@@ -162,6 +163,12 @@ class CameraPreviewView(context: Context) : View(context) {
         val r = dp(19f)
         canvas.drawCircle(cx, cy, r, discPaint)
 
+        if (batteryProvider()) {
+            drawBatteryPreview(canvas, cx, cy, r)
+            drawContentMock(canvas, w, h, cy + r)
+            return
+        }
+
         when (styleProvider()) {
             1 -> { // 彩色图标：直接用模块自身的图标铺满，效果和真机一致
                 val icon = appIconBitmap() ?: return
@@ -186,11 +193,38 @@ class CameraPreviewView(context: Context) : View(context) {
             }
         }
 
-        // 屏幕内容示意
+        drawContentMock(canvas, w, h, cy + r)
+    }
+
+    /** 屏幕内容示意（状态栏下方几条灰色块） */
+    private fun drawContentMock(canvas: Canvas, w: Float, h: Float, top: Float) {
         val content = Paint(fgPaint).apply { color = 0x18FFFFFF }
-        canvas.drawRoundRect(RectF(dp(14f), cy + r + dp(14f), w - dp(14f), cy + r + dp(22f)), dp(4f), dp(4f), content)
-        canvas.drawRoundRect(RectF(dp(14f), cy + r + dp(30f), w * 0.66f, cy + r + dp(38f)), dp(4f), dp(4f), content)
-        canvas.drawRoundRect(RectF(dp(14f), cy + r + dp(52f), w - dp(14f), h - dp(14f)), dp(8f), dp(8f), content)
+        canvas.drawRoundRect(RectF(dp(14f), top + dp(14f), w - dp(14f), top + dp(22f)), dp(4f), dp(4f), content)
+        canvas.drawRoundRect(RectF(dp(14f), top + dp(30f), w * 0.66f, top + dp(38f)), dp(4f), dp(4f), content)
+        canvas.drawRoundRect(RectF(dp(14f), top + dp(52f), w - dp(14f), h - dp(14f)), dp(8f), dp(8f), content)
+    }
+
+    /** 摄像头位置的电池预览：黑圆 + 绿色水位 + 白色描边 + 百分比 */
+    private fun drawBatteryPreview(canvas: Canvas, cx: Float, cy: Float, r: Float) {
+        val level = 0.68f
+        val water = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFF34C759.toInt() }
+        val border = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.STROKE
+            strokeWidth = dp(1.6f)
+            color = 0xFFF2F2F2.toInt()
+        }
+        val text = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.WHITE
+            textSize = r * 0.95f
+            textAlign = Paint.Align.CENTER
+            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+        }
+        val save = canvas.save()
+        canvas.clipPath(Path().apply { addCircle(cx, cy, r, Path.Direction.CW) })
+        canvas.drawRect(cx - r, cy + r - 2f * r * level, cx + r, cy + r, water)
+        canvas.restoreToCount(save)
+        canvas.drawCircle(cx, cy, r - dp(0.8f), border)
+        canvas.drawText("68", cx, cy + r * 0.34f, text)
     }
 
     /** 模块图标位图（用于彩色图标预览），按 4 倍预览尺寸渲染保证清晰 */
