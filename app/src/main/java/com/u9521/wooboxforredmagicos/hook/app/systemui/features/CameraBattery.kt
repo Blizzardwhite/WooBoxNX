@@ -78,6 +78,10 @@ object CameraBattery : HookRegister() {
     }
 
     override fun init() = hasEnable("camera_battery") {
+        // 屏下内容总开关关掉时，电量也不显示
+        if (!com.u9521.wooboxforredmagicos.util.XSPUtils.getBoolean("moon_notch", false)) {
+            return@hasEnable
+        }
         val classLoader = getDefaultCL()
 
         // 顶部横条透明

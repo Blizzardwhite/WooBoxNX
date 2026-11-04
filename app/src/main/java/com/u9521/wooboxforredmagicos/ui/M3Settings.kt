@@ -1564,6 +1564,7 @@ class CameraSettingsActivity : AppCompatActivity() {
             layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, M3Ui.dp(this@CameraSettingsActivity, 150))
             styleProvider = { com.u9521.wooboxforredmagicos.activity.MoonStyle.get(this@CameraSettingsActivity) }
             batteryProvider = { prefs.getBoolean("camera_battery", false) }
+            enabledProvider = { prefs.getBoolean("moon_notch", false) }
         }
         previewCard.addView(preview)
         content.addView(previewCard, LinearLayout.LayoutParams(
@@ -1603,19 +1604,38 @@ class CameraSettingsActivity : AppCompatActivity() {
         // 开关卡
         val card = M3Ui.card(this)
         val inner = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        val switches = HashMap<String, MaterialSwitch>()
+        fun updateChildState() {
+            val on = switches["moon_notch"]?.isChecked ?: false
+            listOf("moon_allow_light", "camera_battery").forEach { k ->
+                switches[k]?.apply {
+                    isEnabled = on
+                    alpha = if (on) 1f else 0.4f
+                }
+            }
+        }
         listOf(
             Triple("moon_notch", "启用", "在摄像头位置绘制遮罩"),
             Triple("moon_allow_light", "亮色模式也显示", "默认只在深色模式显示"),
             Triple("camera_battery", "显示电量", "替代弯月显示充电状态")
         ).forEachIndexed { i, t ->
-            inner.addView(switchRow(prefs, t.first, t.second, t.third) {
-                if (t.first == "camera_battery") preview.invalidate()
-            })
+            inner.addView(switchRow(
+                prefs, t.first, t.second, t.third,
+                onChange = {
+                    if (t.first == "moon_notch") {
+                        updateChildState()
+                        preview.invalidate()
+                    }
+                    if (t.first == "camera_battery") preview.invalidate()
+                },
+                onCreated = { sw -> switches[t.first] = sw }
+            ))
             if (i < 2) inner.addView(View(this).apply {
                 setBackgroundColor(M3Color.OUTLINE_VAR)
                 layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 1)
             })
         }
+        updateChildState()
         card.addView(inner)
         content.addView(card, LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
@@ -1665,7 +1685,8 @@ class CameraSettingsActivity : AppCompatActivity() {
         key: String,
         title: String,
         summary: String,
-        onChange: () -> Unit = {}
+        onChange: () -> Unit = {},
+        onCreated: (MaterialSwitch) -> Unit = {}
     ): View {
         val line = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -1676,14 +1697,16 @@ class CameraSettingsActivity : AppCompatActivity() {
         texts.addView(M3Ui.text(this, title, 16f, M3Color.ON_SURFACE))
         texts.addView(M3Ui.text(this, summary, 12f, M3Color.ON_SURFACE_VAR))
         line.addView(texts, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
-        line.addView(MaterialSwitch(this).apply {
+        val sw = MaterialSwitch(this).apply {
             isChecked = prefs.getBoolean(key, false)
             setOnCheckedChangeListener { _, c ->
                 prefs.edit().putBoolean(key, c).apply()
                 markChanged()
                 onChange()
             }
-        })
+        }
+        line.addView(sw)
+        onCreated(sw)
         return line
     }
 }

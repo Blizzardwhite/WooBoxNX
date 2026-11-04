@@ -126,6 +126,7 @@ class CameraPreviewView(context: Context) : View(context) {
 
     var styleProvider: () -> Int = { 0 }
     var batteryProvider: () -> Boolean = { false }
+    var enabledProvider: () -> Boolean = { true }
 
     private val bgPaint = Paint(Paint.ANTI_ALIAS_FLAG)
     private val discPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.BLACK }
@@ -156,6 +157,12 @@ class CameraPreviewView(context: Context) : View(context) {
         val dot = Paint(fgPaint).apply { color = 0xFFBFBFBF.toInt() }
         canvas.drawCircle(w - dp(16f), dp(16f), dp(1.8f), dot)
         canvas.drawCircle(w - dp(24f), dp(16f), dp(1.8f), dot)
+
+        // 总开关关闭时不画任何东西，和真机一致
+        if (!enabledProvider()) {
+            drawContentMock(canvas, w, h, dp(55f))
+            return
+        }
 
         // 摄像头位置
         val cx = w / 2f
