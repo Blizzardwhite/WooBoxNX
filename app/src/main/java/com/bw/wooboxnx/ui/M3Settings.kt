@@ -357,7 +357,7 @@ object SettingsModel {
         key = key, title = title, kind = Row.SWITCH_TEXT, switchKey = sw, defStr = defStr
     )
 
-    private val camera = Category("camera", "屏下显示区域", "弯月、图标、剪影，可显示电量", 0, listOf(
+    private val camera = Category("camera", "屏下显示区域", "屏下区域自定义", 0, listOf(
         Group(null, listOf(
             Row(key = "moon_notch", title = "屏下内容：启用", summary = "在摄像头位置绘制遮罩"),
             Row(key = "moon_allow_light", title = "亮色模式也显示屏下内容"),
@@ -408,7 +408,7 @@ object SettingsModel {
         ))
     ))
 
-    private val qs = Category("qs", "快速设置面板", "行列自定义、运营商与搜索按钮", 3, listOf(
+    private val qs = Category("qs", "快速设置面板", "行列自定义、运营商、搜索按钮", 3, listOf(
         Group(null, listOf(
             Row(key = "qs_header_shortcut_redirect_calendar", title = "点击日期跳转第三方日历"),
             Row(key = "qs_header_shortcut_redirect_search", title = "点击搜索打开浏览器"),
