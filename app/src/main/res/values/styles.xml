@@ -27,6 +27,17 @@
         <item name="colorSurfaceVariant">@color/m3_surface_container</item>
         <item name="colorOnSurfaceVariant">@color/m3_on_surface_variant</item>
         <item name="colorOutlineVariant">@color/m3_outline_variant</item>
+        <item name="colorOutline">@color/m3_outline_variant</item>
+        <!-- 弹窗、开关、滑块用到的容器色，不覆盖会掉回默认的紫色调 -->
+        <item name="colorSurfaceContainerLowest">@color/m3_surface</item>
+        <item name="colorSurfaceContainerLow">@color/m3_surface_container</item>
+        <item name="colorSurfaceContainer">@color/m3_surface_container</item>
+        <item name="colorSurfaceContainerHigh">@color/m3_surface_container</item>
+        <item name="colorSurfaceContainerHighest">@color/m3_surface_high</item>
+        <item name="colorSurfaceBright">@color/m3_surface_container</item>
+        <item name="colorSurfaceDim">@color/m3_surface</item>
+        <item name="colorOnSurfaceInverse">@color/m3_on_surface</item>
+        <item name="colorSurfaceInverse">@color/m3_surface_container</item>
         <item name="android:colorBackground">@color/m3_surface</item>
         <item name="android:statusBarColor">@color/m3_surface</item>
         <item name="android:navigationBarColor">@color/m3_surface</item>
