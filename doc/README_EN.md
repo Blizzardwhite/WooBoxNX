@@ -38,11 +38,22 @@ Original developer: [CoolApk@乌堆小透明](http://www.coolapk.com/u/883441)
 
 ---
 
+### Screenshots
+
+<div align="center">
+  <img src="./img/home.jpg" width="240" alt="Home">
+  <img src="./img/camera.jpg" width="240" alt="Under-display area">
+  <img src="./img/about.jpg" width="240" alt="About">
+</div>
+
+---
+
 ### Download Links
 
-No dedicated release channel for this fork yet. Upstream releases:
+- Repository: [Blizzardwhite/WooBoxNX](https://github.com/Blizzardwhite/WooBoxNX)
+- APK: [Releases](https://github.com/Blizzardwhite/WooBoxNX/releases)
 
-[Upstream Releases](https://github.com/u9521/WooBoxForRedmagicOS/releases)
+No stable release yet; test builds will be published on the Releases page.
 
 ---
 

@@ -37,11 +37,22 @@
 
 ---
 
+### 界面预览
+
+<div align="center">
+  <img src="./doc/img/home.jpg" width="240" alt="主页">
+  <img src="./doc/img/camera.jpg" width="240" alt="屏下显示区域">
+  <img src="./doc/img/about.jpg" width="240" alt="关于">
+</div>
+
+---
+
 ### 下载地址
 
-本分支暂无独立发布渠道，最新版本请从构建产物或上游仓库获取：
+- 本仓库：[Blizzardwhite/WooBoxNX](https://github.com/Blizzardwhite/WooBoxNX)
+- APK 下载：[Releases](https://github.com/Blizzardwhite/WooBoxNX/releases)
 
-[上游 Releases](https://github.com/u9521/WooBoxForRedmagicOS/releases)
+目前还没有正式发布版本，可以先从 Releases 页面上传/下载测试包。
 
 ---
 
