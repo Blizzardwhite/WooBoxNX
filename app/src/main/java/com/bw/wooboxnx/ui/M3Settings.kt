@@ -357,7 +357,7 @@ object SettingsModel {
         key = key, title = title, kind = Row.SWITCH_TEXT, switchKey = sw, defStr = defStr
     )
 
-    private val camera = Category("camera", "屏下显示区域", "弯月 · 跟随深色模式", 0, listOf(
+    private val camera = Category("camera", "屏下显示区域", "弯月、图标、剪影，可显示电量", 0, listOf(
         Group(null, listOf(
             Row(key = "moon_notch", title = "屏下内容：启用", summary = "在摄像头位置绘制遮罩"),
             Row(key = "moon_allow_light", title = "亮色模式也显示屏下内容"),
@@ -365,7 +365,7 @@ object SettingsModel {
         ))
     ))
 
-    private val status = Category("status", "状态栏", "双击锁屏、图标、网速", 1, listOf(
+    private val status = Category("status", "状态栏", "双击锁屏、电量样式、双排网速", 1, listOf(
         Group("交互", listOf(
             Row(key = "status_bar_double_tap_to_sleep", title = "双击状态栏锁屏"),
             Row(key = "statusbar_font_restore", title = "恢复时钟日期图标字体"),
@@ -396,7 +396,7 @@ object SettingsModel {
         ))
     ))
 
-    private val notify = Category("notify", "通知", "原生通知图标", 2, listOf(
+    private val notify = Category("notify", "通知", "原生通知图标、系统通知拦截", 2, listOf(
         Group(null, listOf(
             Row(key = "use_aosp_notify", title = "使用原生通知图标", summary = "状态栏通知变成原生样式"),
             Row(key = "aosp_icon_size_dp", title = "通知图标大小", kind = Row.SLIDER, min = 0, max = 64, def = 16),
@@ -408,7 +408,7 @@ object SettingsModel {
         ))
     ))
 
-    private val qs = Category("qs", "快速设置面板", "行列自定义", 3, listOf(
+    private val qs = Category("qs", "快速设置面板", "行列自定义、运营商与搜索按钮", 3, listOf(
         Group(null, listOf(
             Row(key = "qs_header_shortcut_redirect_calendar", title = "点击日期跳转第三方日历"),
             Row(key = "qs_header_shortcut_redirect_search", title = "点击搜索打开浏览器"),
@@ -426,7 +426,7 @@ object SettingsModel {
         ))
     ))
 
-    private val lock = Category("lock", "锁屏", "指纹图标改圆环", 4, listOf(
+    private val lock = Category("lock", "锁屏", "指纹圆环、锁屏音量", 4, listOf(
         Group(null, listOf(
             Row(key = "lockscreen_allow_adjust_volume", title = "允许在锁屏调整音量"),
             Row(key = "fp_ring", title = "锁屏指纹图标改成圆环")
@@ -434,7 +434,7 @@ object SettingsModel {
     ))
 
     /** 系统行为：音量、小窗、飞行模式、截图、WLAN（改动后需重启手机） */
-    private val framework = Category("framework", "系统", "音量、小窗、飞行模式、WLAN", 7, listOf(
+    private val framework = Category("framework", "系统", "音量阶数、小窗、飞行模式、WLAN", 7, listOf(
         Group("音量阶数", listOf(
             vol("alarm_volume_steps_switch", "alarm_volume_steps", "闹钟音量阶数", 15),
             vol("media_volume_steps_switch", "media_volume_steps", "媒体音量阶数", 15),
@@ -470,7 +470,7 @@ object SettingsModel {
     ))
 
     /** 按键与手势 */
-    private val keys = Category("keys", "按键与手势", "手势助理、音量键、电源键", 9, listOf(
+    private val keys = Category("keys", "按键与手势", "手势助理、音量键、长按电源键", 9, listOf(
         Group("手势与交互", listOf(
             Row(key = "gesture_use_default_digital_assist", title = "手势打开默认数字助理"),
             Row(key = "no_vibrate_volKey_Long_press", title = "禁用长按调节音量的振动"),
@@ -485,7 +485,7 @@ object SettingsModel {
     ))
 
     /** 应用与服务 */
-    private val apps = Category("apps", "应用", "启动器、安装器、双开、MTP", 10, listOf(
+    private val apps = Category("apps", "应用", "启动器、安装器、双开、负一屏", 10, listOf(
         Group("启动器", listOf(
             Row(key = "launcher_rm_zvoice_uninstall_dialog", title = "取消智慧语音已卸载弹窗"),
             Row(key = "launcher_force_support_resize_activity", title = "所有 Activity 允许调整大小"),
@@ -524,7 +524,7 @@ object SettingsModel {
     ))
 
     /** 系统更新 */
-    private val update = Category("update", "系统更新", "伪装设备信息、阻止更新", 8, listOf(
+    private val update = Category("update", "系统更新", "伪装设备信息、禁止自动更新", 8, listOf(
         Group("伪装设备信息", listOf(
             mock("system_update_mock_model_sw", "system_update_mock_model", "伪装设备型号", "NX769J"),
             mock("system_update_mock_imei_sw", "system_update_mock_imei", "伪装设备 IMEI", "114514191981000"),
@@ -545,7 +545,7 @@ object SettingsModel {
     ))
 
     /** 工具与调试 */
-    private val other = Category("other", "其他", "调试、备份与恢复", 5, listOf(
+    private val other = Category("other", "其他", "调试日志、备份与恢复", 5, listOf(
         Group("调试", listOf(
             Row(key = "debug_log", title = "打印模块调试日志", summary = "重启作用域后生效"),
             Row(key = "block_system_server_log", title = "阻止系统输出日志", summary = "实验性功能，目前仅拦截 Telecom 日志")
@@ -1005,7 +1005,7 @@ class SettingsHomeActivity : AppCompatActivity() {
     private lateinit var backup: M3Backup
     private lateinit var rowBuilder: M3RowBuilder
 
-    private val aboutCategory = Category("about", "关于", "版本、开发者与致谢", 6, emptyList())
+    private val aboutCategory = Category("about", "关于", "版本、开发者、致谢", 6, emptyList())
 
     /** 每次回到主页都重新判断模块是否在运行（心跳可能刚更新） */
     private fun refreshStatus() {
