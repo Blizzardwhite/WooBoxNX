@@ -410,14 +410,6 @@ object SettingsModel {
 
     private val qs = Category("qs", "快速设置面板", "行列自定义、运营商、搜索按钮", 3, listOf(
         Group(null, listOf(
-            Row(key = "shade_bg_mode", title = "面板自定义背景",
-                summary = "关闭 / 纯色 / 图片，统一两块面板的底色（重启系统界面生效）",
-                kind = Row.ACTION, action = "shade_bg_mode"),
-            Row(title = "选择背景图片", summary = "从相册选一张图作为面板背景", kind = Row.ACTION, action = "shade_bg_pick"),
-            Row(key = "shade_bg_blur", title = "背景模糊", kind = Row.SLIDER, min = 0, max = 60, def = 24),
-            Row(key = "shade_bg_dim", title = "背景暗化", kind = Row.SLIDER, min = 0, max = 80, def = 30),
-            Row(key = "fix_shade_zoom", title = "修复切换时壁纸跳变",
-                summary = "左右切换通知与快速设置时，壁纸不再放大缩小一次（重启作用域后生效）"),
             Row(key = "qs_header_shortcut_redirect_calendar", title = "点击日期跳转第三方日历"),
             Row(key = "qs_header_shortcut_redirect_search", title = "点击搜索打开浏览器"),
             Row(key = "qs_show_carrier", title = "快速设置显示运营商"),
@@ -1104,37 +1096,6 @@ class SettingsHomeActivity : AppCompatActivity() {
     private var scopePill: View? = null
     private var statusChip: TextView? = null
 
-    /** 选择面板背景图片 */
-    private val bgPicker = registerForActivityResult(
-        androidx.activity.result.contract.ActivityResultContracts.OpenDocument()
-    ) { uri ->
-        if (uri == null) return@registerForActivityResult
-        runCatching {
-            contentResolver.openInputStream(uri)?.use { input ->
-                java.io.File(filesDir, "panel_bg.img").outputStream().use { input.copyTo(it) }
-            }
-            M3Prefs.sp(this).edit().putInt("shade_bg_mode", 2).apply()
-            Toast.makeText(this, "背景已设置，重启系统界面后生效", Toast.LENGTH_LONG).show()
-            recreate()
-        }.onFailure {
-            Toast.makeText(this, "设置失败：" + it.message, Toast.LENGTH_SHORT).show()
-        }
-    }
-
-    private fun chooseShadeBgMode() {
-        val modes = arrayOf("关闭（跟随系统）", "纯色（深灰）", "自定义图片")
-        val cur = M3Prefs.sp(this).getInt("shade_bg_mode", 0).coerceIn(0, 2)
-        MaterialAlertDialogBuilder(this)
-            .setTitle("面板自定义背景")
-            .setSingleChoiceItems(modes, cur) { dialog, which ->
-                M3Prefs.sp(this).edit().putInt("shade_bg_mode", which).apply()
-                dialog.dismiss()
-                Toast.makeText(this, "已切换，重启系统界面后生效", Toast.LENGTH_SHORT).show()
-                recreate()
-            }
-            .setNegativeButton("取消", null)
-            .show()
-    }
     private var listHost: LinearLayout? = null
     private var searchField: android.widget.EditText? = null
     private var searchClear: TextView? = null
@@ -1540,8 +1501,6 @@ class SettingsHomeActivity : AppCompatActivity() {
             action.startsWith("page:") -> startActivity(Intent(this, CategoryActivity::class.java)
                 .putExtra("id", action.removePrefix("page:")))
 
-            action == "shade_bg_mode" -> chooseShadeBgMode()
-            action == "shade_bg_pick" -> bgPicker.launch(arrayOf("image/*"))
             action == "reset_all" -> M3Reset.confirm(this)
             action == "backup" -> backup.startBackup()
             action == "restore" -> backup.confirmRestore()
@@ -1633,37 +1592,6 @@ class SettingsHomeActivity : AppCompatActivity() {
 
 // ---------------- 分类详情页 ----------------
 class CategoryActivity : AppCompatActivity() {
-    /** 选择面板背景图片 */
-    private val bgPicker = registerForActivityResult(
-        androidx.activity.result.contract.ActivityResultContracts.OpenDocument()
-    ) { uri ->
-        if (uri == null) return@registerForActivityResult
-        runCatching {
-            contentResolver.openInputStream(uri)?.use { input ->
-                java.io.File(filesDir, "panel_bg.img").outputStream().use { input.copyTo(it) }
-            }
-            M3Prefs.sp(this).edit().putInt("shade_bg_mode", 2).apply()
-            Toast.makeText(this, "背景已设置，重启系统界面后生效", Toast.LENGTH_LONG).show()
-            recreate()
-        }.onFailure {
-            Toast.makeText(this, "设置失败：" + it.message, Toast.LENGTH_SHORT).show()
-        }
-    }
-
-    private fun chooseShadeBgMode() {
-        val modes = arrayOf("关闭（跟随系统）", "纯色（深灰）", "自定义图片")
-        val cur = M3Prefs.sp(this).getInt("shade_bg_mode", 0).coerceIn(0, 2)
-        MaterialAlertDialogBuilder(this)
-            .setTitle("面板自定义背景")
-            .setSingleChoiceItems(modes, cur) { dialog, which ->
-                M3Prefs.sp(this).edit().putInt("shade_bg_mode", which).apply()
-                dialog.dismiss()
-                Toast.makeText(this, "已切换，重启系统界面后生效", Toast.LENGTH_SHORT).show()
-                recreate()
-            }
-            .setNegativeButton("取消", null)
-            .show()
-    }
 
     private lateinit var backup: M3Backup
     private var scopePill: View? = null
@@ -1777,8 +1705,6 @@ class CategoryActivity : AppCompatActivity() {
             action.startsWith("page:") -> startActivity(Intent(this, CategoryActivity::class.java)
                 .putExtra("id", action.removePrefix("page:")))
 
-            action == "shade_bg_mode" -> chooseShadeBgMode()
-            action == "shade_bg_pick" -> bgPicker.launch(arrayOf("image/*"))
             action == "reset_all" -> M3Reset.confirm(this)
             action == "backup" -> backup.startBackup()
             action == "restore" -> backup.confirmRestore()
