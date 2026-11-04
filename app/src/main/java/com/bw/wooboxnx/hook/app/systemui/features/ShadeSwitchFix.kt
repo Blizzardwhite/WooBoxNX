@@ -97,6 +97,22 @@ object ShadeSwitchFix : HookRegister() {
                 }
             })
 
+            // 左右切换时 ROM 会把通知页的模糊强制设成 0（见 CCDepthController.updateBlurCallback），
+            // 两页一个糊一个不糊，交叉淡入时就是那一下「闪黑」。这里直接拦掉这次归零。
+            runCatching {
+                val bu = cl.loadClass("com.android.systemui.statusbar.BlurUtils")
+                XposedBridge.hookAllMethods(bu, "applyBlur", object : XC_MethodHook() {
+                    override fun beforeHookedMethod(param: MethodHookParam) {
+                        val radius = param.args.getOrNull(1) as? Int ?: return
+                        if (radius == 0 && isSwitching()) {
+                            param.result = null
+                        }
+                    }
+                })
+            }.onFailure {
+                Log.px("W", "ShadeSwitchFix: applyBlur hook 失败", it, logInRelease = true)
+            }
+
             Log.px("I", "ShadeSwitchFix hooked", logInRelease = true)
         }.onFailure {
             Log.px("E", "ShadeSwitchFix init failed", it, logInRelease = true)
