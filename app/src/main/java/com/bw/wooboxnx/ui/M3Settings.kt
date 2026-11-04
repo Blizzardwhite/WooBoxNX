@@ -906,6 +906,13 @@ object M3Actions {
 /** 备份 / 恢复（走系统文件选择器） */
 class M3Backup(private val activity: AppCompatActivity) {
 
+    /** 运行期状态，不进备份 */
+    private val skipKeys = setOf("scope_dirty")
+
+    private fun moonAppsRaw(): String = runCatching {
+        java.io.File(activity.filesDir, com.bw.wooboxnx.activity.MoonStorage.FILE_NAME).readText()
+    }.getOrDefault("")
+
     private val backupLauncher = activity.registerForActivityResult(
         androidx.activity.result.contract.ActivityResultContracts.CreateDocument("application/json")
     ) { uri ->
@@ -915,8 +922,11 @@ class M3Backup(private val activity: AppCompatActivity) {
             obj.put(Meta.MODULE, Meta.MODULE_ID)
             obj.put(Meta.VERSION, Meta.VERSION_CODE)
             M3Prefs.sp(activity).all.forEach { (k, v) ->
-                if (!k.startsWith("_")) obj.put(k, v)
+                if (!k.startsWith("_") && k !in skipKeys) obj.put(k, v)
             }
+            // 屏下名单和样式存在文件里，不在 SharedPreferences 中
+            obj.put(Meta.MOON_APPS, moonAppsRaw())
+            obj.put(Meta.MOON_STYLE, com.bw.wooboxnx.activity.MoonStyle.get(activity))
             activity.contentResolver.openOutputStream(uri)?.use { it.write(obj.toString().toByteArray()) }
             Toast.makeText(activity, "备份成功", Toast.LENGTH_SHORT).show()
         }.onFailure {
@@ -933,7 +943,16 @@ class M3Backup(private val activity: AppCompatActivity) {
                 ?: return@runCatching
             val obj = org.json.JSONObject(text)
             val module = obj.optString(Meta.MODULE, "")
+            val ver = obj.optInt(Meta.VERSION, 0)
             when {
+                module == Meta.MODULE_ID && ver > Meta.VERSION_CODE -> {
+                    MaterialAlertDialogBuilder(activity)
+                        .setTitle("备份来自更新版本")
+                        .setMessage("这个备份的格式版本是 $ver，当前应用只支持到 ${Meta.VERSION_CODE}，部分设置可能无法识别。\n\n仍要恢复吗？")
+                        .setPositiveButton("继续恢复") { _, _ -> applyRestore(obj) }
+                        .setNegativeButton("取消", null)
+                        .show()
+                }
                 module == Meta.MODULE_ID -> applyRestore(obj)
                 module.isEmpty() -> {
                     // 旧版本备份没有来源标记，让用户确认
@@ -954,19 +973,69 @@ class M3Backup(private val activity: AppCompatActivity) {
     }
 
     private fun applyRestore(obj: org.json.JSONObject) {
-        val edit = M3Prefs.sp(activity).edit().clear()
+        val prefs = M3Prefs.sp(activity)
+        // 记录现有类型，恢复时按原类型写入，避免类型不一致导致后续读取崩溃
+        val current = prefs.all
+        val edit = prefs.edit().clear()
         obj.keys().forEach { k ->
-            if (k.startsWith("_")) return@forEach
-            when (val v = obj[k]) {
-                is Boolean -> edit.putBoolean(k, v)
-                is Int -> edit.putInt(k, v)
-                is Long -> edit.putLong(k, v)
-                is Double -> edit.putFloat(k, v.toFloat())
-                is String -> edit.putString(k, v)
-                else -> edit.putString(k, v.toString())
+            if (k.startsWith("_") || k in skipKeys) return@forEach
+            val v = obj[k]
+            val old = current[k]
+            runCatching {
+                when (old) {
+                    is Boolean -> edit.putBoolean(k, when (v) {
+                        is Boolean -> v
+                        is String -> v.equals("true", true)
+                        is Number -> v.toInt() != 0
+                        else -> false
+                    })
+                    is Int -> edit.putInt(k, when (v) {
+                        is Number -> v.toInt()
+                        is String -> v.toIntOrNull() ?: 0
+                        else -> 0
+                    })
+                    is Long -> edit.putLong(k, when (v) {
+                        is Number -> v.toLong()
+                        is String -> v.toLongOrNull() ?: 0L
+                        else -> 0L
+                    })
+                    is Float -> edit.putFloat(k, when (v) {
+                        is Number -> v.toFloat()
+                        is String -> v.toFloatOrNull() ?: 0f
+                        else -> 0f
+                    })
+                    is String -> edit.putString(k, v?.toString() ?: "")
+                    else -> when (v) {
+                        is Boolean -> edit.putBoolean(k, v)
+                        is Int -> edit.putInt(k, v)
+                        is Long -> edit.putLong(k, v)
+                        is Double -> edit.putFloat(k, v.toFloat())
+                        is String -> edit.putString(k, v)
+                        else -> edit.putString(k, v.toString())
+                    }
+                }
             }
         }
         edit.apply()
+
+        // 屏下名单/样式
+        if (obj.has(Meta.MOON_APPS)) {
+            val apps = obj.optString(Meta.MOON_APPS, "")
+            runCatching {
+                java.io.File(activity.filesDir, com.bw.wooboxnx.activity.MoonStorage.FILE_NAME).writeText(apps)
+            }
+            runCatching {
+                android.provider.Settings.System.putString(
+                    activity.contentResolver, "woobox_moon_apps", apps
+                )
+            }
+        }
+        if (obj.has(Meta.MOON_STYLE)) {
+            runCatching {
+                com.bw.wooboxnx.activity.MoonStyle.set(activity, obj.optInt(Meta.MOON_STYLE, 0))
+            }
+        }
+
         Toast.makeText(activity, "已恢复配置，请检查「应用修改」", Toast.LENGTH_LONG).show()
         activity.recreate()
     }
@@ -981,7 +1050,7 @@ class M3Backup(private val activity: AppCompatActivity) {
         MaterialAlertDialogBuilder(activity)
             .setTitle("恢复配置")
             .setMessage("选择一个 JSON 备份文件恢复模块设置，现有设置会被覆盖。")
-            .setPositiveButton("选择文件") { _, _ -> restoreLauncher.launch(arrayOf("application/json")) }
+            .setPositiveButton("选择文件") { _, _ -> restoreLauncher.launch(arrayOf("application/json", "text/plain", "application/octet-stream")) }
             .setNegativeButton("取消", null)
             .show()
     }
@@ -989,6 +1058,8 @@ class M3Backup(private val activity: AppCompatActivity) {
     private object Meta {
         const val MODULE = "_module"
         const val VERSION = "_version"
+        const val MOON_APPS = "_moon_apps"
+        const val MOON_STYLE = "_moon_style"
         const val MODULE_ID = "woobox-nx"
         const val VERSION_CODE = 1
     }
