@@ -2077,7 +2077,7 @@ class AboutActivity : AppCompatActivity() {
             setOnClickListener {
                 runCatching {
                     startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse(
-                        "https://github.com/u9521/WooBoxForRedmagicOS/graphs/contributors")))
+                        "https://github.com/Blizzardwhite/WooBoxNX/graphs/contributors")))
                 }
             }
         }
