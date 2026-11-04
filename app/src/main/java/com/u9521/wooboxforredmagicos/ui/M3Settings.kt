@@ -46,6 +46,8 @@ object M3Color {
     var OUTLINE_VAR = 0xFF444745.toInt()
     var ERROR_CONT = 0xFF8C1D18.toInt()
     var ON_ERROR_CONT = 0xFFF9DEDC.toInt()
+    var WARN_CONT = 0xFF5C4600.toInt()
+    var ON_WARN_CONT = 0xFFFFE08A.toInt()
 
     fun apply(c: Context) {
         SURFACE = c.getColor(R.color.m3_surface)
@@ -60,6 +62,8 @@ object M3Color {
         val night = M3Theme.isNight(c)
         ERROR_CONT = if (night) 0xFF8C1D18.toInt() else 0xFFF9DEDC.toInt()
         ON_ERROR_CONT = if (night) 0xFFF9DEDC.toInt() else 0xFF410002.toInt()
+        WARN_CONT = if (night) 0xFF5C4600.toInt() else 0xFFFFE08A.toInt()
+        ON_WARN_CONT = if (night) 0xFFFFE08A.toInt() else 0xFF3F2E00.toInt()
     }
 }
 
@@ -247,6 +251,24 @@ object M3Status {
         if (elapsed <= 0L || elapsed > nowElapsed + 5000L) return false
         return kotlin.math.abs((wall - elapsed) - (nowWall - nowElapsed)) < 60_000L
     }
+
+    /** 常驻进程：这几次开机后应该总能收到心跳，用来判断"是否整体生效" */
+    private val coreScopes = listOf(
+        "com.android.systemui",
+        "com.zte.mifavor.launcher",
+        "com.fingerprint.sensorservice"
+    )
+
+    /** 0=未激活 1=部分生效 2=全部生效 */
+    fun level(c: Context): Int {
+        val alive = coreScopes.count { scopeAlive(c, it) }
+        return when {
+            alive == 0 -> 0
+            alive == coreScopes.size -> 2
+            else -> 1
+        }
+    }
+
     fun hookAlive(c: Context): Boolean = runCatching {
         val f = java.io.File(c.filesDir, "hook_alive.txt")
         if (!f.exists()) return false
@@ -510,9 +532,6 @@ object SettingsModel {
         Group("备份与恢复", listOf(
             Row(title = "备份设置", summary = "把当前配置导出为 JSON 文件", kind = Row.ACTION, action = "backup"),
             Row(title = "恢复配置", summary = "从备份文件恢复，会覆盖当前设置", kind = Row.ACTION, action = "restore")
-        )),
-        Group(null, listOf(
-            Row(title = "旧版界面", summary = "按作用域划分的原始设置页", kind = Row.ACTION, action = "legacy")
         ))
     ))
 
@@ -968,13 +987,18 @@ class SettingsHomeActivity : AppCompatActivity() {
 
     /** 每次回到主页都重新判断模块是否在运行（心跳可能刚更新） */
     private fun refreshStatus() {
-        val alive = M3Status.hookAlive(this)
         val tv = statusChip ?: return
-        tv.text = if (alive) "● 运行中" else "● 未激活"
-        tv.setTextColor(if (alive) M3Color.ON_PRIMARY_CONT else M3Color.ON_ERROR_CONT)
-        (tv.background as? GradientDrawable)?.setColor(
-            if (alive) M3Color.PRIMARY_CONT else M3Color.ERROR_CONT
-        )
+        val (label, fg, bg) = statusTriple()
+        tv.text = label
+        tv.setTextColor(fg)
+        (tv.background as? GradientDrawable)?.setColor(bg)
+    }
+
+    /** 胶囊文案 / 前景 / 底色：全部生效=绿色，部分生效=黄色，全无=红色 */
+    private fun statusTriple(): Triple<String, Int, Int> = when (M3Status.level(this)) {
+        2 -> Triple("● 运行中", M3Color.ON_PRIMARY_CONT, M3Color.PRIMARY_CONT)
+        1 -> Triple("● 部分生效", M3Color.ON_WARN_CONT, M3Color.WARN_CONT)
+        else -> Triple("● 未激活", M3Color.ON_ERROR_CONT, M3Color.ERROR_CONT)
     }
 
     override fun onResume() {
@@ -1066,12 +1090,8 @@ class SettingsHomeActivity : AppCompatActivity() {
         val scopeCount = runCatching {
             resources.getStringArray(R.array.xposed_scope).count { it != "android" }
         }.getOrDefault(0)
-        val alive = M3Status.hookAlive(this)
-        statusChip = chip(
-            if (alive) "● 运行中" else "● 未激活",
-            if (alive) M3Color.ON_PRIMARY_CONT else M3Color.ON_ERROR_CONT,
-            if (alive) M3Color.PRIMARY_CONT else M3Color.ERROR_CONT
-        )
+        val (statusText, statusFg, statusBg) = statusTriple()
+        statusChip = chip(statusText, statusFg, statusBg)
         statusChip?.isClickable = true
         statusChip?.setOnClickListener { showStatusDialog() }
         chips.addView(statusChip)
@@ -1338,10 +1358,7 @@ class SettingsHomeActivity : AppCompatActivity() {
         when {
             action.startsWith("page:") -> startActivity(Intent(this, CategoryActivity::class.java)
                 .putExtra("id", action.removePrefix("page:")))
-            action == "legacy" -> runCatching {
-                startActivity(Intent().setClassName(packageName,
-                    "com.u9521.wooboxforredmagicos.activity.SettingsActivity"))
-            }
+
             action == "backup" -> backup.startBackup()
             action == "restore" -> backup.confirmRestore()
         }
@@ -1369,9 +1386,16 @@ class SettingsHomeActivity : AppCompatActivity() {
             sb.append(if (ok) "● " else "○ ").append(label).append('\n')
         }
         sb.append("\n● 已注入　○ 本次开机还没收到心跳（LSPosed 未勾选，或改过作用域后没重启）")
-        val anyAlive = M3Status.hookAlive(this)
+        sb.append("\n常驻进程（系统界面 / 桌面 / 指纹服务）全部注入后，胶囊才显示「运行中」")
+        val level = M3Status.level(this)
         MaterialAlertDialogBuilder(this)
-            .setTitle(if (anyAlive) "模块运行状态" else "模块未激活")
+            .setTitle(
+                when (level) {
+                    2 -> "模块运行状态"
+                    1 -> "模块部分生效"
+                    else -> "模块未激活"
+                }
+            )
             .setMessage(sb.toString().trim())
             .setPositiveButton("知道了", null)
             .show()
@@ -1510,10 +1534,7 @@ class CategoryActivity : AppCompatActivity() {
         when {
             action.startsWith("page:") -> startActivity(Intent(this, CategoryActivity::class.java)
                 .putExtra("id", action.removePrefix("page:")))
-            action == "legacy" -> runCatching {
-                startActivity(Intent().setClassName(packageName,
-                    "com.u9521.wooboxforredmagicos.activity.SettingsActivity"))
-            }
+
             action == "backup" -> backup.startBackup()
             action == "restore" -> backup.confirmRestore()
         }
