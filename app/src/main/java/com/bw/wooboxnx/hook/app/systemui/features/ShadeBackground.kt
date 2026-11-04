@@ -44,17 +44,12 @@ object ShadeBackground : HookRegister() {
                     Log.px("W", "ShadeBackground skip $name", it, logInRelease = true)
                 }
             }
-            // 通知页额外有一层从上往下的渐变遮罩（ScrimView 绘制），
-            // 盖住它会和快速设置页不一致，这里对通知面板的 ScrimView 跳过渐变设置。
+            // 通知页有几层全屏 ScrimView（其中一层是从上往下的渐变），
+            // 它们让两页底色不一致，这里让通知窗口里的 ScrimView 不绘制。
             runCatching {
                 val scrim = getDefaultCL().loadClass("com.android.systemui.scrim.ScrimView")
-                val gradient = getDefaultCL().loadClass(
-                    "com.android.internal.colorextraction.ColorExtractor\$GradientColors"
-                )
-                val setColors = scrim.getDeclaredMethod(
-                    "setColors", gradient, Boolean::class.javaPrimitiveType
-                )
-                XposedBridge.hookMethod(setColors, object : XC_MethodHook() {
+                val onDraw = scrim.getDeclaredMethod("onDraw", android.graphics.Canvas::class.java)
+                XposedBridge.hookMethod(onDraw, object : XC_MethodHook() {
                     override fun beforeHookedMethod(param: MethodHookParam) {
                         runCatching {
                             val v = param.thisObject as? View ?: return
@@ -66,9 +61,29 @@ object ShadeBackground : HookRegister() {
                     }
                 })
             }.onFailure {
-                Log.px("W", "ScrimView hook skipped", it, logInRelease = true)
+                Log.px("W", "ScrimView onDraw hook skipped", it, logInRelease = true)
             }
 
+            // 状态栏窗口自己有一层不透明底（status_bar_container 的 BarBackgroundDrawable），
+            // 下拉时会在顶部留一条黑边，和我们的统一背景不一致，这里把它去掉。
+            runCatching {
+                val clazz = getDefaultCL().loadClass(
+                    "com.android.systemui.statusbar.window.StatusBarWindowView"
+                )
+                XposedBridge.hookAllConstructors(clazz, object : XC_MethodHook() {
+                    override fun afterHookedMethod(param: MethodHookParam) {
+                        val root = param.thisObject as? ViewGroup ?: return
+                        root.postDelayed({
+                            runCatching {
+                                val id = root.resources.getIdentifier(
+                                    "status_bar_container", "id", "com.android.systemui"
+                                )
+                                if (id != 0) root.findViewById<View>(id)?.background = null
+                            }
+                        }, 1200)
+                    }
+                })
+            }.onFailure { Log.px("W", "status bar bg hook skipped", it, logInRelease = true) }
             Log.px("I", "ShadeBackground hooked", logInRelease = true)
         }.onFailure {
             Log.px("E", "ShadeBackground init failed", it, logInRelease = true)
@@ -91,7 +106,7 @@ object ShadeBackground : HookRegister() {
         runCatching { root.addView(iv, 0, ViewGroup.LayoutParams(-1, -1)) }
 
         if (mode == 1) {
-            iv.setBackgroundColor(0xFF101014.toInt())
+            iv.setBackgroundColor(0xFF1C1C20.toInt())
             return
         }
 
