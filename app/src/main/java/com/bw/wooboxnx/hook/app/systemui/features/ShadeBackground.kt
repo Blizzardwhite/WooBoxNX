@@ -10,12 +10,12 @@ import de.robv.android.xposed.XC_MethodHook
 import de.robv.android.xposed.XposedBridge
 
 /**
- * 在两块面板的「模糊层」位置铺同一层半透明黑。
+ * 在两块面板的「模糊层」位置铺同一层不透明底色。
  *
  * 通知中心和快速设置是两个窗口，各自有自己的底色/遮罩，左右切换时互相接力会闪。
- * 这里把两页的底色都去掉，只在最底层放一层共用的半透明遮罩：
+ * 这里把两页的底色都去掉，只在最底层放一层共用的底色：
  *   - 位置在内容之下、壁纸之上（就是原来模糊层的位置）
- *   - 两页完全一致，切换时没有任何东西在变
+ *   - 两页颜色完全一致，且不透明，切换时无论怎么叠加/交叉淡入，露出来的都是同一个颜色
  */
 object ShadeBackground : HookRegister() {
 
@@ -79,11 +79,11 @@ object ShadeBackground : HookRegister() {
         if (root.findViewWithTag<View>(TAG) != null) return
         val v = View(root.context).apply {
             tag = TAG
-            setBackgroundColor(0xE0000000.toInt()) // 约 55% 黑
+            setBackgroundColor(0xFF1C1C20.toInt()) // 不透明底色：叠加或交叉淡入都不会变色
         }
         runCatching { root.addView(v, 0, ViewGroup.LayoutParams(-1, -1)) }
 
-        // 窗口自身可能带渐变底色，它在我们的半透明层下面，会透出来
+        // 窗口自身可能带渐变底色，它会透出来
         root.addOnLayoutChangeListener(object : View.OnLayoutChangeListener {
             override fun onLayoutChange(
                 view: View, left: Int, top: Int, right: Int, bottom: Int,

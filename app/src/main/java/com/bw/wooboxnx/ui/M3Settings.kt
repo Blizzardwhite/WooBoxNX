@@ -412,8 +412,8 @@ object SettingsModel {
         Group(null, listOf(
             Row(key = "fix_shade_switch", title = "修复切换闪烁（实验）",
                 summary = "固定壁纸缩放，并避免两页遮罩叠加（重启系统界面生效）"),
-            Row(key = "shade_scrim", title = "面板半透明遮罩",
-                summary = "在模糊层放一层共用的半透明黑，替代两页各自的底色（重启系统界面生效）"),
+            Row(key = "shade_scrim", title = "面板统一底色",
+                summary = "在模糊层铺一层两页共用的纯色底，去掉各自底色，避免切换时闪黑（重启系统界面生效）"),
             Row(key = "shade_blur_off", title = "去掉面板模糊",
                 summary = "排查用：强制关闭通知中心与快速设置的背景模糊（重启系统界面生效）"),
             Row(key = "qs_header_shortcut_redirect_calendar", title = "点击日期跳转第三方日历"),
