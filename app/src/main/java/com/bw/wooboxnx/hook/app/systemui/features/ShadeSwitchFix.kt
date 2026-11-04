@@ -93,11 +93,6 @@ object ShadeSwitchFix : HookRegister() {
                         }
                         appliedZoom = limited
                         param.args[0] = limited
-                        runCatching {
-                            com.bw.wooboxnx.util.xposed.HookBeat.debug(
-                                "z t=$now target=$target applied=$limited raw=$v"
-                            )
-                        }
                     }
                 }
             })

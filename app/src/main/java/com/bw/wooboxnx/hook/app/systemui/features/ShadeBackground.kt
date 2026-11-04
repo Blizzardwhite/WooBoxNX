@@ -85,6 +85,25 @@ object ShadeBackground : HookRegister() {
         }
         runCatching { root.addView(iv, 0, ViewGroup.LayoutParams(-1, -1)) }
 
+        root.postDelayed({
+            runCatching {
+                val sb = StringBuilder("cc " + root.javaClass.simpleName + "\n")
+                fun walk(v: View) {
+                    if (v.background != null) {
+                        val bg = v.background!!
+                        val color = (bg as? android.graphics.drawable.ColorDrawable)?.color
+                        sb.append(v.javaClass.simpleName)
+                            .append(" bg=").append(bg.javaClass.simpleName)
+                            .append(if (color != null) " color=#" + Integer.toHexString(color) else "")
+                            .append(" ").append(v.width).append("x").append(v.height).append(" y=").append(v.top)
+                            .append('\n')
+                    }
+                    if (v is ViewGroup) for (i in 0 until v.childCount) walk(v.getChildAt(i))
+                }
+                walk(root)
+                android.util.Log.i("WooBoxDiag", sb.toString().trimEnd())
+            }
+        }, 2500)
         if (mode == 1) {
             iv.setBackgroundColor(0xFF1C1C20.toInt())
             return
