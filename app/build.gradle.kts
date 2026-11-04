@@ -57,8 +57,8 @@ android {
         applicationId = "com.bw.wooboxnx"
         minSdk = 31
         targetSdk = 35
-        versionCode = 8
-        versionName = "1.1.0"
+        versionCode = 9
+        versionName = "1.1.1"
     }
 
     buildTypes {

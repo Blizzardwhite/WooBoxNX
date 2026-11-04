@@ -1979,18 +1979,7 @@ class AboutActivity : AppCompatActivity() {
             gravity = Gravity.CENTER_VERTICAL
             isClickable = true
             contentDescription = "检查更新，当前版本 " + com.bw.wooboxnx.BuildConfig.VERSION_NAME
-            setOnClickListener {
-                // 直接打开酷安个人主页，找不到客户端再退回网页
-                try {
-                    startActivity(Intent(Intent.ACTION_VIEW,
-                        android.net.Uri.parse("coolmarket://u/1636422")))
-                } catch (e: Exception) {
-                    runCatching {
-                        startActivity(Intent(Intent.ACTION_VIEW,
-                            android.net.Uri.parse("https://www.coolapk.com/u/1636422")))
-                    }
-                }
-            }
+            setOnClickListener { checkUpdate() }
         }
         appRow.addView(circleImage(R.drawable.app_icon, 56))
         val appTexts = LinearLayout(this).apply {
@@ -2108,6 +2097,84 @@ class AboutActivity : AppCompatActivity() {
         ).apply { topMargin = M3Ui.dp(this@AboutActivity, 12) })
     }
 
+    private val repoLatestApi = "https://api.github.com/repos/Blizzardwhite/WooBoxNX/releases/latest"
+    private val releasePage = "https://github.com/Blizzardwhite/WooBoxNX/releases"
+    private val coolapkPage = "https://www.coolapk.com/u/1636422"
+
+    /** 点击版本卡片：向 GitHub 查最新 Release，再和当前版本比较 */
+    private fun checkUpdate() {
+        Toast.makeText(this, "正在检查更新…", Toast.LENGTH_SHORT).show()
+        Thread({
+            val info = runCatching { fetchLatestRelease() }.getOrNull()
+            runOnUiThread {
+                if (info == null) {
+                    MaterialAlertDialogBuilder(this)
+                        .setTitle("检查更新失败")
+                        .setMessage("无法连接 GitHub，请检查网络后重试。")
+                        .setPositiveButton("打开发布页") { _, _ -> openUrl(releasePage) }
+                        .setNegativeButton("关闭", null)
+                        .show()
+                    return@runOnUiThread
+                }
+                val (tag, url) = info
+                val current = com.bw.wooboxnx.BuildConfig.VERSION_NAME
+                val newer = isNewerVersion(tag, current)
+                MaterialAlertDialogBuilder(this)
+                    .setTitle(if (newer) "发现新版本 $tag" else "已是最新版本")
+                    .setMessage(
+                        "当前版本：v" + current + "（" + com.bw.wooboxnx.BuildConfig.VERSION_CODE + "）" +
+                            if (newer) "\n最新版本：$tag" else ""
+                    )
+                    .setPositiveButton(if (newer) "打开发布页" else "知道了") { _, _ ->
+                        if (newer) openUrl(url)
+                    }
+                    .setNeutralButton("酷安主页") { _, _ -> openCoolapk() }
+                    .show()
+            }
+        }, "woobox-update").apply { isDaemon = true }.start()
+    }
+
+    private fun fetchLatestRelease(): Pair<String, String> {
+        val conn = java.net.URL(repoLatestApi).openConnection() as java.net.HttpURLConnection
+        conn.connectTimeout = 8000
+        conn.readTimeout = 8000
+        conn.setRequestProperty("Accept", "application/vnd.github+json")
+        conn.setRequestProperty("User-Agent", "WooBoxNX")
+        val text = try {
+            conn.inputStream.bufferedReader().use { it.readText() }
+        } finally {
+            runCatching { conn.disconnect() }
+        }
+        val obj = org.json.JSONObject(text)
+        return obj.getString("tag_name") to obj.optString("html_url", releasePage)
+    }
+
+    /** 只比较数字段，1.10 > 1.9 */
+    private fun isNewerVersion(latestTag: String, current: String): Boolean {
+        fun parts(s: String) = s.removePrefix("v").split('.').map { part ->
+            part.takeWhile { it.isDigit() }.toIntOrNull() ?: 0
+        }
+        val a = parts(latestTag)
+        val b = parts(current)
+        for (i in 0 until maxOf(a.size, b.size)) {
+            val x = a.getOrElse(i) { 0 }
+            val y = b.getOrElse(i) { 0 }
+            if (x != y) return x > y
+        }
+        return false
+    }
+
+    private fun openUrl(url: String) {
+        runCatching { startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse(url))) }
+    }
+
+    private fun openCoolapk() {
+        try {
+            startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse("coolmarket://u/1636422")))
+        } catch (e: Exception) {
+            openUrl(coolapkPage)
+        }
+    }
     private fun letterAvatar(letter: String, sizeDp: Int): View {
         val size = M3Ui.dp(this, sizeDp)
         val tv = TextView(this).apply {

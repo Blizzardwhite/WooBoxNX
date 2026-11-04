@@ -50,7 +50,7 @@
 ### 下载地址
 
 - 本仓库：[Blizzardwhite/WooBoxNX](https://github.com/Blizzardwhite/WooBoxNX)
-- APK 下载：[v1.1.0](https://github.com/Blizzardwhite/WooBoxNX/releases/tag/v1.1.0)
+- APK 下载：[v1.1.1](https://github.com/Blizzardwhite/WooBoxNX/releases/tag/v1.1.1)
 
 ---
 

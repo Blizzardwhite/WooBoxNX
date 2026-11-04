@@ -51,7 +51,7 @@ Original developer: [CoolApk@乌堆小透明](http://www.coolapk.com/u/883441)
 ### Download Links
 
 - Repository: [Blizzardwhite/WooBoxNX](https://github.com/Blizzardwhite/WooBoxNX)
-- APK: [v1.1.0](https://github.com/Blizzardwhite/WooBoxNX/releases/tag/v1.1.0)
+- APK: [v1.1.1](https://github.com/Blizzardwhite/WooBoxNX/releases/tag/v1.1.1)
 
 ---
 
