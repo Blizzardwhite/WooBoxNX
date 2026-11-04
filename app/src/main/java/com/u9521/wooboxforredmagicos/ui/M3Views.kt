@@ -21,9 +21,9 @@ import android.widget.ScrollView
 /** 分类图标：在 tonal 圆底上画一个简单图形 */
 class IconView(context: Context, private val type: Int) : View(context) {
 
-    private val bg = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = M3Color.PRIMARY_CONT }
+    private val bg = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = M3Color.ICON_BG }
     private val fg = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = M3Color.ON_PRIMARY_CONT
+        color = M3Color.ON_ICON_BG
         style = Paint.Style.STROKE
         strokeWidth = dp(2.2f)
         strokeCap = Paint.Cap.ROUND

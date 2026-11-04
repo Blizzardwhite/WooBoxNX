@@ -2,13 +2,15 @@
 <resources>
     <!-- MD3 深色（主色取系统快速设置绿 #4C9E8F） -->
     <color name="m3_surface">#FF000000</color>
-    <color name="m3_surface_container">#FF202327</color>
-    <color name="m3_surface_high">#FF2A2D30</color>
+    <color name="m3_surface_container">#FF1F1F1F</color>
+    <color name="m3_surface_high">#FF2A2A2A</color>
     <color name="m3_primary">#FF8BD5C6</color>
     <color name="m3_on_primary">#FF00382F</color>
     <color name="m3_primary_container">#FF1F5B52</color>
     <color name="m3_on_primary_container">#FFA7F2E4</color>
-    <color name="m3_on_surface">#FFE2E4E2</color>
-    <color name="m3_on_surface_variant">#FFC4C6C5</color>
-    <color name="m3_outline_variant">#FF444745</color>
+    <color name="m3_on_surface">#FFE4E4E4</color>
+    <color name="m3_on_surface_variant">#FFC6C6C6</color>
+    <color name="m3_outline_variant">#FF454545</color>
+    <color name="m3_icon_bg">#FF2C2C2C</color>
+    <color name="m3_on_icon_bg">#FFDCDCDC</color>
 </resources>
