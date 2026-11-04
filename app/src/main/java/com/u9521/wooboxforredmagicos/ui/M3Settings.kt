@@ -986,7 +986,24 @@ class SettingsHomeActivity : AppCompatActivity() {
             setPadding(M3Ui.dp(this@SettingsHomeActivity, 20), M3Ui.dp(this@SettingsHomeActivity, 24),
                 M3Ui.dp(this@SettingsHomeActivity, 20), M3Ui.dp(this@SettingsHomeActivity, 10))
         }
-        root.addView(topBar, LinearLayout.LayoutParams(
+        val topWrap = android.widget.FrameLayout(this)
+        val logoBg = ImageView(this).apply {
+            setImageResource(R.drawable.ic_logo_box)
+            setColorFilter(M3Color.ON_SURFACE)
+            alpha = 0.10f
+            scaleType = ImageView.ScaleType.FIT_XY
+            isClickable = false
+        }
+        topWrap.addView(logoBg, android.widget.FrameLayout.LayoutParams(
+            M3Ui.dp(this, 210), M3Ui.dp(this, 210), Gravity.TOP or Gravity.END
+        ).apply {
+            topMargin = M3Ui.dp(this@SettingsHomeActivity, -40)
+            rightMargin = M3Ui.dp(this@SettingsHomeActivity, -46)
+        })
+        topWrap.addView(topBar, android.widget.FrameLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
+        ))
+        root.addView(topWrap, LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
         ))
 
@@ -1031,22 +1048,8 @@ class SettingsHomeActivity : AppCompatActivity() {
             setPadding(0, M3Ui.dp(this@SettingsHomeActivity, 2), 0, 0)
         })
         header.addView(titleBox, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
-        val avatar = avatarView()
-        header.addView(avatar, LinearLayout.LayoutParams(M3Ui.dp(this, 46), M3Ui.dp(this, 46)).apply {
-            rightMargin = M3Ui.dp(this@SettingsHomeActivity, 10)
-        })
         header.setPadding(M3Ui.dp(this, 6), 0, M3Ui.dp(this, 6), 0)
         topBar.addView(header)
-        header.post {
-            val h = titleBox.height
-            if (h > 0) {
-                val size = (h * 0.86f).toInt()
-                    .coerceIn(M3Ui.dp(this, 42), M3Ui.dp(this, 58))
-                avatar.layoutParams = LinearLayout.LayoutParams(size, size).apply {
-                    rightMargin = M3Ui.dp(this@SettingsHomeActivity, 10)
-                }
-            }
-        }
 
         // ---------- 状态 chips ----------
         val chips = LinearLayout(this).apply {
