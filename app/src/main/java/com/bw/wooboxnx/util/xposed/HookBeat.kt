@@ -75,6 +75,25 @@ object HookBeat {
         }.getOrDefault(false)
     }
 
+    /** 调试用：把一行日志写到模块 files/hook_debug.log */
+    fun debug(line: String) {
+        Thread({
+            repeat(6) { i ->
+                val ctx = context()
+                if (ctx != null) {
+                    val ok = runCatching {
+                        ctx.contentResolver.insert(
+                            Uri.parse("content://com.bw.wooboxnx.moon/log"),
+                            ContentValues().apply { put("v", line) }
+                        ) != null
+                    }.getOrDefault(false)
+                    if (ok) return@Thread
+                }
+                runCatching { Thread.sleep(if (i < 3) 800L else 2500L) }
+            }
+        }, "woobox-log").apply { isDaemon = true }.start()
+    }
+
     fun report(pkg: String) {
         if (sent) return
         sent = true

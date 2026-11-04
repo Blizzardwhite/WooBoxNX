@@ -64,6 +64,15 @@ class MoonProvider : ContentProvider() {
         val dir = context?.filesDir ?: return null
         if (!callerAllowed()) return null
 
+        if (uri.lastPathSegment == "log") {
+            val v = values?.getAsString("v").orEmpty()
+            runCatching {
+                val f = File(dir, "hook_debug.log")
+                if (f.length() > 96 * 1024) f.writeText("")
+                f.appendText(v + "\n")
+            }
+            return uri
+        }
         if (uri.lastPathSegment == "heartbeat") {
             val v = values?.getAsString("v").orEmpty()
             val pkg = values?.getAsString("pkg")
