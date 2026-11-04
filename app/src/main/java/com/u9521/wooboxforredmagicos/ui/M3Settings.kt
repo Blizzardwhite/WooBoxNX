@@ -990,15 +990,15 @@ class SettingsHomeActivity : AppCompatActivity() {
         val logoBg = ImageView(this).apply {
             setImageResource(R.drawable.ic_logo_box)
             setColorFilter(M3Color.ON_SURFACE)
-            alpha = 0.10f
+            alpha = 0.20f
             scaleType = ImageView.ScaleType.FIT_XY
             isClickable = false
         }
         topWrap.addView(logoBg, android.widget.FrameLayout.LayoutParams(
-            M3Ui.dp(this, 210), M3Ui.dp(this, 210), Gravity.TOP or Gravity.END
+            M3Ui.dp(this, 230), M3Ui.dp(this, 230), Gravity.TOP or Gravity.END
         ).apply {
-            topMargin = M3Ui.dp(this@SettingsHomeActivity, -40)
-            rightMargin = M3Ui.dp(this@SettingsHomeActivity, -46)
+            topMargin = M3Ui.dp(this@SettingsHomeActivity, 4)
+            rightMargin = M3Ui.dp(this@SettingsHomeActivity, -18)
         })
         topWrap.addView(topBar, android.widget.FrameLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
