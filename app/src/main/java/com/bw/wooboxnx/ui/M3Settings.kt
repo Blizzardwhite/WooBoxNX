@@ -1934,7 +1934,18 @@ class AboutActivity : AppCompatActivity() {
             gravity = Gravity.CENTER_VERTICAL
             isClickable = true
             contentDescription = "检查更新，当前版本 " + com.bw.wooboxnx.BuildConfig.VERSION_NAME
-            setOnClickListener { showUpdateCheck() }
+            setOnClickListener {
+                // 直接打开酷安个人主页，找不到客户端再退回网页
+                try {
+                    startActivity(Intent(Intent.ACTION_VIEW,
+                        android.net.Uri.parse("coolmarket://u/1636422")))
+                } catch (e: Exception) {
+                    runCatching {
+                        startActivity(Intent(Intent.ACTION_VIEW,
+                            android.net.Uri.parse("https://www.coolapk.com/u/1636422")))
+                    }
+                }
+            }
         }
         appRow.addView(circleImage(R.drawable.app_icon, 56))
         val appTexts = LinearLayout(this).apply {
@@ -2050,24 +2061,6 @@ class AboutActivity : AppCompatActivity() {
         content.addView(linkCard, LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
         ).apply { topMargin = M3Ui.dp(this@AboutActivity, 12) })
-    }
-
-    private fun showUpdateCheck() {
-        MaterialAlertDialogBuilder(this)
-            .setTitle("检查更新")
-            .setMessage(
-                "当前版本：v" + com.bw.wooboxnx.BuildConfig.VERSION_NAME +
-                    "（" + com.bw.wooboxnx.BuildConfig.VERSION_CODE + "）\n\n" +
-                    "本分支没有独立的在线更新渠道，可以到项目发布页查看是否有新版本。"
-            )
-            .setPositiveButton("打开发布页") { _, _ ->
-                runCatching {
-                    startActivity(Intent(Intent.ACTION_VIEW,
-                        android.net.Uri.parse("https://github.com/u9521/WooBoxForRedmagicOS/releases")))
-                }
-            }
-            .setNegativeButton("关闭", null)
-            .show()
     }
 
     private fun letterAvatar(letter: String, sizeDp: Int): View {
