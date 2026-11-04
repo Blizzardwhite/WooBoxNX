@@ -1943,13 +1943,18 @@ class AboutActivity : AppCompatActivity() {
         }
         appTexts.addView(M3Ui.text(this, getString(R.string.app_name), 18f, M3Color.ON_SURFACE, true))
         appTexts.addView(M3Ui.text(this,
-            com.bw.wooboxnx.BuildConfig.VERSION_NAME + "（" + com.bw.wooboxnx.BuildConfig.VERSION_CODE + "）",
+            "v" + com.bw.wooboxnx.BuildConfig.VERSION_NAME + "（" + com.bw.wooboxnx.BuildConfig.VERSION_CODE + "）",
             13f, M3Color.ON_SURFACE_VAR))
         appRow.addView(appTexts, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
-        appRow.addView(M3Ui.text(this, "检查更新", 13f, M3Color.ON_SURFACE_VAR))
-        appRow.addView(M3Ui.text(this, "›", 24f, M3Color.ON_SURFACE_VAR).apply {
+        val trailing = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        trailing.addView(M3Ui.text(this, "检查更新", 13f, M3Color.ON_SURFACE_VAR))
+        trailing.addView(M3Ui.text(this, "›", 22f, M3Color.ON_SURFACE_VAR).apply {
             setPadding(M3Ui.dp(this@AboutActivity, 6), 0, 0, 0)
         })
+        appRow.addView(trailing)
         appCard.addView(appRow)
 
         content.addView(appCard)
