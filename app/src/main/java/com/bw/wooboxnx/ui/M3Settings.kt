@@ -410,7 +410,8 @@ object SettingsModel {
 
     private val qs = Category("qs", "快速设置面板", "行列自定义、运营商、搜索按钮", 3, listOf(
         Group(null, listOf(
-
+            Row(key = "fix_shade_zoom", title = "修复切换时壁纸跳变",
+                summary = "左右切换通知与快速设置时，壁纸不再放大缩小一次（重启作用域后生效）"),
             Row(key = "qs_header_shortcut_redirect_calendar", title = "点击日期跳转第三方日历"),
             Row(key = "qs_header_shortcut_redirect_search", title = "点击搜索打开浏览器"),
             Row(key = "qs_show_carrier", title = "快速设置显示运营商"),
