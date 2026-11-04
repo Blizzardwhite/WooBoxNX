@@ -11,11 +11,11 @@ import de.robv.android.xposed.XposedBridge
 
 object QSCustom : HookRegister() {
     override fun init() = hasEnable("qs_custom_switch") {
-        val mRows = XSPUtils.getInt("qs_custom_rows", 4)
+        val mRows = XSPUtils.getInt("qs_custom_rows", 3)
         val mRowsLandscape = XSPUtils.getInt("qs_custom_rows_landscape", 1)
-        val mColumns = XSPUtils.getInt("qs_custom_columns", 5)
-        val mColumnsLandscape = XSPUtils.getInt("qs_custom_columns_landscape", 7)
-        val mColumnsEditor = XSPUtils.getInt("qs_custom_columns_editor", 5)
+        val mColumns = XSPUtils.getInt("qs_custom_columns", 4)
+        val mColumnsLandscape = XSPUtils.getInt("qs_custom_columns_landscape", 6)
+        val mColumnsEditor = XSPUtils.getInt("qs_custom_columns_editor", 4)
         val mColumnsLandscapeEditor = XSPUtils.getInt("qs_custom_columns_landscape_editor", 6)
 
         val mfvTileLayoutAdaptClazz =
