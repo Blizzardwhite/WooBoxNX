@@ -455,7 +455,8 @@ object SettingsModel {
             Row(key = "disable_flag_secure_enhanced", title = "允许截图增强模式", summary = "阻止应用通过隐藏 API 禁止截屏")
         )),
         Group("其他系统行为", listOf(
-
+            Row(key = "splash_allow_list_all", title = "解除启动画面屏蔽名单",
+                summary = "让微信、应用中心、应用市场等也显示系统启动画面（重启手机生效）"),
             Row(key = "allow_untrusted_touches", title = "允许不受信任的触摸", summary = "允许高可见度 View 点击穿透，慎用"),
             Row(key = "block_telemetry_service", title = "阻止启动遥测服务"),
             Row(key = "remove_intent_hijack", title = "去除意图劫持", summary = "还原原生分享界面，双开用户不建议开启")
@@ -570,6 +571,7 @@ object SettingsModel {
         "airplane_mode_keep_bt", "airplane_mode_keep_wlan",
         "disable_flag_secure", "disable_flag_secure_enhanced",
         "allow_untrusted_touches", "block_telemetry_service", "remove_intent_hijack",
+        "splash_allow_list_all",
         "telecom_wlan_cc_val", "custom_wlan_countrycode",
         "pin_sta_mac", "pin_sta_mac_sw", "pin_ap_bssid", "pin_ap_bssid_sw",
         "long_power_key_wakeup_assist",

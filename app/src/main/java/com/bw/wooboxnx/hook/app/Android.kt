@@ -26,6 +26,7 @@ object Android : AppRegister() {
             RmWindowReplyLimits,//解除小窗限制
             SyetemServerLogBlocker,//屏蔽一些系统日志
             PowerWakeupAssist,//长按电源键打开默认数字助理
+            AllowSplashScreen,//解除启动画面屏蔽名单
         )
     }
 
