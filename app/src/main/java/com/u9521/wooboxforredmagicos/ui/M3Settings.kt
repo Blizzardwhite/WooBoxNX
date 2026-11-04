@@ -1002,7 +1002,7 @@ class SettingsHomeActivity : AppCompatActivity() {
         val scroll = M3ScrollView(this).apply { setBackgroundColor(M3Color.SURFACE) }
         val content = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(M3Ui.dp(this@SettingsHomeActivity, 20), M3Ui.dp(this@SettingsHomeActivity, 4),
+            setPadding(M3Ui.dp(this@SettingsHomeActivity, 20), M3Ui.dp(this@SettingsHomeActivity, 10),
                 M3Ui.dp(this@SettingsHomeActivity, 20), M3Ui.dp(this@SettingsHomeActivity, 24))
         }
         scroll.addView(content)
@@ -1119,14 +1119,29 @@ class SettingsHomeActivity : AppCompatActivity() {
         listHost = host
         content.addView(host, LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
-        ).apply { topMargin = M3Ui.dp(this@SettingsHomeActivity, 4) })
+        ).apply { topMargin = M3Ui.dp(this@SettingsHomeActivity, 12) })
         val frame = android.widget.FrameLayout(this).apply { setBackgroundColor(M3Color.SURFACE) }
         frame.addView(logoBg, android.widget.FrameLayout.LayoutParams(
-            M3Ui.dp(this, 320), M3Ui.dp(this, 320), Gravity.TOP or Gravity.END
+            M3Ui.dp(this, 290), M3Ui.dp(this, 290), Gravity.TOP or Gravity.END
         ).apply {
-            topMargin = M3Ui.dp(this@SettingsHomeActivity, -30)
-            rightMargin = M3Ui.dp(this@SettingsHomeActivity, -40)
+            topMargin = M3Ui.dp(this@SettingsHomeActivity, -40)
+            rightMargin = M3Ui.dp(this@SettingsHomeActivity, -52)
         })
+        val boxFade = View(this).apply {
+            background = GradientDrawable(
+                GradientDrawable.Orientation.TOP_BOTTOM,
+                intArrayOf(Color.TRANSPARENT, M3Color.SURFACE)
+            )
+        }
+        frame.addView(boxFade, android.widget.FrameLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, M3Ui.dp(this, 140), Gravity.TOP
+        ))
+        topBar.post {
+            (boxFade.layoutParams as android.widget.FrameLayout.LayoutParams).apply {
+                topMargin = (topBar.bottom - M3Ui.dp(this@SettingsHomeActivity, 140)).coerceAtLeast(0)
+            }
+            boxFade.requestLayout()
+        }
         frame.addView(root, android.widget.FrameLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT
         ))
