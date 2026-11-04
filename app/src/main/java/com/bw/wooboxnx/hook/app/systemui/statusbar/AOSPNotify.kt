@@ -4,7 +4,7 @@ import android.content.pm.ApplicationInfo
 import android.view.Gravity
 import android.view.View
 import android.widget.FrameLayout
-import cn.fkj233.ui.activity.dp2px
+import com.bw.wooboxnx.util.dp2px
 import com.bw.wooboxnx.util.XSPUtils
 import com.bw.wooboxnx.util.hasEnable
 import com.bw.wooboxnx.util.xposed.base.HookRegister

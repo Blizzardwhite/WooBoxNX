@@ -6,7 +6,7 @@ import android.util.TypedValue
 import android.view.ViewGroup
 import android.view.ViewGroup.LayoutParams
 import android.widget.TextView
-import cn.fkj233.ui.activity.dp2px
+import com.bw.wooboxnx.util.dp2px
 import com.bw.wooboxnx.util.XSPUtils
 import com.bw.wooboxnx.util.hasEnable
 import com.bw.wooboxnx.util.xposed.base.HookRegister

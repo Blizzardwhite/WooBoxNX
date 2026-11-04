@@ -52,17 +52,6 @@
             android:screenOrientation="portrait" />
 
         <activity
-            android:name="com.bw.wooboxnx.activity.SettingsActivity"
-            android:exported="true"
-            android:launchMode="singleTop"
-            android:screenOrientation="portrait">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="de.robv.android.xposed.category.MODULE_SETTINGS" />
-            </intent-filter>
-        </activity>
-
-        <activity
             android:name="com.bw.wooboxnx.activity.MoonAppListActivity"
             android:exported="true"
             android:theme="@style/Theme.WooBoxM3"

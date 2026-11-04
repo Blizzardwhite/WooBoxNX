@@ -137,7 +137,7 @@ object WLANServerHooker : HookRegister() {
                 hasEnable("pin_sta_mac_sw") {
                     Log.i("setStaMacAddress called:${param!!.args[0] as String},${param.args[1] as MacAddress}")
                     //才没有彩蛋呢
-                    val macStr = XSPUtils.getString("pin_sta_mac", "66:31:32:35:39:75")!!
+                    val macStr = XSPUtils.getString("pin_sta_mac", "").orEmpty()
                     validMAC(macStr)?.let { mac ->
                         param.args[1] = mac
                         Log.i("override sta mac to:${mac}")
@@ -158,11 +158,13 @@ object WLANServerHooker : HookRegister() {
             override fun beforeHookedMethod(param: MethodHookParam?) {
                 super.beforeHookedMethod(param)
                 Log.i("setApMacAddress:${param!!.args[0] as String},${param.args[1] as MacAddress}")
-                //才没有彩蛋呢
-                val macStr = XSPUtils.getString("pin_ap_bssid", "b4:f3:cb:a7:b8:e7")!!
-                validMAC(macStr)?.let { mac ->
-                    param.args[1] = mac
-                    Log.i("override AP mac to:${mac}")
+                // 只有开了开关才覆盖，没填地址时不生效
+                hasEnable("pin_ap_bssid_sw") {
+                    val macStr = XSPUtils.getString("pin_ap_bssid", "").orEmpty()
+                    validMAC(macStr)?.let { mac ->
+                        param.args[1] = mac
+                        Log.i("override AP mac to:${mac}")
+                    }
                 }
             }
         }

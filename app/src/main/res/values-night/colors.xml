@@ -1,6 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <!-- MD3 深色（主色取系统快速设置绿 #4C9E8F） -->
+    <color name="foreground">#FFFFFFFF</color>
+    <color name="colorAccent">#FF8BD5C6</color>
     <color name="m3_surface">#FF000000</color>
     <color name="m3_surface_container">#FF1F1F1F</color>
     <color name="m3_surface_high">#FF2A2A2A</color>

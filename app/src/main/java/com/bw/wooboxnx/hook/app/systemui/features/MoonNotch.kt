@@ -97,6 +97,36 @@ object MoonNotch : HookRegister() {
 
     private var lastBeat = 0L
 
+    private var cfgAt = 0L
+    private var cfgApps = ""
+    private var cfgStyle = com.bw.wooboxnx.activity.MoonStyle.MOON
+
+    /** 1 秒内复用上次读到的名单和样式，避免状态栏每次刷新都跨进程查询 */
+    private fun readConfig(context: Context): Pair<String, Int> {
+        val now = android.os.SystemClock.elapsedRealtime()
+        val age = now - cfgAt
+        if (age in 1..1000L) return cfgApps to cfgStyle
+        runCatching {
+            context.contentResolver.query(
+                android.net.Uri.parse("content://com.bw.wooboxnx.moon/moon"),
+                null, null, null, null
+            )?.use { cursor ->
+                cfgApps = if (cursor.moveToFirst()) cursor.getString(0).orEmpty() else ""
+            }
+        }
+        runCatching {
+            context.contentResolver.query(
+                android.net.Uri.parse(com.bw.wooboxnx.activity.MoonStorage.URI_STYLE),
+                null, null, null, null
+            )?.use { cursor ->
+                cfgStyle = if (cursor.moveToFirst()) cursor.getInt(0)
+                else com.bw.wooboxnx.activity.MoonStyle.MOON
+            }
+        }
+        cfgAt = now
+        return cfgApps to cfgStyle
+    }
+
     /** 给设置界面一个"模块确实在运行"的心跳：写入 elapsedRealtime|wallClock */
     private fun beat(context: Context) {
         val now = android.os.SystemClock.elapsedRealtime()
@@ -140,12 +170,8 @@ object MoonNotch : HookRegister() {
             XposedHelpers.getBooleanField(feature, "inDarkMode")
         }.getOrDefault(false)
 
-        val customAppsRaw = runCatching {
-            context.contentResolver.query(
-                android.net.Uri.parse("content://com.bw.wooboxnx.moon/moon"),
-                null, null, null, null
-            )?.use { cursor -> if (cursor.moveToFirst()) cursor.getString(0) else null }
-        }.getOrNull()?.takeIf { it.isNotBlank() }
+        val (cachedAppsRaw, style) = readConfig(context)
+        val customAppsRaw = cachedAppsRaw.takeIf { it.isNotBlank() }
             ?: runCatching {
                 com.bw.wooboxnx.util.XSPUtils.getString("moon_apps", "")
             }.getOrNull().orEmpty()
@@ -172,18 +198,7 @@ object MoonNotch : HookRegister() {
         }.getOrDefault(false)
         val visible = shouldShow && !batteryOn
 
-        // 圆里显示什么：月亮 / 彩色应用图标 / 剪影应用图标
-        val style = runCatching {
-            context.contentResolver.query(
-                android.net.Uri.parse(
-                    com.bw.wooboxnx.activity.MoonStorage.URI_STYLE
-                ),
-                null, null, null, null
-            )?.use { cursor ->
-                if (cursor.moveToFirst()) cursor.getInt(0)
-                else com.bw.wooboxnx.activity.MoonStyle.MOON
-            }
-        }.getOrNull() ?: com.bw.wooboxnx.activity.MoonStyle.MOON
+        // 圆里显示什么：月亮 / 彩色应用图标 / 剪影应用图标（style 已在 readConfig 里读到）
         // 只在需要显示时更新内容：避免回桌面淡出的那一瞬间先闪出桌面应用的图标
         if (visible) updateContent(context, currentPkg, style)
 

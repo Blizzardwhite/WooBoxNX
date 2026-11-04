@@ -157,7 +157,10 @@ object M3Dirty {
             writeBaseline(c, snapshot(c))
             M3Prefs.sp(c).edit().putBoolean("scope_dirty", false).apply()
         }
-        runCatching { marker(c).writeText(now.toString()) }
+        // 标记只在明显过期时重写，避免每次回到前台都写盘
+        if (kotlin.math.abs(now - stored) > 30_000L) {
+            runCatching { marker(c).writeText(now.toString()) }
+        }
     }
 
     /** 与基线比较，返回待生效的项目（分成「重启手机」和「重启作用域」两组） */
@@ -459,10 +462,10 @@ object SettingsModel {
         Group("WLAN 服务", listOf(
             Row(key = "telecom_wlan_cc_val", title = "自定义 WiFi 国家码", summary = "两位字母或数字，默认 us",
                 kind = Row.SWITCH_TEXT, switchKey = "custom_wlan_countrycode", defStr = "us"),
-            Row(key = "pin_sta_mac", title = "固定终端 MAC 地址", summary = "修改后重启 WiFi 生效",
-                kind = Row.SWITCH_TEXT, switchKey = "pin_sta_mac_sw", defStr = "66:31:32:35:39:75"),
-            Row(key = "pin_ap_bssid", title = "固定热点随机 BSSID", summary = "修改后重启热点生效",
-                kind = Row.SWITCH_TEXT, switchKey = "pin_ap_bssid_sw", defStr = "b4:f3:cb:a7:b8:e7")
+            Row(key = "pin_sta_mac", title = "固定终端 MAC 地址", summary = "格式 AA:BB:CC:DD:EE:FF，留空不生效",
+                kind = Row.SWITCH_TEXT, switchKey = "pin_sta_mac_sw", defStr = ""),
+            Row(key = "pin_ap_bssid", title = "固定热点随机 BSSID", summary = "格式 AA:BB:CC:DD:EE:FF，留空不生效",
+                kind = Row.SWITCH_TEXT, switchKey = "pin_ap_bssid_sw", defStr = "")
         ))
     ))
 
@@ -998,6 +1001,7 @@ class SettingsHomeActivity : AppCompatActivity() {
     private var searchField: android.widget.EditText? = null
     private var searchClear: TextView? = null
     private var query = ""
+    private var pendingSearch: Runnable? = null
     private lateinit var backup: M3Backup
     private lateinit var rowBuilder: M3RowBuilder
 
@@ -1149,7 +1153,11 @@ class SettingsHomeActivity : AppCompatActivity() {
                 override fun afterTextChanged(s: android.text.Editable?) {
                     query = s?.toString().orEmpty()
                     searchClear?.visibility = if (query.isEmpty()) View.GONE else View.VISIBLE
-                    buildList()
+                    // 轻微防抖，避免每敲一个字就整表重建导致闪烁
+                    pendingSearch?.let { listHost?.removeCallbacks(it) }
+                    val job = Runnable { pendingSearch = null; buildList() }
+                    pendingSearch = job
+                    listHost?.postDelayed(job, 90L)
                 }
             })
         }
@@ -1248,6 +1256,7 @@ class SettingsHomeActivity : AppCompatActivity() {
         val row = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
+            contentDescription = "$title，$subtitle"
             setPadding(M3Ui.dp(this@SettingsHomeActivity, 8), M3Ui.dp(this@SettingsHomeActivity, 14),
                 M3Ui.dp(this@SettingsHomeActivity, 6), M3Ui.dp(this@SettingsHomeActivity, 14))
             isClickable = true
@@ -1895,6 +1904,11 @@ class AboutActivity : AppCompatActivity() {
         devCard.addView(devInner)
         content.addView(devCard)
 
+        content.addView(M3Ui.text(this, "本分支（WooBox NX）为社区二次开发版本，功能与上游同源。", 12f, M3Color.ON_SURFACE_VAR).apply {
+            setPadding(M3Ui.dp(this@AboutActivity, 4), M3Ui.dp(this@AboutActivity, 10),
+                M3Ui.dp(this@AboutActivity, 4), 0)
+        })
+
         content.addView(M3Ui.text(this, "致谢", 13f, M3Color.ON_SURFACE_VAR, true).apply {
             setPadding(M3Ui.dp(this@AboutActivity, 4), M3Ui.dp(this@AboutActivity, 20),
                 M3Ui.dp(this@AboutActivity, 4), M3Ui.dp(this@AboutActivity, 8))
@@ -2133,6 +2147,7 @@ class M3RowBuilder(
                     valueTo = row.max.toFloat()
                     stepSize = 1f
                     setTickVisible(false)
+                    contentDescription = row.title
                     value = prefs.getInt(row.key, row.def).toFloat().coerceIn(row.min.toFloat(), row.max.toFloat())
                     valueText.text = value.toInt().toString()
                     addOnChangeListener { _, v, _ ->
@@ -2170,6 +2185,7 @@ class M3RowBuilder(
                 }
                 head.addView(valueText)
                 head.addView(MaterialSwitch(activity).apply {
+                    contentDescription = row.title
                     val key = row.switchKey
                     if (key != null) {
                         isChecked = prefs.getBoolean(key, false)
@@ -2185,6 +2201,7 @@ class M3RowBuilder(
                     valueTo = row.max.toFloat()
                     stepSize = 1f
                     setTickVisible(false)
+                    contentDescription = row.title
                     value = prefs.getInt(row.key, row.def).toFloat().coerceIn(row.min.toFloat(), row.max.toFloat())
                     valueText.text = value.toInt().toString()
                     addOnChangeListener { _, v, _ ->
@@ -2222,6 +2239,7 @@ class M3RowBuilder(
                 line.addView(texts, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
                 if (row.switchKey != null) {
                     line.addView(MaterialSwitch(activity).apply {
+                        contentDescription = row.title
                         val key = row.switchKey
                         isChecked = prefs.getBoolean(key, false)
                         setOnCheckedChangeListener { _, c -> prefs.edit().putBoolean(key, c).apply(); onChanged() }
@@ -2236,6 +2254,7 @@ class M3RowBuilder(
                 LinearLayout(activity).apply {
                     orientation = LinearLayout.HORIZONTAL
                     gravity = Gravity.CENTER_VERTICAL
+                    contentDescription = row.title
                     setPadding(0, M3Ui.dp(activity, 16), 0, M3Ui.dp(activity, 16))
                     isClickable = true
                     addView(LinearLayout(activity).apply {
@@ -2268,6 +2287,7 @@ class M3RowBuilder(
                 }
                 line.addView(texts, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
                 val sw = MaterialSwitch(activity).apply {
+                    contentDescription = row.title
                     isChecked = prefs.getBoolean(row.key, false)
                     setOnCheckedChangeListener { _, checked ->
                         prefs.edit().putBoolean(row.key, checked).apply(); onChanged()
