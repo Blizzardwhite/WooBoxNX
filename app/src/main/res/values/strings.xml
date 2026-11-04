@@ -114,7 +114,7 @@
 
     <string name="third_party_open_source_statement">Third Party Open Source Statement</string>
 
-    <string name="xposeddescription">Customization tool for RedmagicOS9(Android 14)</string>
+    <string name="xposeddescription">WooBox NX · RedmagicOS tweaks (under-display area, status bar, notifications, fingerprint ring)</string>
     <string name="status_bar_clock_format">Status bar clock format</string>
     <string name="installer_hide_store_hint">Hide install from store hint</string>
     <string name="features">Features</string>
