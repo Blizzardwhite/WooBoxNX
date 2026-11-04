@@ -1950,6 +1950,8 @@ class AboutActivity : AppCompatActivity() {
         appRow.addView(M3Ui.text(this, "›", 24f, M3Color.ON_SURFACE_VAR).apply {
             includeFontPadding = false
             setPadding(M3Ui.dp(this@AboutActivity, 6), 0, 0, 0)
+            // 「›」字形在字体框里偏上，向下微调让它的视觉中心和左侧文字对齐
+            translationY = -2.4f * resources.displayMetrics.density
         })
         appCard.addView(appRow)
 
