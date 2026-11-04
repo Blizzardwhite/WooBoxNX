@@ -88,13 +88,6 @@ class MoonProvider : ContentProvider() {
         return null
     }
 
-    override fun openFile(uri: Uri, mode: String): ParcelFileDescriptor? {
-        if (!callerAllowed()) return null
-        if (uri.lastPathSegment != "bg") return null
-        val f = File(requireNotNull(context).filesDir, "panel_bg.img")
-        if (!f.exists()) return null
-        return ParcelFileDescriptor.open(f, ParcelFileDescriptor.MODE_READ_ONLY)
-    }
     override fun delete(uri: Uri, selection: String?, selectionArgs: Array<out String>?): Int = 0
 
     override fun update(
