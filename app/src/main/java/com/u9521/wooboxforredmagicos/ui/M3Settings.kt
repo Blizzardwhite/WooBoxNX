@@ -984,18 +984,18 @@ class SettingsHomeActivity : AppCompatActivity() {
         val topBar = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(M3Ui.dp(this@SettingsHomeActivity, 20), M3Ui.dp(this@SettingsHomeActivity, 24),
-                M3Ui.dp(this@SettingsHomeActivity, 20), M3Ui.dp(this@SettingsHomeActivity, 2))
+                M3Ui.dp(this@SettingsHomeActivity, 20), 0)
         }
-        val topWrap = android.widget.FrameLayout(this)
+        val topWrap = android.widget.FrameLayout(this).apply { clipChildren = false }
         val logoBg = ImageView(this).apply {
             setImageResource(R.drawable.ic_logo_box)
             setColorFilter(M3Color.ON_SURFACE)
-            alpha = 0.20f
+            alpha = 0.17f
             scaleType = ImageView.ScaleType.FIT_XY
             isClickable = false
         }
         topWrap.addView(logoBg, android.widget.FrameLayout.LayoutParams(
-            M3Ui.dp(this, 220), M3Ui.dp(this, 220), Gravity.TOP or Gravity.END
+            M3Ui.dp(this, 320), M3Ui.dp(this, 320), Gravity.TOP or Gravity.END
         ).apply {
             topMargin = M3Ui.dp(this@SettingsHomeActivity, -30)
             rightMargin = M3Ui.dp(this@SettingsHomeActivity, -40)
@@ -1008,7 +1008,7 @@ class SettingsHomeActivity : AppCompatActivity() {
         ))
 
 
-        val scroll = M3ScrollView(this)
+        val scroll = M3ScrollView(this).apply { setBackgroundColor(M3Color.SURFACE) }
         val content = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(M3Ui.dp(this@SettingsHomeActivity, 20), 0,
@@ -1122,13 +1122,13 @@ class SettingsHomeActivity : AppCompatActivity() {
         searchWrap.addView(clear)
         content.addView(searchWrap, LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
-        ).apply { topMargin = M3Ui.dp(this@SettingsHomeActivity, 2) })
+        ).apply { topMargin = 0 })
 
         val host = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         listHost = host
         content.addView(host, LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
-        ).apply { topMargin = M3Ui.dp(this@SettingsHomeActivity, 6) })
+        ).apply { topMargin = M3Ui.dp(this@SettingsHomeActivity, 4) })
         setContentView(root)
         buildList()
         onBackPressedDispatcher.addCallback(this, object : androidx.activity.OnBackPressedCallback(true) {
@@ -1421,7 +1421,7 @@ class CategoryActivity : AppCompatActivity() {
         bar.addView(scopePill)
         root.addView(bar)
 
-        val scroll = M3ScrollView(this)
+        val scroll = M3ScrollView(this).apply { setBackgroundColor(M3Color.SURFACE) }
         val content = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(M3Ui.dp(this@CategoryActivity, 16), 0, M3Ui.dp(this@CategoryActivity, 16),
@@ -1556,7 +1556,7 @@ class CameraSettingsActivity : AppCompatActivity() {
         bar.addView(scopePill)
         root.addView(bar)
 
-        val scroll = M3ScrollView(this)
+        val scroll = M3ScrollView(this).apply { setBackgroundColor(M3Color.SURFACE) }
         val content = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(M3Ui.dp(this@CameraSettingsActivity, 16), 0, M3Ui.dp(this@CameraSettingsActivity, 16),
@@ -1751,7 +1751,7 @@ class AboutActivity : AppCompatActivity() {
         bar.addView(M3Ui.text(this, "关于", 22f, M3Color.ON_SURFACE, true))
         root.addView(bar)
 
-        val scroll = M3ScrollView(this)
+        val scroll = M3ScrollView(this).apply { setBackgroundColor(M3Color.SURFACE) }
         val content = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(M3Ui.dp(this@AboutActivity, 16), 0, M3Ui.dp(this@AboutActivity, 16),
