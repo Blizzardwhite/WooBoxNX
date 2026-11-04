@@ -730,8 +730,8 @@ object M3Actions {
                     .show()
             }
         }
-        addAction("重启作用域", false) { restartScope(activity) { onDone() } }
-        addAction("重启手机", true) { confirmReboot(activity) }
+        addAction("重启手机", false) { confirmReboot(activity) }
+        addAction("重启作用域", true) { restartScope(activity) { onDone() } }
         box.addView(actions)
 
         dialogRef = MaterialAlertDialogBuilder(activity)
