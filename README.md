@@ -1,40 +1,47 @@
 <div align="center">
    <img width="160" src="./doc/img/ic_launcher.png" alt="logo">
-   <h1>WooBox For RedmagicOS</h1>
+   <h1>WooBox NX</h1>
    <p>
        <b><a href="./doc/README_EN.md">English</a> | 简体中文</b>
    </p>
-   <a href="https://github.com/u9521/WooBoxForRedmagicOS/stargazers"><img alt="GitHub stars" src="https://img.shields.io/github/stars/u9521/WooBoxForRedmagicOS"></a>
-   <a href="https://github.com/u9521/WooBoxForRedmagicOS/issues"><img alt="GitHub issues" src="https://img.shields.io/github/issues/u9521/WooBoxForRedmagicOS"></a>
-   <a href="./LICENSE"><img alt="GitHub license" src="https://img.shields.io/github/license/u9521/WooBoxForRedmagicOS"></a>
-   <p>一个基于 RedmagicOS 9(Android 14)适配的系统拓展Xposed模块</p>
+   <p>基于 MyOS14 (Android 14) 适配的努比亚系统增强工具箱</p>
 </div>
 
 ---
 
-
 ### 模块说明
 
-仅支持 RedmagicOS 9(Android 14)，其余版本无法使用。
-  
-开发者：[@u9521](https://github.com/u9521)
+- 仅适配 **MyOS14 / RedMagicOS 9（Android 14）**，其余版本不保证可用
+- 包名：`com.bw.wooboxnx`
+- 模块名：WooBox NX
+- 当前版本：1.1.0
 
+本仓库是基于 [WooBox For RedmagicOS](https://github.com/u9521/WooBoxForRedmagicOS) 的二次开发分支，
+包名与上游不同，两者**配置与备份互不通用**，安装前请先卸载上游版本。
+
+与原版的差异：重做了 MD3 设置界面（单页分类 + 搜索 + 待生效清单）、
+屏下区域支持弯月/图标/剪影/纯黑与电量显示、指纹圆环、应用名单页，
+并移除了旧版界面依赖。
+
+上游开发者：[@u9521](https://github.com/u9521)
 原开发者：[酷安@乌堆小透明](http://www.coolapk.com/u/883441)
 
 ---
 
-### 模块截图 ~~（传家宝截图，以后再更新）~~
-![截图](./doc/img/cn.jpg)  
+### 使用说明
+
+1. 安装 APK 后，在 LSPosed 管理器中启用「WooBox NX」并勾选作用域（共 11 个）
+2. 首次启用或模块更新后，需要**重启手机**才能让系统框架作用域生效
+3. 修改设置后点右上角「应用修改」，按提示重启作用域或手机
+4. 主页状态胶囊：绿色「运行中」表示常驻作用域均已注入
 
 ---
 
 ### 下载地址
 
-仓库Release下载(目前唯一发布渠道)：[releases](https://github.com/u9521/WooBoxForRedmagicOS/releases)
+本分支暂无独立发布渠道，最新版本请从构建产物或上游仓库获取：
 
-~~Xposed仓库下载：[点击此处下载最新发行版](https://github.com/Xposed-Modules-Repo/wooboxforredmagicos/releases)~~
-
-~~酷安下载：[点击此处下载最新发行版](https://www.coolapk.com/apk/wooboxforredmagicos)~~
+[上游 Releases](https://github.com/u9521/WooBoxForRedmagicOS/releases)
 
 ---
 
@@ -55,10 +62,6 @@
 ##### GNU Lesser General Public License v3.0
 
 [LuckyPray/DexKit](https://github.com/LuckyPray/DexKit)
-
-##### GNU Lesser General Public License v2.1
-
-[577fkj/blockmiui](https://github.com/577fkj/blockmiui)  
 
 ---
 

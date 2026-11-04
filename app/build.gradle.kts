@@ -56,7 +56,7 @@ android {
     defaultConfig {
         applicationId = "com.bw.wooboxnx"
         minSdk = 31
-        targetSdk = 34
+        targetSdk = 35
         versionCode = 8
         versionName = "1.1.0"
     }

@@ -5,6 +5,7 @@ import android.content.ContentValues
 import android.database.Cursor
 import android.database.MatrixCursor
 import android.net.Uri
+import com.bw.wooboxnx.R
 import java.io.File
 
 /**
@@ -15,6 +16,24 @@ class MoonProvider : ContentProvider() {
 
     override fun onCreate(): Boolean = true
 
+    /**
+     * 只允许本应用自己和 LSPosed 作用域里的系统应用读写，
+     * 避免任意三方应用读到名单或伪造心跳。
+     */
+    private fun callerAllowed(): Boolean {
+        val self = context?.packageName ?: return false
+        val caller = runCatching { callingPackage }.getOrNull()
+        if (caller == self) return true
+        if (caller.isNullOrBlank()) {
+            // 系统框架等没有包名的调用方
+            return runCatching { android.os.Binder.getCallingUid() <= 1000 }.getOrDefault(false)
+        }
+        val allowed = runCatching {
+            context?.resources?.getStringArray(R.array.xposed_scope)?.toSet()
+        }.getOrNull() ?: return false
+        return caller in allowed
+    }
+
     override fun query(
         uri: Uri,
         projection: Array<out String>?,
@@ -23,6 +42,9 @@ class MoonProvider : ContentProvider() {
         sortOrder: String?
     ): Cursor {
         val dir = requireNotNull(context).filesDir
+        if (!callerAllowed()) {
+            return MatrixCursor(arrayOf(MoonStorage.COLUMN))
+        }
         return if (uri.lastPathSegment == "style") {
             val file = File(dir, MoonStorage.FILE_STYLE)
             val value = runCatching {
@@ -40,6 +62,7 @@ class MoonProvider : ContentProvider() {
 
     override fun insert(uri: Uri, values: ContentValues?): Uri? {
         val dir = context?.filesDir ?: return null
+        if (!callerAllowed()) return null
         if (uri.lastPathSegment == "heartbeat") {
             val v = values?.getAsString("v").orEmpty()
             val pkg = values?.getAsString("pkg")

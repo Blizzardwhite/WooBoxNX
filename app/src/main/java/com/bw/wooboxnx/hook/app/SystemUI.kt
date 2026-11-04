@@ -36,7 +36,6 @@ object SystemUI : AppRegister() {
             NetworkSpeedAdjuster, //双排网速,网速秒刷
             HideWifiActivityIcon, //隐藏WIFI箭头
             HideMobileActivityIcon, //隐藏移动箭头
-//            CustomClock, //自定义时钟，暂不考虑实现
             HideVpnIcon,//老版本隐藏VPN图标
             BTiconUseGlobalacts,//未连接设备时隐藏蓝牙图标
             AOSPNotify,//原生通知图标和通知样式

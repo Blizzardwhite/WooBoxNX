@@ -30,6 +30,13 @@ class IconView(context: Context, private val type: Int) : View(context) {
         strokeJoin = Paint.Join.ROUND
     }
 
+    // 预分配，避免 onDraw 里反复 new（滚动时会产生 GC 抖动）
+    private val fillPaint = Paint(fg).apply { style = Paint.Style.FILL }
+    private val thinStroke = Paint(fg).apply { style = Paint.Style.STROKE; strokeWidth = dp(2.0f) }
+    private val rect = RectF()
+    private val path = Path()
+    private val innerPath = Path()
+
     private fun dp(v: Float) = v * resources.displayMetrics.density
 
     override fun onDraw(canvas: Canvas) {
@@ -43,10 +50,12 @@ class IconView(context: Context, private val type: Int) : View(context) {
         val s = r * 0.5f
         when (type) {
             0 -> { // 弯月
-                val outer = Path().apply { addCircle(cx - s * 0.15f, cy, s, Path.Direction.CW) }
-                val inner = Path().apply { addCircle(cx + s * 0.50f, cy - s * 0.50f, s * 0.92f, Path.Direction.CW) }
-                outer.op(inner, Path.Op.DIFFERENCE)
-                canvas.drawPath(outer, Paint(fg).apply { style = Paint.Style.FILL })
+                path.reset()
+                path.addCircle(cx - s * 0.15f, cy, s, Path.Direction.CW)
+                innerPath.reset()
+                innerPath.addCircle(cx + s * 0.50f, cy - s * 0.50f, s * 0.92f, Path.Direction.CW)
+                path.op(innerPath, Path.Op.DIFFERENCE)
+                canvas.drawPath(path, fillPaint)
             }
             1 -> { // 状态栏三条
                 canvas.drawLine(cx - s, cy - s * 0.6f, cx + s, cy - s * 0.6f, fg)
@@ -54,68 +63,68 @@ class IconView(context: Context, private val type: Int) : View(context) {
                 canvas.drawLine(cx - s, cy + s * 0.6f, cx + s * 0.8f, cy + s * 0.6f, fg)
             }
             2 -> { // 通知铃铛
-                canvas.drawArc(RectF(cx - s, cy - s, cx + s, cy + s * 0.7f), 180f, 180f, false, fg)
+                rect.set(cx - s, cy - s, cx + s, cy + s * 0.7f)
+                canvas.drawArc(rect, 180f, 180f, false, fg)
                 canvas.drawLine(cx - s * 1.02f, cy + s * 0.35f, cx + s * 1.02f, cy + s * 0.35f, fg)
                 canvas.drawCircle(cx, cy + s * 0.75f, dp(1.6f), fg)
             }
             3 -> { // 快速设置 2x2
-                val p = Paint(fg).apply { style = Paint.Style.FILL }
                 val q = s * 0.42f
-                canvas.drawRoundRect(RectF(cx - s, cy - s, cx - s + q * 1.5f, cy - s + q * 1.5f), dp(1.5f), dp(1.5f), p)
-                canvas.drawRoundRect(RectF(cx + s - q * 1.5f, cy - s, cx + s, cy - s + q * 1.5f), dp(1.5f), dp(1.5f), p)
-                canvas.drawRoundRect(RectF(cx - s, cy + s - q * 1.5f, cx - s + q * 1.5f, cy + s), dp(1.5f), dp(1.5f), p)
-                canvas.drawRoundRect(RectF(cx + s - q * 1.5f, cy + s - q * 1.5f, cx + s, cy + s), dp(1.5f), dp(1.5f), p)
+                val rad = dp(1.5f)
+                rect.set(cx - s, cy - s, cx - s + q * 1.5f, cy - s + q * 1.5f)
+                canvas.drawRoundRect(rect, rad, rad, fillPaint)
+                rect.set(cx + s - q * 1.5f, cy - s, cx + s, cy - s + q * 1.5f)
+                canvas.drawRoundRect(rect, rad, rad, fillPaint)
+                rect.set(cx - s, cy + s - q * 1.5f, cx - s + q * 1.5f, cy + s)
+                canvas.drawRoundRect(rect, rad, rad, fillPaint)
+                rect.set(cx + s - q * 1.5f, cy + s - q * 1.5f, cx + s, cy + s)
+                canvas.drawRoundRect(rect, rad, rad, fillPaint)
             }
             4 -> { // 锁
-                canvas.drawArc(RectF(cx - s * 0.6f, cy - s * 1.1f, cx + s * 0.6f, cy + s * 0.2f), 180f, 180f, false, fg)
-                val p = Paint(fg).apply { style = Paint.Style.FILL }
-                canvas.drawRoundRect(RectF(cx - s * 0.9f, cy - s * 0.1f, cx + s * 0.9f, cy + s * 0.9f), dp(3f), dp(3f), p)
+                rect.set(cx - s * 0.6f, cy - s * 1.1f, cx + s * 0.6f, cy + s * 0.2f)
+                canvas.drawArc(rect, 180f, 180f, false, fg)
+                rect.set(cx - s * 0.9f, cy - s * 0.1f, cx + s * 0.9f, cy + s * 0.9f)
+                canvas.drawRoundRect(rect, dp(3f), dp(3f), fillPaint)
             }
             6 -> { // 信息
-                val p = Paint(fg).apply { style = Paint.Style.FILL }
-                canvas.drawCircle(cx, cy - s * 0.55f, dp(1.8f), p)
-                canvas.drawRoundRect(RectF(cx - dp(1.2f), cy - s * 0.15f, cx + dp(1.2f), cy + s * 0.7f), dp(1.2f), dp(1.2f), p)
+                canvas.drawCircle(cx, cy - s * 0.55f, dp(1.8f), fillPaint)
+                rect.set(cx - dp(1.2f), cy - s * 0.15f, cx + dp(1.2f), cy + s * 0.7f)
+                canvas.drawRoundRect(rect, dp(1.2f), dp(1.2f), fillPaint)
             }
             7 -> { // 齿轮（系统）
-                val p = Paint(fg).apply { style = Paint.Style.STROKE; strokeWidth = dp(2.0f) }
-                canvas.drawCircle(cx, cy, s * 0.5f, p)
-                canvas.drawCircle(cx, cy, s * 0.18f, p)
+                canvas.drawCircle(cx, cy, s * 0.5f, thinStroke)
+                canvas.drawCircle(cx, cy, s * 0.18f, thinStroke)
                 for (i in 0 until 8) {
                     val a = Math.toRadians(i * 45.0)
                     val x1 = cx + (s * 0.6f * Math.cos(a)).toFloat()
                     val y1 = cy + (s * 0.6f * Math.sin(a)).toFloat()
                     val x2 = cx + (s * 0.92f * Math.cos(a)).toFloat()
                     val y2 = cy + (s * 0.92f * Math.sin(a)).toFloat()
-                    canvas.drawLine(x1, y1, x2, y2, p)
+                    canvas.drawLine(x1, y1, x2, y2, thinStroke)
                 }
             }
             8 -> { // 向下箭头（系统更新）
-                val p = Paint(fg).apply { style = Paint.Style.STROKE; strokeWidth = dp(2.0f) }
-                canvas.drawLine(cx, cy - s * 0.8f, cx, cy + s * 0.3f, p)
-                canvas.drawLine(cx - s * 0.4f, cy - s * 0.1f, cx, cy + s * 0.3f, p)
-                canvas.drawLine(cx + s * 0.4f, cy - s * 0.1f, cx, cy + s * 0.3f, p)
-                canvas.drawLine(cx - s * 0.8f, cy + s * 0.8f, cx + s * 0.8f, cy + s * 0.8f, p)
+                canvas.drawLine(cx, cy - s * 0.8f, cx, cy + s * 0.3f, thinStroke)
+                canvas.drawLine(cx - s * 0.4f, cy - s * 0.1f, cx, cy + s * 0.3f, thinStroke)
+                canvas.drawLine(cx + s * 0.4f, cy - s * 0.1f, cx, cy + s * 0.3f, thinStroke)
+                canvas.drawLine(cx - s * 0.8f, cy + s * 0.8f, cx + s * 0.8f, cy + s * 0.8f, thinStroke)
             }
             9 -> { // 手势：屏幕 + 底部手势点
-                val p = Paint(fg).apply { style = Paint.Style.STROKE; strokeWidth = dp(2.0f) }
-                canvas.drawRoundRect(
-                    RectF(cx - s * 0.6f, cy - s * 0.85f, cx + s * 0.6f, cy + s * 0.85f),
-                    dp(3f), dp(3f), p
-                )
-                canvas.drawCircle(cx, cy + s * 0.45f, s * 0.16f,
-                    Paint(fg).apply { style = Paint.Style.FILL })
-                canvas.drawLine(cx - s * 0.3f, cy + s * 0.12f, cx + s * 0.3f, cy + s * 0.12f, p)
+                rect.set(cx - s * 0.6f, cy - s * 0.85f, cx + s * 0.6f, cy + s * 0.85f)
+                canvas.drawRoundRect(rect, dp(3f), dp(3f), thinStroke)
+                canvas.drawCircle(cx, cy + s * 0.45f, s * 0.16f, fillPaint)
+                canvas.drawLine(cx - s * 0.3f, cy + s * 0.12f, cx + s * 0.3f, cy + s * 0.12f, thinStroke)
             }
             10 -> { // 应用方块
-                val p = Paint(fg).apply { style = Paint.Style.STROKE; strokeWidth = dp(2.0f) }
-                canvas.drawRoundRect(RectF(cx - s * 0.75f, cy - s * 0.75f, cx + s * 0.75f, cy + s * 0.75f), dp(4f), dp(4f), p)
-                canvas.drawCircle(cx, cy, s * 0.22f, Paint(fg).apply { style = Paint.Style.FILL })
+                rect.set(cx - s * 0.75f, cy - s * 0.75f, cx + s * 0.75f, cy + s * 0.75f)
+                canvas.drawRoundRect(rect, dp(4f), dp(4f), thinStroke)
+                canvas.drawCircle(cx, cy, s * 0.22f, fillPaint)
             }
             else -> { // 三个点
-                val p = Paint(fg).apply { style = Paint.Style.FILL }
-                canvas.drawCircle(cx - s, cy, dp(2.2f), p)
-                canvas.drawCircle(cx, cy, dp(2.2f), p)
-                canvas.drawCircle(cx + s, cy, dp(2.2f), p)
+                val rad = dp(2.2f)
+                canvas.drawCircle(cx - s, cy, rad, fillPaint)
+                canvas.drawCircle(cx, cy, rad, fillPaint)
+                canvas.drawCircle(cx + s, cy, rad, fillPaint)
             }
         }
     }
@@ -143,20 +152,40 @@ class CameraPreviewView(context: Context) : View(context) {
         typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
     }
 
+    // 预分配绘制对象，避免每帧 new
+    private val rect = RectF()
+    private val path = Path()
+    private val path2 = Path()
+    private val dotPaint = Paint(fgPaint).apply { color = 0xFFBFBFBF.toInt() }
+    private val contentPaint = Paint(fgPaint).apply { color = 0x18FFFFFF }
+    private val waterPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFF34C759.toInt() }
+    private val borderPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        style = Paint.Style.STROKE
+        strokeWidth = dp(1.6f)
+        color = 0xFFF2F2F2.toInt()
+    }
+    private val batteryTextPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.WHITE
+        textAlign = Paint.Align.CENTER
+        typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+    }
+
 
     private fun dp(v: Float) = v * resources.displayMetrics.density
 
     override fun onDraw(canvas: Canvas) {
         val w = width.toFloat()
         val h = height.toFloat()
-        bgPaint.shader = LinearGradient(0f, 0f, 0f, h, 0xFF1A2A30.toInt(), 0xFF101820.toInt(), Shader.TileMode.CLAMP)
-        canvas.drawRoundRect(RectF(0f, 0f, w, h), dp(14f), dp(14f), bgPaint)
+        if (bgPaint.shader == null) {
+            bgPaint.shader = LinearGradient(0f, 0f, 0f, h, 0xFF1A2A30.toInt(), 0xFF101820.toInt(), Shader.TileMode.CLAMP)
+        }
+        rect.set(0f, 0f, w, h)
+        canvas.drawRoundRect(rect, dp(14f), dp(14f), bgPaint)
 
         // 模拟状态栏
         canvas.drawText("04:20", dp(14f), dp(20f), textPaint)
-        val dot = Paint(fgPaint).apply { color = 0xFFBFBFBF.toInt() }
-        canvas.drawCircle(w - dp(16f), dp(16f), dp(1.8f), dot)
-        canvas.drawCircle(w - dp(24f), dp(16f), dp(1.8f), dot)
+        canvas.drawCircle(w - dp(16f), dp(16f), dp(1.8f), dotPaint)
+        canvas.drawCircle(w - dp(24f), dp(16f), dp(1.8f), dotPaint)
 
         // 总开关关闭时不画任何东西，和真机一致
         if (!enabledProvider()) {
@@ -180,22 +209,28 @@ class CameraPreviewView(context: Context) : View(context) {
             1 -> { // 彩色图标：直接用模块自身的图标铺满，效果和真机一致
                 val icon = appIconBitmap() ?: return
                 val save = canvas.save()
-                canvas.clipPath(Path().apply { addCircle(cx, cy, r, Path.Direction.CW) })
-                canvas.drawBitmap(icon, null, RectF(cx - r, cy - r, cx + r, cy + r), bitmapPaint)
+                path.reset()
+                path.addCircle(cx, cy, r, Path.Direction.CW)
+                canvas.clipPath(path)
+                rect.set(cx - r, cy - r, cx + r, cy + r)
+                canvas.drawBitmap(icon, null, rect, bitmapPaint)
                 canvas.restoreToCount(save)
             }
             2 -> { // 剪影：黑底 + 白色字形（模拟真实的反色字形提取）
                 val glyph = monoBitmap() ?: return
                 val t = r * 0.64f
-                canvas.drawBitmap(glyph, null, RectF(cx - t, cy - t, cx + t, cy + t), bitmapPaint)
+                rect.set(cx - t, cy - t, cx + t, cy + t)
+                canvas.drawBitmap(glyph, null, rect, bitmapPaint)
             }
             3 -> Unit // 纯黑遮罩
             else -> { // 弯月 + 星
                 val mr = r * 0.62f
-                val outer = Path().apply { addCircle(cx - mr * 0.12f, cy, mr, Path.Direction.CW) }
-                val inner = Path().apply { addCircle(cx + mr * 0.52f, cy - mr * 0.52f, mr * 0.90f, Path.Direction.CW) }
-                outer.op(inner, Path.Op.DIFFERENCE)
-                canvas.drawPath(outer, fgPaint)
+                path.reset()
+                path.addCircle(cx - mr * 0.12f, cy, mr, Path.Direction.CW)
+                path2.reset()
+                path2.addCircle(cx + mr * 0.52f, cy - mr * 0.52f, mr * 0.90f, Path.Direction.CW)
+                path.op(path2, Path.Op.DIFFERENCE)
+                canvas.drawPath(path, fgPaint)
                 star(canvas, cx + r * 0.48f, cy - r * 0.40f, r * 0.17f)
             }
         }
@@ -205,35 +240,27 @@ class CameraPreviewView(context: Context) : View(context) {
 
     /** 屏幕内容示意（状态栏下方几条灰色块） */
     private fun drawContentMock(canvas: Canvas, w: Float, h: Float, top: Float) {
-        val content = Paint(fgPaint).apply { color = 0x18FFFFFF }
-        canvas.drawRoundRect(RectF(dp(14f), top + dp(14f), w - dp(14f), top + dp(22f)), dp(4f), dp(4f), content)
-        canvas.drawRoundRect(RectF(dp(14f), top + dp(30f), w * 0.66f, top + dp(38f)), dp(4f), dp(4f), content)
-        canvas.drawRoundRect(RectF(dp(14f), top + dp(52f), w - dp(14f), h - dp(14f)), dp(8f), dp(8f), content)
+        rect.set(dp(14f), top + dp(14f), w - dp(14f), top + dp(22f))
+        canvas.drawRoundRect(rect, dp(4f), dp(4f), contentPaint)
+        rect.set(dp(14f), top + dp(30f), w * 0.66f, top + dp(38f))
+        canvas.drawRoundRect(rect, dp(4f), dp(4f), contentPaint)
+        rect.set(dp(14f), top + dp(52f), w - dp(14f), h - dp(14f))
+        canvas.drawRoundRect(rect, dp(8f), dp(8f), contentPaint)
     }
 
     /** 摄像头位置的电池预览：黑圆 + 绿色水位 + 白色描边 + 百分比 */
     private fun drawBatteryPreview(canvas: Canvas, cx: Float, cy: Float, r: Float) {
         val level = 0.68f
-        val water = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFF34C759.toInt() }
-        val border = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            style = Paint.Style.STROKE
-            strokeWidth = dp(1.6f)
-            color = 0xFFF2F2F2.toInt()
-        }
-        val text = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.WHITE
-            textSize = r * 0.95f
-            textAlign = Paint.Align.CENTER
-            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
-        }
+        batteryTextPaint.textSize = r * 0.95f
         val save = canvas.save()
-        canvas.clipPath(Path().apply { addCircle(cx, cy, r, Path.Direction.CW) })
-        canvas.drawRect(cx - r, cy + r - 2f * r * level, cx + r, cy + r, water)
+        path.reset()
+        path.addCircle(cx, cy, r, Path.Direction.CW)
+        canvas.clipPath(path)
+        canvas.drawRect(cx - r, cy + r - 2f * r * level, cx + r, cy + r, waterPaint)
         canvas.restoreToCount(save)
-        canvas.drawCircle(cx, cy, r - dp(0.8f), border)
-        canvas.drawText("68", cx, cy + r * 0.34f, text)
+        canvas.drawCircle(cx, cy, r - dp(0.8f), borderPaint)
+        canvas.drawText("68", cx, cy + r * 0.34f, batteryTextPaint)
     }
-
     /** 模块图标位图（用于彩色图标预览），按 4 倍预览尺寸渲染保证清晰 */
     private fun appIconBitmap(): android.graphics.Bitmap? {
         iconCache?.let { return it }
@@ -290,7 +317,8 @@ class CameraPreviewView(context: Context) : View(context) {
         return out
     }
     private fun star(canvas: Canvas, cx: Float, cy: Float, r: Float) {
-        val p = Path()
+        val p = path
+        p.reset()
         p.moveTo(cx, cy - r)
         p.lineTo(cx + r * 0.26f, cy - r * 0.26f)
         p.lineTo(cx + r, cy)
@@ -498,6 +526,8 @@ class M3ScrollView(context: Context) : ScrollView(context) {
         lastTime = android.os.SystemClock.uptimeMillis()
         postOnAnimation(runner)
     }
+
+    override fun performClick(): Boolean = super.performClick()
 
     override fun onTouchEvent(ev: MotionEvent): Boolean {
         val child = getChildAt(0) ?: return super.onTouchEvent(ev)

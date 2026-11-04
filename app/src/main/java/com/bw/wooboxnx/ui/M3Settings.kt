@@ -1872,7 +1872,45 @@ class AboutActivity : AppCompatActivity() {
             com.bw.wooboxnx.BuildConfig.VERSION_NAME,
             13f, M3Color.ON_SURFACE_VAR))
         appRow.addView(appTexts, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
-        appCard.addView(appRow)
+        val appInner = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        appInner.addView(appRow)
+
+        val updateRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            isClickable = true
+            contentDescription = "检查更新"
+            setPadding(0, M3Ui.dp(this@AboutActivity, 14), 0, M3Ui.dp(this@AboutActivity, 2))
+            addView(LinearLayout(this@AboutActivity).apply {
+                orientation = LinearLayout.VERTICAL
+                addView(M3Ui.text(this@AboutActivity, "检查更新", 16f, M3Color.ON_SURFACE))
+                addView(M3Ui.text(this@AboutActivity,
+                    "当前版本 v" + com.bw.wooboxnx.BuildConfig.VERSION_NAME +
+                        "（" + com.bw.wooboxnx.BuildConfig.VERSION_CODE + "）",
+                    12f, M3Color.ON_SURFACE_VAR))
+            }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+            addView(M3Ui.text(this@AboutActivity, "›", 24f, M3Color.ON_SURFACE_VAR))
+            setOnClickListener {
+                MaterialAlertDialogBuilder(this@AboutActivity)
+                    .setTitle("检查更新")
+                    .setMessage(
+                        "当前版本：v" + com.bw.wooboxnx.BuildConfig.VERSION_NAME +
+                            "（" + com.bw.wooboxnx.BuildConfig.VERSION_CODE + "）\n\n" +
+                            "本分支没有独立的在线更新渠道，可以到项目发布页查看是否有新版本。"
+                    )
+                    .setPositiveButton("打开发布页") { _, _ ->
+                        runCatching {
+                            startActivity(Intent(Intent.ACTION_VIEW,
+                                android.net.Uri.parse("https://github.com/u9521/WooBoxForRedmagicOS/releases")))
+                        }
+                    }
+                    .setNegativeButton("关闭", null)
+                    .show()
+            }
+        }
+        appInner.addView(updateRow)
+        appCard.addView(appInner)
+
         content.addView(appCard)
 
         content.addView(M3Ui.text(this, "本项目是基于 WooBox For RedMagicOS 开发的非官方独立演进版",

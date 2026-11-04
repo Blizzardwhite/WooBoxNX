@@ -1,47 +1,54 @@
 <div align="center">
    <img width="160" src="./img/ic_launcher.png" alt="logo">
-   <h1>WooBox For RedmagicOS</h1>
+   <h1>WooBox NX</h1>
    <p>
        <b>English | <a href="../README.md">Simplified Chinese</a></b>
    </p>
-   <a href="https://github.com/u9521/WooBoxForRedmagicOS/stargazers"><img alt="GitHub stars" src="https://img.shields.io/github/stars/u9521/WooBoxForRedmagicOS"></a>
-   <a href="https://github.com/u9521/WooBoxForRedmagicOS/issues"><img alt="GitHub issues" src="https://img.shields.io/github/issues/u9521/WooBoxForRedmagicOS"></a>
-   <a href="../LICENSE"><img alt="GitHub license" src="https://img.shields.io/github/license/u9521/WooBoxForRedmagicOS"></a>
-   <p>An Xposed module for system extension adapted for RedmagicOS 9 (Android 14)</p>
+   <p>System tweak toolbox for Nubia, adapted to MyOS14 (Android 14)</p>
 </div>
 
 ---
 
 ### Module Description
 
-Only supports RedmagicOS 9 (Android 14). Other versions are incompatible.
+- Only supports **MyOS14 / RedMagicOS 9 (Android 14)**
+- Package: `com.bw.wooboxnx`
+- Module name: WooBox NX
+- Version: 1.1.0
 
-Developer: [@u9521](https://github.com/u9521)
+This repository is a community fork of [WooBox For RedmagicOS](https://github.com/u9521/WooBoxForRedmagicOS).
+The package name differs from upstream, so settings and backups are **not interchangeable**.
+Uninstall the upstream module before installing this one.
 
-Original Developer: [CoolApk@乌堆小透明](http://www.coolapk.com/u/883441)
+Differences from upstream: rebuilt MD3 settings UI (single-page categories, search, pending-changes dialog),
+under-display area with moon / icon / silhouette / pure black plus battery, fingerprint ring,
+custom app list, and the legacy settings UI has been removed.
+
+Upstream developer: [@u9521](https://github.com/u9521)
+Original developer: [CoolApk@乌堆小透明](http://www.coolapk.com/u/883441)
 
 ---
 
-### Screenshots ~~(Legacy screenshots, to be updated later)~~
+### Usage
 
-![Screenshots](./img/en.jpg)
+1. Install the APK, then enable "WooBox NX" in the LSPosed manager and select all scopes (11)
+2. A reboot is required after the first enable or a module update, so the system framework scope takes effect
+3. After changing settings, tap "应用修改" (Apply) at the top right and follow the prompt
+4. The status chip shows green "运行中" when all resident scopes are injected
 
 ---
 
 ### Download Links
 
-Repository Release (currently the only distribution channel): [releases](https://github.com/u9521/WooBoxForRedmagicOS/releases)
+No dedicated release channel for this fork yet. Upstream releases:
 
-~~Xposed Repository Download: [Click here for latest release](https://github.com/Xposed-Modules-Repo/wooboxforredmagicos/releases)~~
-
-~~CoolApk Download: [Click here for latest release](https://www.coolapk.com/apk/wooboxforredmagicos)~~
+[Upstream Releases](https://github.com/u9521/WooBoxForRedmagicOS/releases)
 
 ---
 
-### Third-Party Open Source References
+### Third-party open source
 
 ##### GNU General Public License v3.0
-
 [qqlittleice/MiuiHome](https://github.com/qqlittleice/MiuiHome)
 
 [yujincheng08/BiliRoaming](https://github.com/yujincheng08/BiliRoaming)
@@ -50,17 +57,9 @@ Repository Release (currently the only distribution channel): [releases](https:/
 
 [LSPosed/DisableFlagSecure](https://github.com/LSPosed/DisableFlagSecure)
 
-##### GNU General Public License v2.0
-
-~~[LSPosed/CorePatch](https://github.com/LSPosed/CorePatch)~~(No longer integrated, click link to download if needed)
-
 ##### GNU Lesser General Public License v3.0
 
 [LuckyPray/DexKit](https://github.com/LuckyPray/DexKit)
-
-##### GNU Lesser General Public License v2.1
-
-[577fkj/blockmiui](https://github.com/577fkj/blockmiui)
 
 ---
 
