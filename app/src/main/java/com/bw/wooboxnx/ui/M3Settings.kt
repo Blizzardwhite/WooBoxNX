@@ -1971,8 +1971,7 @@ class AboutActivity : AppCompatActivity() {
 
         content.addView(appCard)
 
-        content.addView(M3Ui.text(this, "本项目是基于 WooBox For RedMagicOS 开发的非官方独立演进版",
-            12f, M3Color.ON_SURFACE_VAR).apply {
+        content.addView(M3Ui.text(this, "本分支（WooBox NX）为社区二次开发版本，功能与上游同源。", 12f, M3Color.ON_SURFACE_VAR).apply {
             setPadding(M3Ui.dp(this@AboutActivity, 6), M3Ui.dp(this@AboutActivity, 10),
                 M3Ui.dp(this@AboutActivity, 6), 0)
         })
@@ -1999,11 +1998,6 @@ class AboutActivity : AppCompatActivity() {
             "coolmarket://u/1636422", "https://www.coolapk.com/u/1636422", "Owo"))
         devCard.addView(devInner)
         content.addView(devCard)
-
-        content.addView(M3Ui.text(this, "本分支（WooBox NX）为社区二次开发版本，功能与上游同源。", 12f, M3Color.ON_SURFACE_VAR).apply {
-            setPadding(M3Ui.dp(this@AboutActivity, 4), M3Ui.dp(this@AboutActivity, 10),
-                M3Ui.dp(this@AboutActivity, 4), 0)
-        })
 
         content.addView(M3Ui.text(this, "致谢", 13f, M3Color.ON_SURFACE_VAR, true).apply {
             setPadding(M3Ui.dp(this@AboutActivity, 4), M3Ui.dp(this@AboutActivity, 20),
@@ -2038,6 +2032,12 @@ class AboutActivity : AppCompatActivity() {
         content.addView(upstreamCard, LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
         ))
+
+        content.addView(M3Ui.text(this, "本项目是基于 WooBox For RedMagicOS 开发的非官方独立演进版",
+            12f, M3Color.ON_SURFACE_VAR).apply {
+            setPadding(M3Ui.dp(this@AboutActivity, 6), M3Ui.dp(this@AboutActivity, 10),
+                M3Ui.dp(this@AboutActivity, 6), 0)
+        })
 
         val linkCard = M3Ui.card(this).apply {
             setContentPadding(M3Ui.dp(this@AboutActivity, 16), M3Ui.dp(this@AboutActivity, 16),
