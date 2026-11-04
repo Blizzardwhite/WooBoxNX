@@ -430,47 +430,80 @@ class M3ScrollView(context: Context) : ScrollView(context) {
         return super.onInterceptTouchEvent(ev)
     }
 
-    override fun onTouchEvent(ev: MotionEvent): Boolean {
-        if (ev.actionMasked == MotionEvent.ACTION_DOWN) beginTouch(ev.y)
-        if ((ev.actionMasked == MotionEvent.ACTION_UP || ev.actionMasked == MotionEvent.ACTION_CANCEL) &&
-            dragOver != 0f
-        ) {
-            blockFling = true
-        }
-        val handled = super.onTouchEvent(ev)
-        val child = getChildAt(0) ?: return handled
+    private var overMode = false
 
-        when (ev.actionMasked) {
-            MotionEvent.ACTION_MOVE -> {
-                val dy = ev.y - lastTouchY
-                val atTop = scrollY <= 0
-                val atBottom = scrollY >= maxScroll
-                if (atTop) {
-                    dragOver = (dragOver + dy * 0.30f).coerceIn(0f, maxDrag)
-                    child.translationY = dragOver
-                } else if (atBottom) {
-                    dragOver = (dragOver + dy * 0.30f).coerceIn(-maxDrag, 0f)
-                    child.translationY = dragOver
-                } else if (dragOver != 0f) {
-                    dragOver = 0f
-                    child.translationY = 0f
-                }
-            }
-            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                if (dragOver != 0f) {
-                    bounce = dragOver
-                    bounceVel = 0f
-                    dragOver = 0f
-                    flingRunning = true
-                    lastTime = 0L
-                    postOnAnimation(runner)
-                }
-            }
-        }
-        lastTouchY = ev.y
-        return handled
+    private fun resyncGesture(ev: MotionEvent) {
+        val cancel = MotionEvent.obtain(ev)
+        cancel.action = MotionEvent.ACTION_CANCEL
+        super.onTouchEvent(cancel)
+        cancel.recycle()
+        val down = MotionEvent.obtain(ev)
+        down.action = MotionEvent.ACTION_DOWN
+        super.onTouchEvent(down)
+        down.recycle()
     }
 
+    private fun startBounce(from: Float) {
+        bounce = from
+        bounceVel = 0f
+        dragOver = 0f
+        flingRunning = true
+        lastTime = 0L
+        postOnAnimation(runner)
+    }
+
+    override fun onTouchEvent(ev: MotionEvent): Boolean {
+        val child = getChildAt(0) ?: return super.onTouchEvent(ev)
+        when (ev.actionMasked) {
+            MotionEvent.ACTION_DOWN -> {
+                beginTouch(ev.y)
+                overMode = false
+                lastTouchY = ev.y
+                return super.onTouchEvent(ev)
+            }
+            MotionEvent.ACTION_MOVE -> {
+                val dy = ev.y - lastTouchY
+                if (!overMode) {
+                    val pullDownAtTop = scrollY <= 0 && dy > 0
+                    val pullUpAtBottom = scrollY >= maxScroll && dy < 0
+                    if (pullDownAtTop || pullUpAtBottom) overMode = true
+                }
+                if (overMode) {
+                    // 越界拖拽期间完全由我们接管，内容跟手偏移
+                    dragOver = (dragOver + dy * 0.30f).coerceIn(-maxDrag, maxDrag)
+                    if (scrollY <= 0 && dragOver < 0f) dragOver = 0f
+                    if (scrollY >= maxScroll && dragOver > 0f) dragOver = 0f
+                    child.translationY = dragOver
+                    lastTouchY = ev.y
+                    if (dragOver == 0f) {
+                        // 拖回边界，交还给 ScrollView 继续正常滚动
+                        overMode = false
+                        resyncGesture(ev)
+                    }
+                    return true
+                }
+                lastTouchY = ev.y
+                return super.onTouchEvent(ev)
+            }
+            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                if (dragOver != 0f) startBounce(dragOver)
+                lastTouchY = ev.y
+                if (overMode) {
+                    overMode = false
+                    val cancel = MotionEvent.obtain(ev)
+                    cancel.action = MotionEvent.ACTION_CANCEL
+                    super.onTouchEvent(cancel)
+                    cancel.recycle()
+                    return true
+                }
+                return super.onTouchEvent(ev)
+            }
+            else -> {
+                lastTouchY = ev.y
+                return super.onTouchEvent(ev)
+            }
+        }
+    }
     override fun fling(velocityY: Int) {
         if (blockFling) {
             blockFling = false
