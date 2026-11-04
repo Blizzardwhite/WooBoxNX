@@ -819,7 +819,15 @@ object M3Actions {
         a.duration = 900
         a.start()
     }
-    fun pill(activity: Activity, label: String, chipStyle: Boolean = false, endMarginDp: Int = 0, onClick: () -> Unit): TextView {
+    fun pill(
+        activity: Activity,
+        label: String,
+        chipStyle: Boolean = false,
+        endMarginDp: Int = 0,
+        strokeColor: Int = M3Color.OUTLINE_VAR,
+        strokeWidthDp: Int = 1,
+        onClick: () -> Unit
+    ): TextView {
         val tv = M3Ui.text(activity, label, if (chipStyle) 13f else 12f, M3Color.ON_SURFACE_VAR)
         if (chipStyle) {
             tv.setPadding(M3Ui.dp(activity, 14), M3Ui.dp(activity, 7), M3Ui.dp(activity, 14), M3Ui.dp(activity, 7))
@@ -829,7 +837,7 @@ object M3Actions {
         val d = GradientDrawable()
         d.cornerRadius = M3Ui.dp(activity, if (chipStyle) 16 else 14).toFloat()
         d.setColor(Color.TRANSPARENT)
-        d.setStroke(M3Ui.dp(activity, 1), M3Color.OUTLINE_VAR)
+        d.setStroke(M3Ui.dp(activity, strokeWidthDp), strokeColor)
         tv.background = d
         tv.isClickable = true
         tv.setOnClickListener { onClick() }
@@ -1060,7 +1068,7 @@ class SettingsHomeActivity : AppCompatActivity() {
         chips.addView(statusChip)
         chips.addView(chip("作用域 $scopeCount 个", M3Color.ON_SURFACE_VAR, Color.TRANSPARENT))
         chips.addView(View(this), LinearLayout.LayoutParams(0, 1, 1f))
-        val homePill = M3Actions.pill(this, "应用修改", true) {
+        val homePill = M3Actions.pill(this, "应用修改", true, 0, M3Color.PRIMARY, 2) {
             M3Actions.applyChanges(this) { refreshDirty() }
         }
         scopePill = homePill
@@ -1404,7 +1412,7 @@ class CategoryActivity : AppCompatActivity() {
         })
         bar.addView(M3Ui.text(this, cat.title, 22f, M3Color.ON_SURFACE, true))
         bar.addView(View(this), LinearLayout.LayoutParams(0, 1, 1f))
-        scopePill = M3Actions.pill(this, "应用修改", endMarginDp = 8) {
+        scopePill = M3Actions.pill(this, "应用修改", endMarginDp = 8, strokeColor = M3Color.PRIMARY, strokeWidthDp = 2) {
             M3Actions.applyChanges(this) { refreshDirty() }
         }
         bar.addView(scopePill)
@@ -1539,7 +1547,7 @@ class CameraSettingsActivity : AppCompatActivity() {
         })
         bar.addView(M3Ui.text(this, "屏下显示区域", 22f, M3Color.ON_SURFACE, true))
         bar.addView(View(this), LinearLayout.LayoutParams(0, 1, 1f))
-        scopePill = M3Actions.pill(this, "应用修改", endMarginDp = 8) {
+        scopePill = M3Actions.pill(this, "应用修改", endMarginDp = 8, strokeColor = M3Color.PRIMARY, strokeWidthDp = 2) {
             M3Actions.applyChanges(this) { refreshDirty() }
         }
         bar.addView(scopePill)
