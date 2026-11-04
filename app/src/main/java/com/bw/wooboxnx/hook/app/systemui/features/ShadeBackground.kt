@@ -38,33 +38,30 @@ object ShadeBackground : HookRegister() {
                     val cls = getDefaultCL().loadClass(name)
                     XposedBridge.hookAllConstructors(cls, object : XC_MethodHook() {
                         override fun afterHookedMethod(param: MethodHookParam) {
-                            runCatching { attach(param.thisObject as? ViewGroup ?: return) }
+                            val root = param.thisObject as? ViewGroup ?: return
+                            if (containerId == 0) {
+                                containerId = runCatching {
+                                    root.resources.getIdentifier(
+                                        "notification_container_parent", "id", "com.android.systemui"
+                                    )
+                                }.getOrDefault(0)
+                            }
+                            // 不论是否使用自定义背景，都去掉这层黑色渐变，
+                            // 让「跟随系统」模式和自定义背景的表现一致
+                            root.postDelayed({
+                                runCatching {
+                                    if (containerId != 0) {
+                                        root.findViewById<View>(containerId)?.background = null
+                                    }
+                                }
+                            }, 1200)
+                            runCatching { attach(root) }
                         }
                     })
                 }.onFailure {
                     Log.px("W", "ShadeBackground skip $name", it, logInRelease = true)
                 }
             }
-            // 通知页有几层全屏 ScrimView（其中一层是从上往下的渐变），
-            // 它们让两页底色不一致，这里让通知窗口里的 ScrimView 不绘制。
-            runCatching {
-                val scrim = getDefaultCL().loadClass("com.android.systemui.scrim.ScrimView")
-                val onDraw = scrim.getDeclaredMethod("onDraw", android.graphics.Canvas::class.java)
-                XposedBridge.hookMethod(onDraw, object : XC_MethodHook() {
-                    override fun beforeHookedMethod(param: MethodHookParam) {
-                        runCatching {
-                            val v = param.thisObject as? View ?: return
-                            val root = v.rootView?.javaClass?.simpleName.orEmpty()
-                            if (root.contains("NotificationShade")) {
-                                param.result = null
-                            }
-                        }
-                    }
-                })
-            }.onFailure {
-                Log.px("W", "ScrimView onDraw hook skipped", it, logInRelease = true)
-            }
-
             // 状态栏窗口自己有一层不透明底（status_bar_container 的 BarBackgroundDrawable），
             // 下拉时会在顶部留一条黑边，和我们的统一背景不一致，这里把它去掉。
             runCatching {
@@ -116,19 +113,6 @@ object ShadeBackground : HookRegister() {
             scaleType = ImageView.ScaleType.CENTER_CROP
         }
         runCatching { root.addView(iv, 0, ViewGroup.LayoutParams(-1, -1)) }
-
-        // 通知/QS 容器自带的黑色渐变背景（#FF000000 → #59*），
-        // 它就是切换时看到的那层"上黑下浅"，用统一背景时去掉它。
-        root.postDelayed({
-            runCatching {
-                if (containerId == 0) {
-                    containerId = root.resources.getIdentifier(
-                        "notification_container_parent", "id", "com.android.systemui"
-                    )
-                }
-                if (containerId != 0) root.findViewById<View>(containerId)?.background = null
-            }
-        }, 1200)
 
         if (mode == 1) {
             iv.setBackgroundColor(0xFF1C1C20.toInt())
