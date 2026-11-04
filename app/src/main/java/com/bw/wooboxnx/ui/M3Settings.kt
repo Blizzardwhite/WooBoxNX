@@ -455,8 +455,7 @@ object SettingsModel {
             Row(key = "disable_flag_secure_enhanced", title = "允许截图增强模式", summary = "阻止应用通过隐藏 API 禁止截屏")
         )),
         Group("其他系统行为", listOf(
-            Row(key = "force_starting_window", title = "强制显示启动预览窗口",
-                summary = "给关闭了启动预览的应用补一个启动画面，点击应用后不再黑着等（重启手机生效）"),
+
             Row(key = "allow_untrusted_touches", title = "允许不受信任的触摸", summary = "允许高可见度 View 点击穿透，慎用"),
             Row(key = "block_telemetry_service", title = "阻止启动遥测服务"),
             Row(key = "remove_intent_hijack", title = "去除意图劫持", summary = "还原原生分享界面，双开用户不建议开启")
@@ -491,7 +490,9 @@ object SettingsModel {
         Group("启动器", listOf(
             Row(key = "launcher_rm_zvoice_uninstall_dialog", title = "取消智慧语音已卸载弹窗"),
             Row(key = "launcher_force_support_resize_activity", title = "所有 Activity 允许调整大小"),
-            Row(key = "launcher_force_show_blacklist_apps", title = "取消隐藏黑名单应用", summary = "例如原生文件、DTS 音效")
+            Row(key = "launcher_force_show_blacklist_apps", title = "取消隐藏黑名单应用", summary = "例如原生文件、DTS 音效"),
+            Row(key = "launcher_launch_effect", title = "点击图标播放放大动画",
+                summary = "点击应用时先放大淡出，掩盖冷启动的空窗（重启作用域后生效）")
         )),
         Group("应用安装器", listOf(
             Row(key = "skip_apk_scan", title = "跳过 APK 扫描"),
@@ -569,7 +570,6 @@ object SettingsModel {
         "airplane_mode_keep_bt", "airplane_mode_keep_wlan",
         "disable_flag_secure", "disable_flag_secure_enhanced",
         "allow_untrusted_touches", "block_telemetry_service", "remove_intent_hijack",
-        "force_starting_window",
         "telecom_wlan_cc_val", "custom_wlan_countrycode",
         "pin_sta_mac", "pin_sta_mac_sw", "pin_ap_bssid", "pin_ap_bssid_sw",
         "long_power_key_wakeup_assist",

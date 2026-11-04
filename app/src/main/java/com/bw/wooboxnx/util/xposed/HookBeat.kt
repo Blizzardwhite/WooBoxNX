@@ -78,12 +78,19 @@ object HookBeat {
     /** 调试用：把一行日志写到模块 files/hook_debug.log，方便在真机上排查 hook */
     fun debug(line: String) {
         Thread({
-            val ctx = context() ?: return@Thread
-            runCatching {
-                ctx.contentResolver.insert(
-                    Uri.parse("content://com.bw.wooboxnx.moon/log"),
-                    ContentValues().apply { put("v", line) }
-                )
+            // 进程刚起来时可能还拿不到 Context，重试几次
+            repeat(8) { i ->
+                val ctx = context()
+                if (ctx != null) {
+                    val ok = runCatching {
+                        ctx.contentResolver.insert(
+                            Uri.parse("content://com.bw.wooboxnx.moon/log"),
+                            ContentValues().apply { put("v", line) }
+                        ) != null
+                    }.getOrDefault(false)
+                    if (ok) return@Thread
+                }
+                runCatching { Thread.sleep(if (i < 4) 1000L else 3000L) }
             }
         }, "woobox-log").apply { isDaemon = true }.start()
     }
