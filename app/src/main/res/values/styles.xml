@@ -43,6 +43,14 @@
         <item name="android:navigationBarColor">@color/m3_surface</item>
         <item name="android:windowLightStatusBar">false</item>
         <item name="android:forceDarkAllowed">false</item>
+        <!-- 开关关闭态：改用更深的轨道/滑块，避免看起来像禁用 -->
+        <item name="materialSwitchStyle">@style/Widget.WooBox.Switch</item>
+    </style>
+
+    <style name="Widget.WooBox.Switch" parent="Widget.Material3.CompoundButton.MaterialSwitch">
+        <item name="thumbTint">@color/switch_thumb_tint</item>
+        <item name="trackTint">@color/switch_track_tint</item>
+        <item name="trackDecorationTint">@color/switch_track_decoration_tint</item>
     </style>
 
 </resources>
