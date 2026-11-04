@@ -410,6 +410,8 @@ object SettingsModel {
 
     private val qs = Category("qs", "快速设置面板", "行列自定义、运营商、搜索按钮", 3, listOf(
         Group(null, listOf(
+            Row(key = "shade_blur_off", title = "去掉面板模糊",
+                summary = "排查用：强制关闭通知中心与快速设置的背景模糊（重启系统界面生效）"),
             Row(key = "qs_header_shortcut_redirect_calendar", title = "点击日期跳转第三方日历"),
             Row(key = "qs_header_shortcut_redirect_search", title = "点击搜索打开浏览器"),
             Row(key = "qs_show_carrier", title = "快速设置显示运营商"),
