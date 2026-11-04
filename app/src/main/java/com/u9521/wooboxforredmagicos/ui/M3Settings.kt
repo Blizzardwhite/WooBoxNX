@@ -1122,11 +1122,24 @@ class SettingsHomeActivity : AppCompatActivity() {
         ).apply { topMargin = M3Ui.dp(this@SettingsHomeActivity, 12) })
         val frame = android.widget.FrameLayout(this).apply { setBackgroundColor(M3Color.SURFACE) }
         frame.addView(logoBg, android.widget.FrameLayout.LayoutParams(
-            M3Ui.dp(this, 290), M3Ui.dp(this, 290), Gravity.TOP or Gravity.END
+            M3Ui.dp(this, 235), M3Ui.dp(this, 235), Gravity.TOP or Gravity.END
         ).apply {
             topMargin = M3Ui.dp(this@SettingsHomeActivity, -40)
             rightMargin = M3Ui.dp(this@SettingsHomeActivity, -52)
         })
+        // 顶部渐隐：让箱子从状态栏下方淡入
+        val topFade = View(this).apply {
+            background = GradientDrawable(
+                GradientDrawable.Orientation.TOP_BOTTOM,
+                intArrayOf(M3Color.SURFACE, Color.TRANSPARENT)
+            )
+        }
+        frame.addView(topFade, android.widget.FrameLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, M3Ui.dp(this, 90), Gravity.TOP
+        ))
+
+        // 底部渐隐：很短的一段，让箱子和下面内容衔接
+        val boxFadeHeight = M3Ui.dp(this, 56)
         val boxFade = View(this).apply {
             background = GradientDrawable(
                 GradientDrawable.Orientation.TOP_BOTTOM,
@@ -1134,11 +1147,11 @@ class SettingsHomeActivity : AppCompatActivity() {
             )
         }
         frame.addView(boxFade, android.widget.FrameLayout.LayoutParams(
-            ViewGroup.LayoutParams.MATCH_PARENT, M3Ui.dp(this, 140), Gravity.TOP
+            ViewGroup.LayoutParams.MATCH_PARENT, boxFadeHeight, Gravity.TOP
         ))
         topBar.post {
             (boxFade.layoutParams as android.widget.FrameLayout.LayoutParams).apply {
-                topMargin = (topBar.bottom - M3Ui.dp(this@SettingsHomeActivity, 140)).coerceAtLeast(0)
+                topMargin = (topBar.bottom - boxFadeHeight).coerceAtLeast(0)
             }
             boxFade.requestLayout()
         }
