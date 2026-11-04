@@ -10,6 +10,7 @@ import com.bw.wooboxnx.util.xposed.Log
 import com.bw.wooboxnx.util.xposed.base.HookRegister
 import de.robv.android.xposed.XC_MethodHook
 import de.robv.android.xposed.XposedBridge
+import de.robv.android.xposed.XposedHelpers
 
 /**
  * 点击图标时先播一个"放大淡出"动画。
@@ -24,25 +25,39 @@ object LauncherLaunchEffect : HookRegister() {
 
     override fun init() = hasEnable("launcher_launch_effect") {
         runCatching {
-            val launcher = getDefaultCL().loadClass("com.android.launcher3.Launcher")
-            val onClick = launcher.getDeclaredMethod("onClick", View::class.java)
-            XposedBridge.hookMethod(onClick, object : XC_MethodHook() {
-                override fun beforeHookedMethod(param: MethodHookParam) {
-                    runCatching {
-                        val v = param.args.getOrNull(0) as? View ?: return
-                        play(v)
+            // 这个 ROM 桌面图标是普通 TextView（不是 BubbleTextView），
+            // 直接挂 View.performClick，点击时拿到被点的图标视图。
+            XposedHelpers.findAndHookMethod(
+                android.view.View::class.java,
+                "performClick",
+                object : XC_MethodHook() {
+                    override fun afterHookedMethod(param: MethodHookParam) {
+                        runCatching {
+                            val v = param.thisObject as? View ?: return
+                            if (v !is TextView) return
+                            com.bw.wooboxnx.util.xposed.HookBeat.debug(
+                                "fx: click " + v.javaClass.simpleName + " tag=" + v.tag?.javaClass?.name
+                            )
+                            play(v)
+                        }
                     }
                 }
-            })
+            )
             Log.px("I", "LauncherLaunchEffect hooked", logInRelease = true)
         }.onFailure {
             Log.px("E", "LauncherLaunchEffect init failed", it, logInRelease = true)
         }
     }
+    private var lastPlay = 0L
+
     private fun play(v: View) {
+        val now = android.os.SystemClock.elapsedRealtime()
+        if (now - lastPlay < 400L) return
+        lastPlay = now
+        com.bw.wooboxnx.util.xposed.HookBeat.debug("fx: touch tag=" + v.tag?.javaClass?.name)
         // 只对应用图标生效：文件夹、小部件、空白区域都跳过
         val tagName = v.tag?.javaClass?.name.orEmpty()
-        if (!tagName.contains("ShortcutInfo") && !tagName.contains("AppInfo")) return
+        if (tagName.isEmpty()) return
 
         val drawable = when (v) {
             is TextView -> v.compoundDrawables.getOrNull(1) // 图标在上
