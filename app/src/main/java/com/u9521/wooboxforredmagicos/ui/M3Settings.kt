@@ -1125,7 +1125,7 @@ class SettingsHomeActivity : AppCompatActivity() {
             M3Ui.dp(this, 168), M3Ui.dp(this, 168), Gravity.TOP or Gravity.END
         ).apply {
             topMargin = M3Ui.dp(this@SettingsHomeActivity, 16)
-            rightMargin = M3Ui.dp(this@SettingsHomeActivity, 34)
+            rightMargin = M3Ui.dp(this@SettingsHomeActivity, 14)
         })
         // 顶部渐隐：让箱子从状态栏下方淡入
         val topFade = View(this).apply {
