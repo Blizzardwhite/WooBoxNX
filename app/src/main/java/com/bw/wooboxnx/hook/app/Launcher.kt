@@ -1,7 +1,6 @@
 package com.bw.wooboxnx.hook.app
 
 import com.bw.wooboxnx.hook.app.launcher.ForceSupportResizeActivity
-import com.bw.wooboxnx.hook.app.launcher.LauncherLaunchEffect
 import com.bw.wooboxnx.hook.app.launcher.RMzvoiceUninstalDialog
 import com.bw.wooboxnx.hook.app.launcher.UnhideBlackListApps
 import com.bw.wooboxnx.util.xposed.base.AppRegister
@@ -20,7 +19,6 @@ object Launcher : AppRegister() {
             RMzvoiceUninstalDialog,//移除智慧语音已卸载弹窗
             ForceSupportResizeActivity,//强制活动可调大小，在最近任务显示小窗
             UnhideBlackListApps,//取消隐藏原生的文件，DTS音效等APP
-            LauncherLaunchEffect,//点击图标时先播放大淡出动画
         )
     }
 }

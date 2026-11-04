@@ -491,9 +491,7 @@ object SettingsModel {
         Group("启动器", listOf(
             Row(key = "launcher_rm_zvoice_uninstall_dialog", title = "取消智慧语音已卸载弹窗"),
             Row(key = "launcher_force_support_resize_activity", title = "所有 Activity 允许调整大小"),
-            Row(key = "launcher_force_show_blacklist_apps", title = "取消隐藏黑名单应用", summary = "例如原生文件、DTS 音效"),
-            Row(key = "launcher_launch_effect", title = "点击图标播放放大动画",
-                summary = "点击应用时先放大淡出，掩盖冷启动的空窗（重启作用域后生效）")
+            Row(key = "launcher_force_show_blacklist_apps", title = "取消隐藏黑名单应用", summary = "例如原生文件、DTS 音效")
         )),
         Group("应用安装器", listOf(
             Row(key = "skip_apk_scan", title = "跳过 APK 扫描"),
