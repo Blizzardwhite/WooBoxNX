@@ -6,6 +6,7 @@ import com.bw.wooboxnx.hook.app.systemui.features.FingerprintRing
 import com.bw.wooboxnx.hook.app.systemui.features.GestureStartDefaultDigitalAssist
 import com.bw.wooboxnx.hook.app.systemui.features.MoonNotch
 import com.bw.wooboxnx.hook.app.systemui.features.NoVibrateVolKeyLongPress
+import com.bw.wooboxnx.hook.app.systemui.features.ShadeBackground
 import com.bw.wooboxnx.hook.app.systemui.features.ShadeZoomFix
 import com.bw.wooboxnx.hook.app.systemui.features.UnHideClipBoardOverlay
 import com.bw.wooboxnx.hook.app.systemui.lockscreen.AllowAdjustVolume
@@ -26,6 +27,7 @@ object SystemUI : AppRegister() {
             lpparam,
             //快速设置
             QSCustom, //快速设置自定义
+            ShadeBackground, //面板统一背景
             ShadeZoomFix, //修复切换时壁纸缩放跳变
             QSClockShowSecond, //下拉状态栏时钟显秒
             QSHeaderShortcut,//重定向日期打开日历
