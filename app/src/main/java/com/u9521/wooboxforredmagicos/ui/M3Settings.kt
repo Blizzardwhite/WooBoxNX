@@ -984,7 +984,7 @@ class SettingsHomeActivity : AppCompatActivity() {
         // 顶栏固定不滚动
         val topBar = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(M3Ui.dp(this@SettingsHomeActivity, 20), M3Ui.dp(this@SettingsHomeActivity, 24),
+            setPadding(M3Ui.dp(this@SettingsHomeActivity, 20), M3Ui.dp(this@SettingsHomeActivity, 12),
                 M3Ui.dp(this@SettingsHomeActivity, 20), 0)
         }
         val logoBg = ImageView(this).apply {
@@ -1125,7 +1125,7 @@ class SettingsHomeActivity : AppCompatActivity() {
             M3Ui.dp(this, 168), M3Ui.dp(this, 168), Gravity.TOP or Gravity.END
         ).apply {
             topMargin = M3Ui.dp(this@SettingsHomeActivity, 16)
-            rightMargin = M3Ui.dp(this@SettingsHomeActivity, 4)
+            rightMargin = M3Ui.dp(this@SettingsHomeActivity, 34)
         })
         // 顶部渐隐：让箱子从状态栏下方淡入
         val topFade = View(this).apply {
