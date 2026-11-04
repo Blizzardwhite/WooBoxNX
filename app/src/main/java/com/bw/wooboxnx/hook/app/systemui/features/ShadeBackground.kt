@@ -57,12 +57,44 @@ object ShadeBackground : HookRegister() {
             XposedBridge.hookAllMethods(View::class.java, "setBackground", object : XC_MethodHook() {
                 override fun beforeHookedMethod(param: MethodHookParam) {
                     runCatching {
-                        if (containerId == 0) return
                         val v = param.thisObject as? View ?: return
-                        if (v.id == containerId) param.args[0] = null
+                        if (containerId != 0 && v.id == containerId) {
+                            param.args[0] = null
+                            return
+                        }
+                        // 顶部渐变（不透明黑 → 透明）也去掉，这类渐变是切换闪烁的来源之一
+                        val d = param.args.getOrNull(0) as? android.graphics.drawable.GradientDrawable ?: return
+                        val colors = d.colors ?: return
+                        if (colors.size >= 2) {
+                            val topA = colors[0] ushr 24
+                            val bottomA = colors[colors.size - 1] ushr 24
+                            if (topA >= 0xC0 && bottomA <= 0x40) {
+                                param.args[0] = null
+                            }
+                        }
                     }
                 }
             })
+
+            // 状态栏窗口自带一条不透明底/渐变，下拉时会在顶部压出黑边
+            runCatching {
+                val clazz = getDefaultCL().loadClass(
+                    "com.android.systemui.statusbar.window.StatusBarWindowView"
+                )
+                XposedBridge.hookAllConstructors(clazz, object : XC_MethodHook() {
+                    override fun afterHookedMethod(param: MethodHookParam) {
+                        val root = param.thisObject as? ViewGroup ?: return
+                        root.postDelayed({
+                            runCatching {
+                                val id = root.resources.getIdentifier(
+                                    "status_bar_container", "id", "com.android.systemui"
+                                )
+                                if (id != 0) root.findViewById<View>(id)?.background = null
+                            }
+                        }, 1200)
+                    }
+                })
+            }.onFailure { Log.px("W", "statusbar bg skip", it, logInRelease = true) }
 
             Log.px("I", "ShadeBackground hooked", logInRelease = true)
         }.onFailure {
@@ -85,25 +117,6 @@ object ShadeBackground : HookRegister() {
         }
         runCatching { root.addView(iv, 0, ViewGroup.LayoutParams(-1, -1)) }
 
-        root.postDelayed({
-            runCatching {
-                val sb = StringBuilder("cc " + root.javaClass.simpleName + "\n")
-                fun walk(v: View) {
-                    if (v.background != null) {
-                        val bg = v.background!!
-                        val color = (bg as? android.graphics.drawable.ColorDrawable)?.color
-                        sb.append(v.javaClass.simpleName)
-                            .append(" bg=").append(bg.javaClass.simpleName)
-                            .append(if (color != null) " color=#" + Integer.toHexString(color) else "")
-                            .append(" ").append(v.width).append("x").append(v.height).append(" y=").append(v.top)
-                            .append('\n')
-                    }
-                    if (v is ViewGroup) for (i in 0 until v.childCount) walk(v.getChildAt(i))
-                }
-                walk(root)
-                android.util.Log.i("WooBoxDiag", sb.toString().trimEnd())
-            }
-        }, 2500)
         if (mode == 1) {
             iv.setBackgroundColor(0xFF1C1C20.toInt())
             return
