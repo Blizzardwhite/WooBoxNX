@@ -554,7 +554,8 @@ object SettingsModel {
         )),
         Group("备份与恢复", listOf(
             Row(title = "备份设置", summary = "把当前配置导出为 JSON 文件", kind = Row.ACTION, action = "backup"),
-            Row(title = "恢复配置", summary = "从备份文件恢复，会覆盖当前设置", kind = Row.ACTION, action = "restore")
+            Row(title = "恢复配置", summary = "从备份文件恢复，会覆盖当前设置", kind = Row.ACTION, action = "restore"),
+            Row(title = "恢复默认设置", summary = "清除全部设置和屏下名单，不可撤销", kind = Row.ACTION, action = "reset_all")
         ))
     ))
 
@@ -1067,6 +1068,29 @@ class M3Backup(private val activity: AppCompatActivity) {
         const val VERSION_CODE = 1
     }
 }
+/** 恢复默认设置：prefs 可能被 LSPosed 重定向到 /data/misc，clear 的同时要删模块文件 */
+object M3Reset {
+    private val FILES = listOf("moon_apps.txt", "moon_style.txt", "prefs_baseline.txt", "baseline_boot.txt")
+
+    fun confirm(a: AppCompatActivity) {
+        MaterialAlertDialogBuilder(a)
+            .setTitle("恢复默认设置")
+            .setMessage("把模块的全部设置恢复为默认值，并清除屏下应用名单和样式。\n\n此操作不可撤销。")
+            .setPositiveButton("恢复") { _, _ -> reset(a) }
+            .setNegativeButton("取消", null)
+            .show()
+    }
+
+    fun reset(a: AppCompatActivity) {
+        runCatching { M3Prefs.sp(a).edit().clear().commit() }
+        FILES.forEach { runCatching { java.io.File(a.filesDir, it).delete() } }
+        runCatching {
+            android.provider.Settings.System.putString(a.contentResolver, "woobox_moon_apps", "")
+        }
+        Toast.makeText(a, "已恢复默认设置", Toast.LENGTH_SHORT).show()
+        a.recreate()
+    }
+}
 class SettingsHomeActivity : AppCompatActivity() {
 
     private var scopePill: View? = null
@@ -1080,6 +1104,20 @@ class SettingsHomeActivity : AppCompatActivity() {
     private lateinit var rowBuilder: M3RowBuilder
 
     private val aboutCategory = Category("about", "关于", "版本、开发者、致谢", 6, emptyList())
+
+    /**
+     * 系统「清除数据」只清 /data/user/0，而 LSPosed 把模块 prefs 重定向到了 /data/misc，
+     * 所以判定「files 空了但 prefs 还有值」时主动清一次，让清除数据的行为符合预期。
+     */
+    private fun resetIfDataCleared() {
+        runCatching {
+            val hasFiles = filesDir.listFiles()?.isNotEmpty() == true
+            val prefs = M3Prefs.sp(this)
+            if (!hasFiles && prefs.all.isNotEmpty()) {
+                prefs.edit().clear().commit()
+            }
+        }
+    }
 
     /** 每次回到主页都重新判断模块是否在运行（心跳可能刚更新） */
     private fun refreshStatus() {
@@ -1107,6 +1145,8 @@ class SettingsHomeActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         M3Theme.apply(this)
+        // 「清除数据」不会删掉 LSPosed 重定向到 /data/misc 的 prefs，这里补一次判定的清空
+        resetIfDataCleared()
         backup = M3Backup(this)
         rowBuilder = M3RowBuilder(this, { markDirty() }, { handleAction(it) })
 
@@ -1460,6 +1500,7 @@ class SettingsHomeActivity : AppCompatActivity() {
             action.startsWith("page:") -> startActivity(Intent(this, CategoryActivity::class.java)
                 .putExtra("id", action.removePrefix("page:")))
 
+            action == "reset_all" -> M3Reset.confirm(this)
             action == "backup" -> backup.startBackup()
             action == "restore" -> backup.confirmRestore()
         }
@@ -1663,6 +1704,7 @@ class CategoryActivity : AppCompatActivity() {
             action.startsWith("page:") -> startActivity(Intent(this, CategoryActivity::class.java)
                 .putExtra("id", action.removePrefix("page:")))
 
+            action == "reset_all" -> M3Reset.confirm(this)
             action == "backup" -> backup.startBackup()
             action == "restore" -> backup.confirmRestore()
         }
