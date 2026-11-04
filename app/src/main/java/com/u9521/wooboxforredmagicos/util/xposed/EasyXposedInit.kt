@@ -29,6 +29,7 @@ abstract class EasyXposedInit : IXposedHookLoadPackage, IXposedHookZygoteInit {
                     )
                 }
                 Log.px("I", "Finished hook " + lpparam.packageName, logInRelease = true)
+                runCatching { HookBeat.report(lpparam.packageName) }
             }
         }
     }

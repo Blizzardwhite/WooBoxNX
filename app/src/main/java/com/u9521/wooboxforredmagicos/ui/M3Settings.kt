@@ -101,8 +101,12 @@ object M3Prefs {
  */
 object M3Dirty {
 
-    class State(val restartTitles: List<String>, val rebootTitles: List<String>) {
-        val dirty get() = restartTitles.isNotEmpty() || rebootTitles.isNotEmpty()
+    class Item(val key: String, val title: String, val catId: String?, val reboot: Boolean)
+
+    class State(val items: List<Item>) {
+        val restartTitles get() = items.filter { !it.reboot }.map { it.title }
+        val rebootTitles get() = items.filter { it.reboot }.map { it.title }
+        val dirty get() = items.isNotEmpty()
     }
 
     private const val FILE = "prefs_baseline.txt"
@@ -139,18 +143,27 @@ object M3Dirty {
         ensureBaseline(c)
         val base = readBaseline(c)
         val cur = snapshot(c)
-        val restart = LinkedHashSet<String>()
-        val reboot = LinkedHashSet<String>()
+        val items = ArrayList<Item>()
+        val seen = HashSet<String>()
         val keys = HashSet<String>()
         keys.addAll(base.keys)
         keys.addAll(cur.keys)
         for (k in keys) {
             if (base[k] == cur[k]) continue
             val title = SettingsModel.titleOf(k) ?: k
-            if (SettingsModel.scopeOf(k) == Row.REBOOT) reboot.add(title) else restart.add(title)
+            if (!seen.add(title)) continue
+            items.add(
+                Item(
+                    key = k,
+                    title = title,
+                    catId = SettingsModel.categoryOf(k),
+                    reboot = SettingsModel.scopeOf(k) == Row.REBOOT
+                )
+            )
         }
-        M3Prefs.sp(c).edit().putBoolean("scope_dirty", restart.isNotEmpty() || reboot.isNotEmpty()).apply()
-        return State(restart.toList(), reboot.toList())
+        items.sortBy { if (it.reboot) 0 else 1 }
+        M3Prefs.sp(c).edit().putBoolean("scope_dirty", items.isNotEmpty()).apply()
+        return State(items)
     }
 
     /** 重启作用域之后：非「重启手机」类改动视为已生效 */
@@ -204,6 +217,22 @@ object M3Dirty {
 }
 /** 模块运行状态（靠 SystemUI hook 写的心跳判断） */
 object M3Status {
+    /** 某个作用域本次开机是否写出过心跳 */
+    fun scopeAlive(c: Context, pkg: String): Boolean = runCatching {
+        aliveFile(java.io.File(c.filesDir, "beat_" + pkg.replace('.', '_') + ".txt"))
+    }.getOrDefault(false)
+
+    private fun aliveFile(f: java.io.File): Boolean {
+        if (!f.exists()) return false
+        val parts = f.readText().trim().split("|")
+        if (parts.size != 2) return false
+        val elapsed = parts[0].toLongOrNull() ?: return false
+        val wall = parts[1].toLongOrNull() ?: return false
+        val nowElapsed = android.os.SystemClock.elapsedRealtime()
+        val nowWall = System.currentTimeMillis()
+        if (elapsed <= 0L || elapsed > nowElapsed + 5000L) return false
+        return kotlin.math.abs((wall - elapsed) - (nowWall - nowElapsed)) < 60_000L
+    }
     fun hookAlive(c: Context): Boolean = runCatching {
         val f = java.io.File(c.filesDir, "hook_alive.txt")
         if (!f.exists()) return false
@@ -503,6 +532,17 @@ object SettingsModel {
         }
     }
 
+    /** key -> 所属分类 id */
+    fun categoryOf(key: String): String? {
+        all.forEach { cat ->
+            cat.groups.forEach { g ->
+                g.rows.forEach { r ->
+                    if (r.key == key || r.switchKey == key) return cat.id
+                }
+            }
+        }
+        return null
+    }
     /** key -> 生效方式 */
     fun scopeOf(key: String): Int {
         all.forEach { cat ->
@@ -571,41 +611,75 @@ object M3Actions {
     /** 应用修改：列出待生效项，并给出「重启手机 / 重启作用域」两个入口 */
     fun applyChanges(activity: Activity, onDone: () -> Unit) {
         val state = M3Dirty.check(activity)
-
         val density = activity.resources.displayMetrics.density
         fun dp(v: Int) = (v * density + 0.5f).toInt()
 
-        val msg = StringBuilder()
-        if (state.rebootTitles.isNotEmpty()) {
-            msg.append("需要重启手机（").append(state.rebootTitles.size).append(" 项）\n")
-            state.rebootTitles.take(8).forEach { msg.append("· ").append(it).append('\n') }
-            if (state.rebootTitles.size > 8) {
-                msg.append("· 等 ").append(state.rebootTitles.size).append(" 项\n")
+        var dialogRef: androidx.appcompat.app.AlertDialog? = null
+
+        fun openItem(item: M3Dirty.Item) {
+            val id = item.catId ?: return
+            if (id == "camera") {
+                activity.startActivity(
+                    android.content.Intent(activity, CameraSettingsActivity::class.java)
+                )
+            } else {
+                activity.startActivity(
+                    android.content.Intent(activity, CategoryActivity::class.java)
+                        .putExtra("id", id)
+                        .putExtra("focus", item.key)
+                )
             }
-            msg.append('\n')
         }
-        if (state.restartTitles.isNotEmpty()) {
-            msg.append("需要重启作用域（").append(state.restartTitles.size).append(" 项）\n")
-            state.restartTitles.take(8).forEach { msg.append("· ").append(it).append('\n') }
-            if (state.restartTitles.size > 8) {
-                msg.append("· 等 ").append(state.restartTitles.size).append(" 项\n")
+
+        fun itemRow(item: M3Dirty.Item): View {
+            val row = LinearLayout(activity).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+                setPadding(0, dp(10), 0, dp(10))
+                isClickable = true
+                val tv = android.util.TypedValue()
+                if (activity.theme.resolveAttribute(android.R.attr.selectableItemBackground, tv, true)) {
+                    setBackgroundResource(tv.resourceId)
+                }
+                setOnClickListener {
+                    dialogRef?.dismiss()
+                    openItem(item)
+                }
             }
+            val texts = LinearLayout(activity).apply { orientation = LinearLayout.VERTICAL }
+            texts.addView(M3Ui.text(activity, item.title, 14f, M3Color.ON_SURFACE))
+            texts.addView(M3Ui.text(activity, if (item.reboot) "重启手机后生效" else "重启作用域后生效",
+                11f, M3Color.ON_SURFACE_VAR))
+            row.addView(texts, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+            row.addView(M3Ui.text(activity, "›", 20f, M3Color.ON_SURFACE_VAR))
+            return row
         }
 
         val box = LinearLayout(activity).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(24), dp(6), dp(24), dp(2))
+            setPadding(dp(24), dp(4), dp(16), dp(0))
         }
-        val summary = if (state.dirty) msg.toString().trim() else "当前没有未生效的修改"
-        box.addView(M3Ui.text(activity, summary, 13f, M3Color.ON_SURFACE_VAR))
+
+        if (state.items.isEmpty()) {
+            box.addView(M3Ui.text(activity, "当前没有未生效的修改", 13f, M3Color.ON_SURFACE_VAR).apply {
+                setPadding(0, dp(8), dp(8), dp(8))
+            })
+        } else {
+            val scroll = ScrollView(activity)
+            val list = LinearLayout(activity).apply { orientation = LinearLayout.VERTICAL }
+            state.items.forEach { list.addView(itemRow(it)) }
+            scroll.addView(list)
+            val listHeight = if (state.items.size <= 3) ViewGroup.LayoutParams.WRAP_CONTENT else dp(210)
+            box.addView(scroll, LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, listHeight
+            ))
+        }
 
         val actions = LinearLayout(activity).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.END
-            setPadding(0, dp(14), 0, 0)
+            setPadding(0, dp(12), 0, 0)
         }
-
-        var dialogRef: androidx.appcompat.app.AlertDialog? = null
 
         fun addAction(label: String, filled: Boolean, onClick: () -> Unit) {
             val b = MaterialButton(activity).apply {
@@ -982,7 +1056,7 @@ class SettingsHomeActivity : AppCompatActivity() {
             if (alive) M3Color.PRIMARY_CONT else M3Color.ERROR_CONT
         )
         statusChip?.isClickable = true
-        statusChip?.setOnClickListener { showStatusDialog(M3Status.hookAlive(this)) }
+        statusChip?.setOnClickListener { showStatusDialog() }
         chips.addView(statusChip)
         chips.addView(chip("作用域 $scopeCount 个", M3Color.ON_SURFACE_VAR, Color.TRANSPARENT))
         chips.addView(View(this), LinearLayout.LayoutParams(0, 1, 1f))
@@ -1228,22 +1302,35 @@ class SettingsHomeActivity : AppCompatActivity() {
         }
     }
 
-    private fun showStatusDialog(alive: Boolean) {
-        if (alive) {
-            MaterialAlertDialogBuilder(this)
-                .setTitle("模块运行中")
-                .setMessage("已检测到系统界面里的模块进程，功能正常。\n\n改动设置后记得点右上角「重启作用域」生效。")
-                .setPositiveButton("知道了", null)
-                .show()
-        } else {
-            MaterialAlertDialogBuilder(this)
-                .setTitle("模块未激活")
-                .setMessage("没有检测到模块在目标应用中运行，所有功能都不会生效。\n\n请检查：\n1. LSPosed 中已启用本模块\n2. 作用域里已勾选「系统界面」等目标应用\n3. 改过作用域后需要重启手机\n4. 刚开机时可能要等系统界面加载完")
-                .setPositiveButton("知道了", null)
-                .show()
-        }
-    }
+    private val scopeLabels = listOf(
+        "com.android.systemui" to "系统界面",
+        "android" to "系统框架",
+        "com.fingerprint.sensorservice" to "指纹服务",
+        "com.zte.mifavor.launcher" to "桌面",
+        "com.zte.mifavor.miboard" to "负一屏",
+        "com.android.settings" to "系统设置",
+        "com.android.packageinstaller" to "安装器",
+        "com.android.permissioncontroller" to "权限控制器",
+        "com.android.nfc" to "NFC",
+        "com.zte.cn.doubleapp" to "应用双开",
+        "cn.nubia.filebrowser" to "文件管理",
+        "com.zte.zdm" to "系统更新"
+    )
 
+    private fun showStatusDialog() {
+        val sb = StringBuilder()
+        scopeLabels.forEach { (pkg, label) ->
+            val ok = M3Status.scopeAlive(this, pkg)
+            sb.append(if (ok) "● " else "○ ").append(label).append('\n')
+        }
+        sb.append("\n● 已注入　○ 本次开机还没收到心跳（LSPosed 未勾选，或改过作用域后没重启）")
+        val anyAlive = M3Status.hookAlive(this)
+        MaterialAlertDialogBuilder(this)
+            .setTitle(if (anyAlive) "模块运行状态" else "模块未激活")
+            .setMessage(sb.toString().trim())
+            .setPositiveButton("知道了", null)
+            .show()
+    }
     private fun chip(label: String, fg: Int, bg: Int): TextView {
         val tv = M3Ui.text(this, label, 13f, fg)
         tv.setPadding(M3Ui.dp(this, 14), M3Ui.dp(this, 7), M3Ui.dp(this, 14), M3Ui.dp(this, 7))
@@ -1865,6 +1952,32 @@ class M3RowBuilder(
     private val onAction: (String) -> Unit
 ) {
 
+    /** 在滑块轨道上标出默认值的位置 */
+    private fun withDefaultMarker(slider: Slider, def: Int, min: Int, max: Int): View {
+        val frame = android.widget.FrameLayout(activity)
+        frame.addView(slider, android.widget.FrameLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
+        ))
+        val dotSize = M3Ui.dp(activity, 4)
+        val dot = View(activity).apply {
+            background = GradientDrawable().apply {
+                shape = GradientDrawable.OVAL
+                setColor(M3Color.ON_SURFACE_VAR)
+                alpha = 130
+            }
+        }
+        val lp = android.widget.FrameLayout.LayoutParams(dotSize, dotSize)
+        lp.gravity = Gravity.TOP or Gravity.START
+        frame.addView(dot, lp)
+        slider.post {
+            val frac = if (max > min) (def - min).toFloat() / (max - min) else 0f
+            val inset = M3Ui.dp(activity, 14).toFloat()
+            val usable = (slider.width - inset * 2).coerceAtLeast(1f)
+            dot.x = inset + usable * frac - dotSize / 2f
+            dot.y = slider.height / 2f - dotSize / 2f
+        }
+        return frame
+    }
     fun build(prefs: SharedPreferences, row: Row): View {
         return when (row.kind) {
             Row.SLIDER -> {
@@ -1894,10 +2007,16 @@ class M3RowBuilder(
                     valueText.text = value.toInt().toString()
                     addOnChangeListener { _, v, _ ->
                         valueText.text = v.toInt().toString()
-                        prefs.edit().putInt(row.key, v.toInt()).apply(); onChanged()
                     }
+                    addOnSliderTouchListener(object : Slider.OnSliderTouchListener {
+                        override fun onStartTrackingTouch(slider: Slider) {}
+                        override fun onStopTrackingTouch(slider: Slider) {
+                            prefs.edit().putInt(row.key, slider.value.toInt()).apply()
+                            onChanged()
+                        }
+                    })
                 }
-                box.addView(slider)
+                box.addView(withDefaultMarker(slider, row.def, row.min, row.max))
                 box
             }
 
@@ -1940,10 +2059,16 @@ class M3RowBuilder(
                     valueText.text = value.toInt().toString()
                     addOnChangeListener { _, v, _ ->
                         valueText.text = v.toInt().toString()
-                        prefs.edit().putInt(row.key, v.toInt()).apply(); onChanged()
                     }
+                    addOnSliderTouchListener(object : Slider.OnSliderTouchListener {
+                        override fun onStartTrackingTouch(slider: Slider) {}
+                        override fun onStopTrackingTouch(slider: Slider) {
+                            prefs.edit().putInt(row.key, slider.value.toInt()).apply()
+                            onChanged()
+                        }
+                    })
                 }
-                box.addView(slider)
+                box.addView(withDefaultMarker(slider, row.def, row.min, row.max))
                 box
             }
 

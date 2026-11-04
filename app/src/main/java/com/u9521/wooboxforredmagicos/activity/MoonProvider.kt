@@ -41,9 +41,13 @@ class MoonProvider : ContentProvider() {
     override fun insert(uri: Uri, values: ContentValues?): Uri? {
         val dir = context?.filesDir ?: return null
         if (uri.lastPathSegment == "heartbeat") {
-            runCatching {
-                val v = values?.getAsString("v").orEmpty()
-                File(dir, MoonStorage.FILE_ALIVE).writeText(v)
+            val v = values?.getAsString("v").orEmpty()
+            val pkg = values?.getAsString("pkg")
+            runCatching { File(dir, MoonStorage.FILE_ALIVE).writeText(v) }
+            if (!pkg.isNullOrBlank()) {
+                runCatching {
+                    File(dir, "beat_" + pkg.replace('.', '_') + ".txt").writeText(v)
+                }
             }
             return uri
         }
