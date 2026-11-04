@@ -1932,6 +1932,9 @@ class AboutActivity : AppCompatActivity() {
         val appRow = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
+            isClickable = true
+            contentDescription = "检查更新，当前版本 " + com.bw.wooboxnx.BuildConfig.VERSION_NAME
+            setOnClickListener { showUpdateCheck() }
         }
         appRow.addView(circleImage(R.drawable.app_icon, 56))
         val appTexts = LinearLayout(this).apply {
@@ -1940,47 +1943,14 @@ class AboutActivity : AppCompatActivity() {
         }
         appTexts.addView(M3Ui.text(this, getString(R.string.app_name), 18f, M3Color.ON_SURFACE, true))
         appTexts.addView(M3Ui.text(this,
-            com.bw.wooboxnx.BuildConfig.VERSION_NAME,
+            com.bw.wooboxnx.BuildConfig.VERSION_NAME + "（" + com.bw.wooboxnx.BuildConfig.VERSION_CODE + "）",
             13f, M3Color.ON_SURFACE_VAR))
         appRow.addView(appTexts, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
-        val appInner = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        appInner.addView(appRow)
-
-        val updateRow = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-            isClickable = true
-            contentDescription = "检查更新"
-            setPadding(0, M3Ui.dp(this@AboutActivity, 14), 0, M3Ui.dp(this@AboutActivity, 2))
-            addView(LinearLayout(this@AboutActivity).apply {
-                orientation = LinearLayout.VERTICAL
-                addView(M3Ui.text(this@AboutActivity, "检查更新", 16f, M3Color.ON_SURFACE))
-                addView(M3Ui.text(this@AboutActivity,
-                    "当前版本 v" + com.bw.wooboxnx.BuildConfig.VERSION_NAME +
-                        "（" + com.bw.wooboxnx.BuildConfig.VERSION_CODE + "）",
-                    12f, M3Color.ON_SURFACE_VAR))
-            }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
-            addView(M3Ui.text(this@AboutActivity, "›", 24f, M3Color.ON_SURFACE_VAR))
-            setOnClickListener {
-                MaterialAlertDialogBuilder(this@AboutActivity)
-                    .setTitle("检查更新")
-                    .setMessage(
-                        "当前版本：v" + com.bw.wooboxnx.BuildConfig.VERSION_NAME +
-                            "（" + com.bw.wooboxnx.BuildConfig.VERSION_CODE + "）\n\n" +
-                            "本分支没有独立的在线更新渠道，可以到项目发布页查看是否有新版本。"
-                    )
-                    .setPositiveButton("打开发布页") { _, _ ->
-                        runCatching {
-                            startActivity(Intent(Intent.ACTION_VIEW,
-                                android.net.Uri.parse("https://github.com/u9521/WooBoxForRedmagicOS/releases")))
-                        }
-                    }
-                    .setNegativeButton("关闭", null)
-                    .show()
-            }
-        }
-        appInner.addView(updateRow)
-        appCard.addView(appInner)
+        appRow.addView(M3Ui.text(this, "检查更新", 13f, M3Color.ON_SURFACE_VAR))
+        appRow.addView(M3Ui.text(this, "›", 24f, M3Color.ON_SURFACE_VAR).apply {
+            setPadding(M3Ui.dp(this@AboutActivity, 6), 0, 0, 0)
+        })
+        appCard.addView(appRow)
 
         content.addView(appCard)
 
@@ -2077,6 +2047,24 @@ class AboutActivity : AppCompatActivity() {
         content.addView(linkCard, LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
         ).apply { topMargin = M3Ui.dp(this@AboutActivity, 12) })
+    }
+
+    private fun showUpdateCheck() {
+        MaterialAlertDialogBuilder(this)
+            .setTitle("检查更新")
+            .setMessage(
+                "当前版本：v" + com.bw.wooboxnx.BuildConfig.VERSION_NAME +
+                    "（" + com.bw.wooboxnx.BuildConfig.VERSION_CODE + "）\n\n" +
+                    "本分支没有独立的在线更新渠道，可以到项目发布页查看是否有新版本。"
+            )
+            .setPositiveButton("打开发布页") { _, _ ->
+                runCatching {
+                    startActivity(Intent(Intent.ACTION_VIEW,
+                        android.net.Uri.parse("https://github.com/u9521/WooBoxForRedmagicOS/releases")))
+                }
+            }
+            .setNegativeButton("关闭", null)
+            .show()
     }
 
     private fun letterAvatar(letter: String, sizeDp: Int): View {
