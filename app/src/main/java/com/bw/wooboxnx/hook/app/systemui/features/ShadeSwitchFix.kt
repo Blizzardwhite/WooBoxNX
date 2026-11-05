@@ -387,7 +387,9 @@ object ShadeSwitchFix : HookRegister() {
         val dt = if (state.lastTs == 0L) 16L else (now - state.lastTs).coerceIn(4L, 64L)
         state.lastTs = now
         val base = if (name.contains("ControlPanel")) rateCc else rateNc
-        val rate = base / animScale(runCatching { XposedHelpers.getObjectField(root, "mView") as? android.view.View }.getOrNull())
+        var rate = base / animScale(runCatching { XposedHelpers.getObjectField(root, "mView") as? android.view.View }.getOrNull())
+        // 收起方向（目标变小）加快，保证模糊在面板消失前淡完
+        if (radius < state.applied) rate *= 2.5f
         val step = (rate * dt / 1000f).toInt().coerceAtLeast(2)
         val d = radius - state.applied
         if (kotlin.math.abs(d) <= step) {
