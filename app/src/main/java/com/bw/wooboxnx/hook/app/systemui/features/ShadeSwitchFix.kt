@@ -23,6 +23,7 @@ object ShadeSwitchFix : HookRegister() {
     private var dragVel = 0f
     private var lastExpandHeight = 0f
     private var closingByDrag = false
+    private var widgetsHidden = false
     private val panelAnims = ArrayList<java.lang.ref.WeakReference<android.animation.ValueAnimator>>()
     private var controller: Any? = null
     private var lastStableZoom = 1f
@@ -283,13 +284,12 @@ object ShadeSwitchFix : HookRegister() {
                         }.getOrDefault(105)
                         if (lastExpandHeight > th * 0.6f) return
                         closingByDrag = false
+                        if (widgetsHidden) return
+                        widgetsHidden = true
                         runCatching {
                             val content = XposedHelpers.getObjectField(inst, "mContent")
-                            val showing = XposedHelpers.getBooleanField(inst, "mContentShowing")
-                            if (showing) {
-                                XposedHelpers.callMethod(content, "hideContent")
-                                XposedHelpers.setBooleanField(inst, "mContentShowing", false)
-                            }
+                            XposedHelpers.callMethod(content, "hideContent")
+                            XposedHelpers.setBooleanField(inst, "mContentShowing", false)
                         }
                     }
                 })
