@@ -616,6 +616,24 @@ object ShadeSwitchFix : HookRegister() {
         }
         runCatching {
             val npvc = cl.loadClass("com.android.systemui.shade.NotificationPanelViewController")
+            // 系统把"隐藏面板"排到 ~450ms 后执行（mHidePanelRunnable），
+            // 这段时间窗口还挡着触摸。这里改成立即执行。
+            runCatching {
+                val mfv = cl.loadClass("com.zte.controlcenter.policy.MfvNotificationPanelViewController")
+                XposedBridge.hookAllMethods(mfv, "scheduleHidePanel", object : XC_MethodHook() {
+                    override fun afterHookedMethod(param: MethodHookParam) {
+                        runCatching {
+                            val inst = param.thisObject
+                            val r = XposedHelpers.getObjectField(inst, "mHidePanelRunnable") as? Runnable
+                                ?: return@runCatching
+                            val view = XposedHelpers.getObjectField(inst, "mView") as? View
+                                ?: return@runCatching
+                            view.removeCallbacks(r)
+                            view.post(r)
+                        }
+                    }
+                })
+            }
             XposedBridge.hookAllMethods(npvc, "instantCollapse", object : XC_MethodHook() {
                 override fun beforeHookedMethod(param: MethodHookParam) {
                     // 解锁进桌面的动画结尾会调 instantCollapse()，随后马上把面板设回可见；
