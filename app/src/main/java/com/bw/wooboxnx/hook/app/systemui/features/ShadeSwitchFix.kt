@@ -290,6 +290,19 @@ object ShadeSwitchFix : HookRegister() {
                 Log.px("W", "ShadeSwitchFix: 遮罩 hook 失败", it, logInRelease = true)
             }
 
+            // 点空白处收起时系统走的是「立即收起」，没有动画。改成走动画收起。
+            runCatching {
+                val cls = cl.loadClass("com.android.systemui.shade.ShadeControllerImpl")
+                XposedBridge.hookAllMethods(cls, "collapseShade", object : XC_MethodHook() {
+                    override fun beforeHookedMethod(param: MethodHookParam) {
+                        val animated = param.args.getOrNull(0) as? Boolean ?: return
+                        if (!animated) param.args[0] = true
+                    }
+                })
+            }.onFailure {
+                Log.px("W", "ShadeSwitchFix: 通知中心立即收起 hook 失败", it, logInRelease = true)
+            }
+
             Log.px("I", "ShadeSwitchFix hooked", logInRelease = true)
         }.onFailure {
             Log.px("E", "ShadeSwitchFix init failed", it, logInRelease = true)
