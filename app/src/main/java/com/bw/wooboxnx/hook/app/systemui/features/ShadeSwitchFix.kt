@@ -455,7 +455,7 @@ object ShadeSwitchFix : HookRegister() {
                             // 注意：这里不能动 hideToken。
                             // 收起后窗口还会存在一小会儿，此时在桌面上的滑动也会走到这里，
                             // 如果取消待执行的隐藏，窗口就会一直挡着桌面。
-                            blurStates.values.forEach { if (it.isCc) it.applied = -1 }
+                            blurStates.values.forEach { if (it.isCc) it.applied = 0 }
                             ccApplied = -1f
                             ccActive = false
                         }
@@ -506,7 +506,7 @@ object ShadeSwitchFix : HookRegister() {
                         // 展开时复位快速设置的模糊/遮罩平滑状态，
                         // 避免上一次收起残留的 0 值导致"下拉没有模糊/遮罩"
                         if (lastExpandHeight <= 0.5f) {
-                            blurStates.values.forEach { if (it.isCc) it.applied = -1 }
+                            blurStates.values.forEach { if (it.isCc) it.applied = 0 }
                             ccApplied = -1f
                             ccActive = false
                             // 新的一次展开开始：作废上一轮还没执行的延迟隐藏
