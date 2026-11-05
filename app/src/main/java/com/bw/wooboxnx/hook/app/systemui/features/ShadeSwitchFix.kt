@@ -69,7 +69,7 @@ object ShadeSwitchFix : HookRegister() {
     private var blurTicking = false
     private var inBlurTicker = false
 
-    private val rateCc = 900f
+    private val rateCc = 400f
     private val rateNc = 400f
 
     // ---- 遮罩渐变
