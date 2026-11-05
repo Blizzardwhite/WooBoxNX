@@ -18,6 +18,7 @@ import de.robv.android.xposed.XposedHelpers
 object ShadeSwitchFix : HookRegister() {
 
     private var upSwipe = false
+    private var sawDown = false
     private var dragLastY = 0f
     private var dispLastY = 0f
     private var dispLastTs = 0L
@@ -170,11 +171,13 @@ object ShadeSwitchFix : HookRegister() {
                             XposedHelpers.setBooleanField(param.thisObject, "mIsGetSelfEvent", false)
                         }
                         if (e.actionMasked == android.view.MotionEvent.ACTION_UP) {
-                            // 快速向上甩动时接管，走固定动画收起
-                            if (dragVel < -800f) {
+                            // 快速向上甩动时接管（必须是从面板内按下开始的手势，
+                            // 否则 dragVel 可能是上一次手势的残留值）
+                            if (sawDown && dragVel < -800f) {
                                 param.result = true
                                 runCatching { XposedHelpers.callMethod(param.thisObject, "collapsePanel", true) }
                             }
+                            sawDown = false
                         }
                     }
                 })
