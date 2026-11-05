@@ -200,6 +200,7 @@ object ShadeSwitchFix : HookRegister() {
                                 dragLastY = e.rawY
                                 dragLastTs = 0L
                                 dragVel = 0f
+                                closingByDrag = false
                             }
                             android.view.MotionEvent.ACTION_MOVE -> {
                                 val now = android.os.SystemClock.elapsedRealtime()
@@ -207,6 +208,7 @@ object ShadeSwitchFix : HookRegister() {
                                     val dt = now - dragLastTs
                                     if (dt in 2L..80L) dragVel = (e.rawY - dragLastY) / (dt / 1000f)
                                 }
+                                if (e.rawY - dragLastY < -30f) closingByDrag = true
                                 dragLastY = e.rawY
                                 dragLastTs = now
                             }
