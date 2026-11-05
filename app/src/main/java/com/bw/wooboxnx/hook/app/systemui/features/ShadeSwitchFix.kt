@@ -299,6 +299,16 @@ object ShadeSwitchFix : HookRegister() {
                         if (!animated) param.args[0] = true
                     }
                 })
+                // 点空白处走的是 instantCollapse()，直接消失。改成走动画收起。
+                runCatching {
+                    val npvc = cl.loadClass("com.android.systemui.shade.NotificationPanelViewController")
+                    XposedBridge.hookAllMethods(npvc, "instantCollapse", object : XC_MethodHook() {
+                        override fun beforeHookedMethod(param: MethodHookParam) {
+                            param.result = null
+                            runCatching { XposedHelpers.callMethod(param.thisObject, "collapse", true, 0f) }
+                        }
+                    })
+                }
             }.onFailure {
                 Log.px("W", "ShadeSwitchFix: 通知中心立即收起 hook 失败", it, logInRelease = true)
             }
