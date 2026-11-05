@@ -150,25 +150,14 @@ object ShadeSwitchFix : HookRegister() {
                 Log.px("W", "ShadeSwitchFix: 立即收起 hook 失败", it, logInRelease = true)
             }
 
-            // 上滑收起时，系统在拖动刚开始就把内容藏掉，所以看不到过渡。
-            // 这里在上滑手势里跳过系统那套，抬手时改用 250ms 收起动画。
+            // 上滑拖动交给系统原生处理（面板跟手）；只额外记录速度
             runCatching {
                 val cls = cl.loadClass("com.zte.controlcenter.ControlPanelWindowView")
                 XposedBridge.hookAllMethods(cls, "handleMotionEvent", object : XC_MethodHook() {
                     override fun beforeHookedMethod(param: MethodHookParam) {
                         val e = param.args.getOrNull(0) as? android.view.MotionEvent ?: return
-                        val inst = param.thisObject
-                        // 磁贴详情 / 编辑状态下不拦截，避免影响里面的滑动
-                        val busy = runCatching {
-                            val content = XposedHelpers.getObjectField(inst, "mContent")
-                            XposedHelpers.callMethod(content, "isDetailShowing") == true ||
-                                XposedHelpers.callMethod(content, "isEditShowing") == true ||
-                                XposedHelpers.callMethod(content, "isControlEditShowing") == true
-                        }.getOrDefault(false)
-                        if (busy) return
                         when (e.actionMasked) {
                             android.view.MotionEvent.ACTION_DOWN -> {
-                                upSwipe = false
                                 dragLastY = e.rawY
                                 dragLastTs = 0L
                                 dragVel = 0f
@@ -177,71 +166,16 @@ object ShadeSwitchFix : HookRegister() {
                                 val now = android.os.SystemClock.elapsedRealtime()
                                 if (dragLastTs > 0L) {
                                     val dt = now - dragLastTs
-                                    if (dt in 2L..80L) {
-                                        dragVel = (e.rawY - dragLastY) / (dt / 1000f)
-                                    }
+                                    if (dt in 2L..80L) dragVel = (e.rawY - dragLastY) / (dt / 1000f)
                                 }
                                 dragLastY = e.rawY
                                 dragLastTs = now
-                                val downY = runCatching {
-                                    XposedHelpers.getFloatField(inst, "mDownY")
-                                }.getOrDefault(e.rawY)
-                                val downX = runCatching {
-                                    XposedHelpers.getFloatField(inst, "mDownX")
-                                }.getOrDefault(e.rawX)
-                                val dy = e.rawY - downY
-                                val dx = e.rawX - downX
-                                if (dy < -60f && kotlin.math.abs(dy) > kotlin.math.abs(dx) * 1.5f) {
-                                    upSwipe = true
-                                    param.result = true
-                                }
-                            }
-                            android.view.MotionEvent.ACTION_UP -> {
-                                if (upSwipe) {
-                                    param.result = true
-                                    runCatching { XposedHelpers.callMethod(inst, "collapsePanel", true) }
-                                    upSwipe = false
-                                }
-                            }
-                            android.view.MotionEvent.ACTION_CANCEL -> {
-                                upSwipe = false
+
                             }
                         }
                     }
                 })
-            }.onFailure {
-                Log.px("W", "ShadeSwitchFix: 上滑手势 hook 失败", it, logInRelease = true)
             }
-
-            // 收起动画时长单独调成 200ms（原厂 250ms）
-            runCatching {
-                val cls = cl.loadClass("com.zte.controlcenter.ControlPanelWindowView")
-                XposedBridge.hookAllMethods(cls, "createHeightChangeAnimator", object : XC_MethodHook() {
-                    override fun afterHookedMethod(param: MethodHookParam) {
-                        param.args.getOrNull(0) as? Int ?: return
-                        val anim = runCatching {
-                            XposedHelpers.getObjectField(param.thisObject, "mHeightChangeAnimator")
-                        }.getOrNull() as? android.animation.ValueAnimator ?: return
-                        val target = param.args.getOrNull(0) as? Int ?: 0
-                        val scale = animScale(param.thisObject as? android.view.View)
-                        val base = if (target != 0) {
-                            // 展开：按拖动速度决定时长（甩得越快开得越快）
-                            val v = kotlin.math.abs(dragVel)
-                            if (v < 100f) {
-                                // 完全采不到速度（例如从桌面下拉时手势被提前吃掉一段）：
-                                // 直接用最快档，避免这条路径永远比状态栏慢
-                                150L
-                            } else {
-                                (330f - v / 30f).toInt().coerceIn(150, 330).toLong()
-                            }
-                        } else 300L
-                        anim.duration = (base * scale).toLong()
-                    }
-                })
-            }.onFailure {
-                Log.px("W", "ShadeSwitchFix: 收起时长 hook 失败", it, logInRelease = true)
-            }
-
             // 从桌面下拉时，手势不一定经过 handleMotionEvent，速度采不到 → 动画吃最大时长。
             // 这里在窗口的 dispatchTouchEvent 里也采一次速度，保证两条路径一致。
             runCatching {
