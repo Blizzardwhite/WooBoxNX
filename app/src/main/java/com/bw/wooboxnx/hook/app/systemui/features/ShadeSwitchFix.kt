@@ -410,7 +410,11 @@ object ShadeSwitchFix : HookRegister() {
                     val content = runCatching {
                         XposedHelpers.getObjectField(inst, "mContent") as? View
                     }.getOrNull()
+                    hideToken++
+                    val token = hideToken
                     val finish = Runnable {
+                        // 期间又开始新的手势 → 放弃这次延迟隐藏，避免把刚打开的面板收掉
+                        if (token != hideToken) return@Runnable
                         bypassHide = true
                         runCatching { XposedHelpers.callMethod(inst, "hideControlCenterWindow") }
                         bypassHide = false
@@ -441,6 +445,11 @@ object ShadeSwitchFix : HookRegister() {
                             dragVel = 0f
                             closingByDrag = false
                             sawDown = true
+                            // 新手势开始：作废上一次收起遗留的延迟隐藏，并复位平滑状态
+                            hideToken++
+                            blurStates.values.forEach { if (it.isCc) it.applied = -1 }
+                            ccApplied = -1f
+                            ccActive = false
                         }
                         MotionEvent.ACTION_MOVE -> {
                             val now = SystemClock.elapsedRealtime()
