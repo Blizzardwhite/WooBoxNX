@@ -226,7 +226,7 @@ object ShadeSwitchFix : HookRegister() {
                         anim.duration = if (target != 0) {
                             // 展开：按拖动速度决定时长（甩得越快开得越快），400ms → 150ms
                             val v = kotlin.math.abs(dragVel)
-                            (420f - v / 30f).toInt().coerceIn(150, 420).toLong()
+                            (330f - v / 30f).toInt().coerceIn(150, 330).toLong()
                         } else 300L
                     }
                 })
