@@ -24,6 +24,7 @@ object ShadeSwitchFix : HookRegister() {
     private var lastExpandHeight = 0f
     private var closingByDrag = false
     private var widgetsHidden = false
+    private var bypassHide = false
     private val panelAnims = ArrayList<java.lang.ref.WeakReference<android.animation.ValueAnimator>>()
     private var controller: Any? = null
     private var lastStableZoom = 1f
@@ -323,6 +324,42 @@ object ShadeSwitchFix : HookRegister() {
                         if (h <= 1f) return
                         param.result = null
                         runCatching { XposedHelpers.callMethod(inst, "collapsePanel", true) }
+                    }
+                })
+            }.onFailure {
+                Log.px("W", "ShadeSwitchFix: hideControlCenterWindow hook 失败", it, logInRelease = true)
+            }
+
+            // 让窗口在收起时不是瞬间高度归零，而是 250ms 缩到 0：
+            // 这样磁贴的 200ms 淡出能在窗口还可见时播完。
+            runCatching {
+                val cls = cl.loadClass("com.zte.controlcenter.ControlPanelWindowView")
+                XposedBridge.hookAllMethods(cls, "hideControlCenterWindow", object : XC_MethodHook() {
+                    override fun beforeHookedMethod(param: MethodHookParam) {
+                        if (bypassHide) return
+                        val inst = param.thisObject as? android.view.View ?: return
+                        val wm = runCatching { XposedHelpers.getObjectField(inst, "mControlPanelWindowManager") }.getOrNull() ?: return
+                        val lp = runCatching { XposedHelpers.getObjectField(wm, "mLpChanged") }.getOrNull() ?: return
+                        val fullH = inst.resources.displayMetrics.heightPixels
+                        param.result = null
+                        val anim = android.animation.ValueAnimator.ofFloat(1f, 0f).apply {
+                            duration = (250f * animScale(inst)).toLong()
+                        }
+                        anim.addUpdateListener { a ->
+                            runCatching {
+                                val f = a.animatedValue as Float
+                                XposedHelpers.setIntField(lp, "height", Math.round(fullH * f))
+                                XposedHelpers.callMethod(wm, "apply")
+                            }
+                        }
+                        anim.addListener(object : android.animation.AnimatorListenerAdapter() {
+                            override fun onAnimationEnd(animation: android.animation.Animator) {
+                                bypassHide = true
+                                runCatching { XposedHelpers.callMethod(inst, "hideControlCenterWindow") }
+                                bypassHide = false
+                            }
+                        })
+                        anim.start()
                     }
                 })
             }.onFailure {
