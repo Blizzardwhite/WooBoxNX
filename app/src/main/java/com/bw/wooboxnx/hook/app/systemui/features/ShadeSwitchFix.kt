@@ -19,6 +19,8 @@ object ShadeSwitchFix : HookRegister() {
 
     private var upSwipe = false
     private var dragLastY = 0f
+    private var dispLastY = 0f
+    private var dispLastTs = 0L
     private var dragLastTs = 0L
     private var dragVel = 0f
     private var lastExpandHeight = 0f
@@ -167,31 +169,11 @@ object ShadeSwitchFix : HookRegister() {
                         runCatching {
                             XposedHelpers.setBooleanField(param.thisObject, "mIsGetSelfEvent", false)
                         }
-                        when (e.actionMasked) {
-                            android.view.MotionEvent.ACTION_DOWN -> {
-                                dragLastY = e.rawY
-                                dragLastTs = 0L
-                                dragVel = 0f
-                                closingByDrag = false
-                            }
-                            android.view.MotionEvent.ACTION_MOVE -> {
-                                val now = android.os.SystemClock.elapsedRealtime()
-                                if (dragLastTs > 0L) {
-                                    val dt = now - dragLastTs
-                                    if (dt in 2L..80L) dragVel = (e.rawY - dragLastY) / (dt / 1000f)
-                                }
-                                if (e.rawY - dragLastY < -30f) closingByDrag = true
-                                dragLastY = e.rawY
-                                dragLastTs = now
-
-                            }
-                            android.view.MotionEvent.ACTION_UP -> {
-                                // 快速向上甩动：系统会走自己的“甩出去”动画（一帧收掉）。
-                                // 这里接管，改用和慢速拖动一样的 300ms 收起动画。
-                                if (dragVel < -800f) {
-                                    param.result = true
-                                    runCatching { XposedHelpers.callMethod(param.thisObject, "collapsePanel", true) }
-                                }
+                        if (e.actionMasked == android.view.MotionEvent.ACTION_UP) {
+                            // 快速向上甩动时接管，走固定动画收起
+                            if (dragVel < -800f) {
+                                param.result = true
+                                runCatching { XposedHelpers.callMethod(param.thisObject, "collapsePanel", true) }
                             }
                         }
                     }
@@ -206,20 +188,20 @@ object ShadeSwitchFix : HookRegister() {
                         val e = param.args.getOrNull(0) as? android.view.MotionEvent ?: return
                         when (e.actionMasked) {
                             android.view.MotionEvent.ACTION_DOWN -> {
-                                dragLastY = e.rawY
-                                dragLastTs = 0L
+                                dispLastY = e.rawY
+                                dispLastTs = 0L
                                 dragVel = 0f
                                 closingByDrag = false
                             }
                             android.view.MotionEvent.ACTION_MOVE -> {
                                 val now = android.os.SystemClock.elapsedRealtime()
-                                if (dragLastTs > 0L) {
-                                    val dt = now - dragLastTs
-                                    if (dt in 2L..80L) dragVel = (e.rawY - dragLastY) / (dt / 1000f)
+                                if (dispLastTs > 0L) {
+                                    val dt = now - dispLastTs
+                                    if (dt in 2L..80L) dragVel = (e.rawY - dispLastY) / (dt / 1000f)
                                 }
-                                if (e.rawY - dragLastY < -30f) closingByDrag = true
-                                dragLastY = e.rawY
-                                dragLastTs = now
+                                if (e.rawY - dispLastY < -30f) closingByDrag = true
+                                dispLastY = e.rawY
+                                dispLastTs = now
                             }
                         }
                     }
