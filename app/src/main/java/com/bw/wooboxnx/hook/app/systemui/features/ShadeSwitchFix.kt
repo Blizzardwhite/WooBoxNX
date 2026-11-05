@@ -18,6 +18,7 @@ import de.robv.android.xposed.XposedHelpers
 object ShadeSwitchFix : HookRegister() {
 
     private var upSwipe = false
+    private var collapseAnim: java.lang.ref.WeakReference<android.animation.ValueAnimator>? = null
     private var controller: Any? = null
     private var lastStableZoom = 1f
     private var zoomAtSwitchStart = -1f
@@ -212,6 +213,27 @@ object ShadeSwitchFix : HookRegister() {
                 })
             }.onFailure {
                 Log.px("W", "ShadeSwitchFix: 收起时长 hook 失败", it, logInRelease = true)
+            }
+
+            // 通知面板的收起动画时长也压到 200ms（系统原本是 200~300ms 之间）
+            runCatching {
+                val npvc = cl.loadClass("com.android.systemui.shade.NotificationPanelViewController")
+                XposedBridge.hookAllMethods(npvc, "createHeightAnimator", object : XC_MethodHook() {
+                    override fun afterHookedMethod(param: MethodHookParam) {
+                        val end = param.args.getOrNull(0) as? Float ?: return
+                        if (end != 0f) return
+                        val anim = param.result as? android.animation.ValueAnimator ?: return
+                        collapseAnim = java.lang.ref.WeakReference(anim)
+                    }
+                })
+                XposedBridge.hookAllMethods(android.animation.ValueAnimator::class.java, "setDuration", object : XC_MethodHook() {
+                    override fun beforeHookedMethod(param: MethodHookParam) {
+                        val a = param.thisObject as? android.animation.ValueAnimator ?: return
+                        if (collapseAnim?.get() === a) param.args[0] = 200L
+                    }
+                })
+            }.onFailure {
+                Log.px("W", "ShadeSwitchFix: 通知面板时长 hook 失败", it, logInRelease = true)
             }
 
             Log.px("I", "ShadeSwitchFix hooked", logInRelease = true)
