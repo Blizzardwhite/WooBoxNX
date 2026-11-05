@@ -111,6 +111,40 @@ object ShadeSwitchFix : HookRegister() {
             }
 
 
+            // 快速设置收起时有些路径走的是「立即收起」，所以看不到过渡。
+            // 这里统一改成走 250ms 的收起动画。
+            runCatching {
+                val cls = cl.loadClass("com.zte.controlcenter.ControlPanelWindowView")
+                XposedBridge.hookAllMethods(cls, "collapsePanel", object : XC_MethodHook() {
+                    override fun beforeHookedMethod(param: MethodHookParam) {
+                        val first = param.args.getOrNull(0) as? Boolean ?: return
+                        if (!first) param.args[0] = true
+                    }
+                })
+            }.onFailure {
+                Log.px("W", "ShadeSwitchFix: collapsePanel hook 失败", it, logInRelease = true)
+            }
+
+            // 有些收起路径直接调 collapsePanelImmediately()，看起来就是"啪"一下没了。
+            // 改成走同一套 250ms 收起动画。
+            runCatching {
+                val cls = cl.loadClass("com.zte.controlcenter.ControlPanelWindowView")
+                XposedBridge.hookAllMethods(cls, "collapsePanelImmediately", object : XC_MethodHook() {
+                    override fun beforeHookedMethod(param: MethodHookParam) {
+                        val inst = param.thisObject
+                        val listener = runCatching {
+                            XposedHelpers.getObjectField(inst, "mCollapseListener")
+                        }.getOrNull() ?: return
+                        param.result = null
+                        runCatching {
+                            XposedHelpers.callMethod(inst, "createAndStartAnimator", 0, listener)
+                        }
+                    }
+                })
+            }.onFailure {
+                Log.px("W", "ShadeSwitchFix: 立即收起 hook 失败", it, logInRelease = true)
+            }
+
             Log.px("I", "ShadeSwitchFix hooked", logInRelease = true)
         }.onFailure {
             Log.px("E", "ShadeSwitchFix init failed", it, logInRelease = true)
