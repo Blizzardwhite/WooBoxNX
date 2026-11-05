@@ -236,7 +236,9 @@ object ShadeSwitchFix : HookRegister() {
     private val handler = android.os.Handler(android.os.Looper.getMainLooper())
 
     /** 每秒最多变化多少像素（满值 200px，约 500ms） */
-    private val ratePxPerSec = 900f
+    // 快速设置用更快的淡入，通知中心保持之前"合适"的速度
+    private val rateCc = 900f
+    private val rateNc = 400f
 
     private val ticker = object : Runnable {
         override fun run() {
@@ -248,7 +250,8 @@ object ShadeSwitchFix : HookRegister() {
                     s.applied = s.target
                     continue
                 }
-                val step = (ratePxPerSec * 0.016f).toInt().coerceAtLeast(2)
+                val rate = if (isCcRoot(s.root)) rateCc else rateNc
+                val step = (rate * 0.016f).toInt().coerceAtLeast(2)
                 s.applied += if (d > 0) step else -step
                 inTicker = true
                 runCatching {
@@ -262,6 +265,10 @@ object ShadeSwitchFix : HookRegister() {
             if (pending) handler.postDelayed(this, 16L)
         }
     }
+
+    private fun isCcRoot(root: Any): Boolean = runCatching {
+        (XposedHelpers.getObjectField(root, "mView") as? android.view.View)?.javaClass?.name?.contains("ControlPanel") == true
+    }.getOrDefault(false)
 
     private fun smoothBlur(param: XC_MethodHook.MethodHookParam) {
         if (inTicker) return
@@ -295,7 +302,8 @@ object ShadeSwitchFix : HookRegister() {
 
         val dt = if (state.lastTs == 0L) 16L else (now - state.lastTs).coerceIn(4L, 64L)
         state.lastTs = now
-        val step = (ratePxPerSec * dt / 1000f).toInt().coerceAtLeast(2)
+        val rate = if (name.contains("ControlPanel")) rateCc else rateNc
+        val step = (rate * dt / 1000f).toInt().coerceAtLeast(2)
         val d = radius - state.applied
         if (kotlin.math.abs(d) <= step) {
             state.applied = radius
