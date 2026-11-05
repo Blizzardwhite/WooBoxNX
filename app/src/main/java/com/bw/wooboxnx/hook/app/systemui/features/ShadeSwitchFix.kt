@@ -594,7 +594,7 @@ object ShadeSwitchFix : HookRegister() {
                         main.postDelayed({
                             runCatching { XposedHelpers.callMethod(inst, "collapseShade", true) }
                             deferringCollapse = false
-                        }, 60L)
+                        }, 70L)
                     }
                 }
             })
