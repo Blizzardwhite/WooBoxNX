@@ -279,6 +279,16 @@ object ShadeSwitchFix : HookRegister() {
         state.utils = param.thisObject
         val now = android.os.SystemClock.elapsedRealtime()
 
+        // 左右切换期间不做平滑：那段时间两页会互相交接模糊，
+        // 再按速率推进就会看到背景模糊在慢慢变化。
+        if (isSwitching()) {
+            state.applied = radius
+            state.target = radius
+            state.opaque = opaque
+            state.lastTs = now
+            return
+        }
+
         if (state.applied < 0) state.applied = radius
         state.target = radius
         state.opaque = opaque
