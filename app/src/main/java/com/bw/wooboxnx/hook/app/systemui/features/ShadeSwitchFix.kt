@@ -648,6 +648,11 @@ object ShadeSwitchFix : HookRegister() {
                     // 高度一帧归零，卡片/遮罩直接消失。快速甩动收起就是走的这条。
                     val animated = param.args.getOrNull(0) as? Boolean
                     if (animated == false) param.args[0] = true
+                    // 三参数版本 collapse(z, z2, f)：z2 才是"内层是否走动画"
+                    if (param.args.size >= 3) {
+                        val innerAnimated = param.args.getOrNull(1) as? Boolean
+                        if (innerAnimated == false) param.args[1] = true
+                    }
                     setNcTouchable(false)
                 }
             })
