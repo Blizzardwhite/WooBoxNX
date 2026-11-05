@@ -413,8 +413,11 @@ object ShadeSwitchFix : HookRegister() {
                     hideToken++
                     val token = hideToken
                     val finish = Runnable {
-                        // 期间又开始新的手势 → 放弃这次延迟隐藏，避免把刚打开的面板收掉
-                        if (token != hideToken) return@Runnable
+                        // 期间又开始新的手势，或者面板已经在重新展开 → 放弃这次延迟隐藏
+                        if (token != hideToken || lastExpandHeight > 0.5f) {
+                            runCatching { content?.alpha = 1f }
+                            return@Runnable
+                        }
                         bypassHide = true
                         runCatching { XposedHelpers.callMethod(inst, "hideControlCenterWindow") }
                         bypassHide = false
