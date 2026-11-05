@@ -644,6 +644,10 @@ object ShadeSwitchFix : HookRegister() {
             // 其它收起路径（back / 点空白 / 甩动）
             XposedBridge.hookAllMethods(npvc, "collapse", object : XC_MethodHook() {
                 override fun beforeHookedMethod(param: MethodHookParam) {
+                    // 强制走动画：collapse(false, …) 会 resetViews + setExpandedFraction(0)，
+                    // 高度一帧归零，卡片/遮罩直接消失。快速甩动收起就是走的这条。
+                    val animated = param.args.getOrNull(0) as? Boolean
+                    if (animated == false) param.args[0] = true
                     setNcTouchable(false)
                 }
             })
