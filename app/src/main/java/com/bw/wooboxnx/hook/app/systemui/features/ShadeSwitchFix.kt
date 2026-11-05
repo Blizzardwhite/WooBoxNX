@@ -592,6 +592,8 @@ object ShadeSwitchFix : HookRegister() {
                         val inst = param.thisObject
                         param.result = null
                         main.postDelayed({
+                            // 此时快速设置已铺满，通知中心可以直接瞬收（不可见）
+                            switchInstantUntil = SystemClock.elapsedRealtime() + 600L
                             runCatching { XposedHelpers.callMethod(inst, "collapseShade", true) }
                             deferringCollapse = false
                         }, 300L)
@@ -646,6 +648,11 @@ object ShadeSwitchFix : HookRegister() {
                         if (expand) return@runCatching
                         val anim = XposedHelpers.getObjectField(param.thisObject, "mHeightAnimator")
                             as? android.animation.ValueAnimator ?: return@runCatching
+                        // 切换时通知中心是"盖在下面"收起的，看不见，直接瞬收
+                        if (SystemClock.elapsedRealtime() < switchInstantUntil) {
+                            anim.duration = 0L
+                            return@runCatching
+                        }
                         val scale = animScale(param.thisObject as? View)
                         anim.duration = (200f * scale).toLong()
                     }
