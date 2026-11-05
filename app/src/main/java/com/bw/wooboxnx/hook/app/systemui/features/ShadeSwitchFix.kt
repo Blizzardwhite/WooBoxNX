@@ -126,6 +126,19 @@ object ShadeSwitchFix : HookRegister() {
                 Log.px("W", "ShadeSwitchFix: switchBlur hook 失败", it, logInRelease = true)
             }
 
+            // 通知页切到快速设置时，系统是「先收起通知页，100ms 后再打开快速设置」，
+            // 中间会露出一段桌面/黑底。把延迟去掉，让两页重叠，过渡更连续。
+            runCatching {
+                val cls = cl.loadClass("com.zte.controlcenter.ControlPanelController")
+                XposedBridge.hookAllMethods(cls, "openPanelDelayed", object : XC_MethodHook() {
+                    override fun beforeHookedMethod(param: MethodHookParam) {
+                        if ((param.args.getOrNull(0) as? Long ?: 0L) > 0L) param.args[0] = 0L
+                    }
+                })
+            }.onFailure {
+                Log.px("W", "ShadeSwitchFix: openPanelDelayed hook 失败", it, logInRelease = true)
+            }
+
             Log.px("I", "ShadeSwitchFix hooked", logInRelease = true)
         }.onFailure {
             Log.px("E", "ShadeSwitchFix init failed", it, logInRelease = true)
