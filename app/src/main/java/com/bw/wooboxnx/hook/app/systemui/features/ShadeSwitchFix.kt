@@ -385,7 +385,7 @@ object ShadeSwitchFix : HookRegister() {
                     val base = if (target != 0) {
                         val v = kotlin.math.abs(dragVel)
                         if (v < 100f) 150L else (330f - v / 30f).toInt().coerceIn(150, 330).toLong()
-                    } else 160L
+                    } else 220L
                     anim.duration = (base * scale).toLong()
                 }
             })
@@ -614,7 +614,7 @@ object ShadeSwitchFix : HookRegister() {
             runCatching { setNcTouchable(false) }
             main.postDelayed({
                 if (token == ccTouchToken) setCcTouchable(true)
-            }, 120L)
+            }, 70L)
         }
     }
 
@@ -631,7 +631,7 @@ object ShadeSwitchFix : HookRegister() {
         if (!touchable) {
             main.postDelayed({
                 if (token == ncTouchToken) setNcTouchable(true)
-            }, 120L)
+            }, 70L)
         }
     }
 }
