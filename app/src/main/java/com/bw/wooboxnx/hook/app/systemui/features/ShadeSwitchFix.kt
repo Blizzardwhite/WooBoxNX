@@ -440,7 +440,7 @@ object ShadeSwitchFix : HookRegister() {
                             bypassHide = false
                             runCatching { content?.alpha = 1f }
                         }
-                    }, 600L)
+                    }, 260L)
                 }
             })
         }.onFailure { Log.px("W", "ShadeSwitchFix: 收起 hook 失败", it, logInRelease = true) }
