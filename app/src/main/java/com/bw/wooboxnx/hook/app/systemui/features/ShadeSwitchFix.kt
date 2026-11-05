@@ -31,6 +31,52 @@ object ShadeSwitchFix : HookRegister() {
         XposedHelpers.callMethod(controller, "getNcSwitching") as? Boolean ?: false
     }.getOrDefault(false)
 
+    private var maskFade: android.animation.ValueAnimator? = null
+
+    /**
+     * 进入的那一页照旧设满模糊（模糊半径、底色都由系统自己算），
+     * 只把两页渐变遮罩的 alpha 做成淡入淡出，消掉「啪一下全黑」。
+     */
+    private fun crossFadeMask(cl: ClassLoader, toControlCenter: Boolean) {
+        val dep = cl.loadClass("com.android.systemui.Dependency")
+        val cwmCls = cl.loadClass("com.zte.controlcenter.ControlPanelWindowManager")
+        val cc = XposedHelpers.callStaticMethod(dep, "get", cwmCls)
+        val csCls = cl.loadClass("com.android.systemui.statusbar.phone.CentralSurfaces")
+        val cs = XposedHelpers.callStaticMethod(dep, "get", csCls)
+        val nc = XposedHelpers.callMethod(cs, "getNotificationPanelViewController")
+
+        // 先让进入页拿到满模糊（这一步和系统原逻辑一致）
+        if (toControlCenter) XposedHelpers.callMethod(cc, "setBlurRatio", 1.0f)
+        else XposedHelpers.callMethod(nc, "setBlurRatio", 1.0f)
+
+        val gb = cl.loadClass("com.zte.utils.GaussBlur")
+        val ccMask = runCatching {
+            XposedHelpers.getStaticObjectField(gb, "mCCGaussMaskDrawable") as? android.graphics.drawable.Drawable
+        }.getOrNull()
+        val ncMask = runCatching {
+            XposedHelpers.getStaticObjectField(gb, "mNCGaussMaskDrawable") as? android.graphics.drawable.Drawable
+        }.getOrNull()
+        val incoming = if (toControlCenter) ccMask else ncMask
+        val outgoing = if (toControlCenter) ncMask else ccMask
+        if (incoming == null && outgoing == null) return
+
+        maskFade?.cancel()
+        val anim = android.animation.ValueAnimator.ofFloat(0f, 1f).apply { duration = 220L }
+        anim.addUpdateListener { a ->
+            val f = a.animatedValue as Float
+            runCatching { incoming?.alpha = (f * 255).toInt() }
+            runCatching { outgoing?.alpha = ((1f - f) * 255).toInt() }
+        }
+        anim.addListener(object : android.animation.AnimatorListenerAdapter() {
+            override fun onAnimationEnd(animation: android.animation.Animator) {
+                runCatching { incoming?.alpha = 255 }
+                runCatching { outgoing?.alpha = 0 }
+            }
+        })
+        anim.start()
+        maskFade = anim
+    }
+
     override fun init() = hasEnable("fix_shade_switch") {
         runCatching {
             val cl = getDefaultCL()
@@ -98,28 +144,16 @@ object ShadeSwitchFix : HookRegister() {
                 }
             })
 
-            // 切换动画越过阈值时，ROM 会把「离开的那一页」模糊直接关掉（switchBlur），
-            // 收起过程中背景从模糊变成清晰，看起来就是闪。
-            // 这里跳过原方法，只给「即将进入的那一页」设满模糊，离开的那页不动。
+            // 切换越过阈值时，ROM 会一次性把两页的「模糊 + 遮罩透明度」改掉（switchBlur），
+            // 进入的那页瞬间变成全黑 —— 就是你看到的那段没有任何过渡的突兀黑。
+            // 这里跳过原方法：模糊照旧设满，但把两页渐变遮罩的透明度做成 220ms 交叉淡入淡出。
             runCatching {
                 val cls = cl.loadClass("com.zte.controlcenter.policy.NCSwitchController")
                 XposedBridge.hookAllMethods(cls, "switchBlur", object : XC_MethodHook() {
                     override fun beforeHookedMethod(param: MethodHookParam) {
                         param.result = null
                         val toControlCenter = param.args.getOrNull(0) as? Boolean ?: return
-                        runCatching {
-                            val dep = cl.loadClass("com.android.systemui.Dependency")
-                            if (toControlCenter) {
-                                val cwmCls = cl.loadClass("com.zte.controlcenter.ControlPanelWindowManager")
-                                val cwm = XposedHelpers.callStaticMethod(dep, "get", cwmCls)
-                                XposedHelpers.callMethod(cwm, "setBlurRatio", 1.0f)
-                            } else {
-                                val csCls = cl.loadClass("com.android.systemui.statusbar.phone.CentralSurfaces")
-                                val cs = XposedHelpers.callStaticMethod(dep, "get", csCls)
-                                val npvc = XposedHelpers.callMethod(cs, "getNotificationPanelViewController")
-                                XposedHelpers.callMethod(npvc, "setBlurRatio", 1.0f)
-                            }
-                        }
+                        runCatching { crossFadeMask(cl, toControlCenter) }
                     }
                 })
             }.onFailure {
