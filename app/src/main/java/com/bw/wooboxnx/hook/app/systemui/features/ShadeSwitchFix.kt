@@ -146,57 +146,6 @@ object ShadeSwitchFix : HookRegister() {
                 Log.px("W", "ShadeSwitchFix: 立即收起 hook 失败", it, logInRelease = true)
             }
 
-            // 上滑收起时，系统在拖动刚开始就把内容藏掉，所以看不到过渡。
-            // 这里在上滑手势里跳过系统那套，抬手时改用 250ms 收起动画。
-            runCatching {
-                val cls = cl.loadClass("com.zte.controlcenter.ControlPanelWindowView")
-                XposedBridge.hookAllMethods(cls, "handleMotionEvent", object : XC_MethodHook() {
-                    override fun beforeHookedMethod(param: MethodHookParam) {
-                        val e = param.args.getOrNull(0) as? android.view.MotionEvent ?: return
-                        val inst = param.thisObject
-                        // 磁贴详情 / 编辑状态下不拦截，避免影响里面的滑动
-                        val busy = runCatching {
-                            val content = XposedHelpers.getObjectField(inst, "mContent")
-                            XposedHelpers.callMethod(content, "isDetailShowing") == true ||
-                                XposedHelpers.callMethod(content, "isEditShowing") == true ||
-                                XposedHelpers.callMethod(content, "isControlEditShowing") == true
-                        }.getOrDefault(false)
-                        if (busy) return
-                        when (e.actionMasked) {
-                            android.view.MotionEvent.ACTION_DOWN -> {
-                                upSwipe = false
-                            }
-                            android.view.MotionEvent.ACTION_MOVE -> {
-                                val downY = runCatching {
-                                    XposedHelpers.getFloatField(inst, "mDownY")
-                                }.getOrDefault(e.rawY)
-                                val downX = runCatching {
-                                    XposedHelpers.getFloatField(inst, "mDownX")
-                                }.getOrDefault(e.rawX)
-                                val dy = e.rawY - downY
-                                val dx = e.rawX - downX
-                                if (dy < -60f && kotlin.math.abs(dy) > kotlin.math.abs(dx) * 1.5f) {
-                                    upSwipe = true
-                                    param.result = true
-                                }
-                            }
-                            android.view.MotionEvent.ACTION_UP -> {
-                                if (upSwipe) {
-                                    param.result = true
-                                    runCatching { XposedHelpers.callMethod(inst, "collapsePanel", true) }
-                                    upSwipe = false
-                                }
-                            }
-                            android.view.MotionEvent.ACTION_CANCEL -> {
-                                upSwipe = false
-                            }
-                        }
-                    }
-                })
-            }.onFailure {
-                Log.px("W", "ShadeSwitchFix: 上滑手势 hook 失败", it, logInRelease = true)
-            }
-
             Log.px("I", "ShadeSwitchFix hooked", logInRelease = true)
         }.onFailure {
             Log.px("E", "ShadeSwitchFix init failed", it, logInRelease = true)
