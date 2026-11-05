@@ -237,6 +237,16 @@ object ShadeSwitchFix : HookRegister() {
             return
         }
 
+        // 目标为 0（已完全收起/隐藏）：同步把平滑状态归零，
+        // 这样下一次展开一定从 0 开始渐变，也不会在拖动收起时被误清零
+        if (radius <= 0) {
+            state.applied = 0
+            state.target = 0
+            state.opaque = opaque
+            state.lastTs = now
+            return
+        }
+
         if (state.applied < 0) state.applied = radius
         state.target = radius
         state.opaque = opaque
@@ -436,6 +446,9 @@ object ShadeSwitchFix : HookRegister() {
                         content?.animate()?.cancel()
                         content?.alpha = 1f
                     }
+                    // 窗口已完全隐藏：把模糊平滑状态归零，
+                    // 保证下次展开从 0 开始渐变
+                    blurStates.values.forEach { if (it.isCc) it.applied = 0 }
                 }
             })        }.onFailure { Log.px("W", "ShadeSwitchFix: 收起 hook 失败", it, logInRelease = true) }
 
@@ -455,7 +468,8 @@ object ShadeSwitchFix : HookRegister() {
                             // 注意：这里不能动 hideToken。
                             // 收起后窗口还会存在一小会儿，此时在桌面上的滑动也会走到这里，
                             // 如果取消待执行的隐藏，窗口就会一直挡着桌面。
-                            blurStates.values.forEach { if (it.isCc) it.applied = 0 }
+                            // 模糊状态也不能在这里清零：面板已经打开时按下是要"收起"，
+                            // 清零会让画面先突然变清晰（变实）再重新变糊。
                             ccApplied = -1f
                             ccActive = false
                         }
