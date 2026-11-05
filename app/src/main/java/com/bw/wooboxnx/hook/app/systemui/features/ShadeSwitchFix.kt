@@ -176,6 +176,14 @@ object ShadeSwitchFix : HookRegister() {
                                 dragLastTs = now
 
                             }
+                            android.view.MotionEvent.ACTION_UP -> {
+                                // 快速向上甩动：系统会走自己的“甩出去”动画（一帧收掉）。
+                                // 这里接管，改用和慢速拖动一样的 300ms 收起动画。
+                                if (dragVel < -800f) {
+                                    param.result = true
+                                    runCatching { XposedHelpers.callMethod(param.thisObject, "collapsePanel", true) }
+                                }
+                            }
                         }
                     }
                 })
