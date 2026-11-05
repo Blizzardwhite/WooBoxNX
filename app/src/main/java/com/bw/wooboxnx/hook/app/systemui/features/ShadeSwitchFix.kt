@@ -485,6 +485,13 @@ object ShadeSwitchFix : HookRegister() {
                     if (h > lastExpandHeight) {
                         closingByDrag = false
                         widgetsHidden = false
+                        // 展开时复位快速设置的模糊/遮罩平滑状态，
+                        // 避免上一次收起残留的 0 值导致"下拉没有模糊/遮罩"
+                        if (lastExpandHeight <= 0.5f) {
+                            blurStates.values.forEach { if (it.isCc) it.applied = -1 }
+                            ccApplied = -1f
+                            ccActive = false
+                        }
                     }
                     lastExpandHeight = h
                 }
