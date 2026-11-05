@@ -18,7 +18,7 @@ import de.robv.android.xposed.XposedHelpers
 object ShadeSwitchFix : HookRegister() {
 
     private var upSwipe = false
-    private var collapseAnim: java.lang.ref.WeakReference<android.animation.ValueAnimator>? = null
+    private val panelAnims = ArrayList<java.lang.ref.WeakReference<android.animation.ValueAnimator>>()
     private var controller: Any? = null
     private var lastStableZoom = 1f
     private var zoomAtSwitchStart = -1f
@@ -203,12 +203,11 @@ object ShadeSwitchFix : HookRegister() {
                 val cls = cl.loadClass("com.zte.controlcenter.ControlPanelWindowView")
                 XposedBridge.hookAllMethods(cls, "createHeightChangeAnimator", object : XC_MethodHook() {
                     override fun afterHookedMethod(param: MethodHookParam) {
-                        val target = param.args.getOrNull(0) as? Int ?: return
-                        if (target != 0) return
+                        param.args.getOrNull(0) as? Int ?: return
                         val anim = runCatching {
                             XposedHelpers.getObjectField(param.thisObject, "mHeightChangeAnimator")
                         }.getOrNull() as? android.animation.ValueAnimator ?: return
-                        anim.duration = 200L
+                        anim.duration = 300L
                     }
                 })
             }.onFailure {
@@ -220,16 +219,15 @@ object ShadeSwitchFix : HookRegister() {
                 val npvc = cl.loadClass("com.android.systemui.shade.NotificationPanelViewController")
                 XposedBridge.hookAllMethods(npvc, "createHeightAnimator", object : XC_MethodHook() {
                     override fun afterHookedMethod(param: MethodHookParam) {
-                        val end = param.args.getOrNull(0) as? Float ?: return
-                        if (end != 0f) return
                         val anim = param.result as? android.animation.ValueAnimator ?: return
-                        collapseAnim = java.lang.ref.WeakReference(anim)
+                        panelAnims.add(java.lang.ref.WeakReference(anim))
+                        if (panelAnims.size > 8) panelAnims.removeAt(0)
                     }
                 })
                 XposedBridge.hookAllMethods(android.animation.ValueAnimator::class.java, "setDuration", object : XC_MethodHook() {
                     override fun beforeHookedMethod(param: MethodHookParam) {
                         val a = param.thisObject as? android.animation.ValueAnimator ?: return
-                        if (collapseAnim?.get() === a) param.args[0] = 200L
+                        if (panelAnims.any { it.get() === a }) param.args[0] = 200L
                     }
                 })
             }.onFailure {
