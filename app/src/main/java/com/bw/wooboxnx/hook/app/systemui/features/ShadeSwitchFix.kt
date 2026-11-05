@@ -18,6 +18,7 @@ import de.robv.android.xposed.XposedHelpers
 object ShadeSwitchFix : HookRegister() {
 
     private var upSwipe = false
+    private val ncAnims = ArrayList<Pair<java.lang.ref.WeakReference<android.animation.ValueAnimator>, Float>>()
     private val panelAnims = ArrayList<java.lang.ref.WeakReference<android.animation.ValueAnimator>>()
     private var controller: Any? = null
     private var lastStableZoom = 1f
@@ -212,6 +213,29 @@ object ShadeSwitchFix : HookRegister() {
                 })
             }.onFailure {
                 Log.px("W", "ShadeSwitchFix: 收起时长 hook 失败", it, logInRelease = true)
+            }
+
+            // 通知面板的高度动画按固定时长：收起 250ms、展开 400ms，
+            // 和快速设置的实测观感（收起约 200ms、展开约 420ms）接近。
+            runCatching {
+                val npvc = cl.loadClass("com.android.systemui.shade.NotificationPanelViewController")
+                XposedBridge.hookAllMethods(npvc, "createHeightAnimator", object : XC_MethodHook() {
+                    override fun afterHookedMethod(param: MethodHookParam) {
+                        val target = param.args.getOrNull(0) as? Float ?: return
+                        val anim = param.result as? android.animation.ValueAnimator ?: return
+                        ncAnims.add(java.lang.ref.WeakReference(anim) to target)
+                        if (ncAnims.size > 10) ncAnims.removeAt(0)
+                    }
+                })
+                XposedBridge.hookAllMethods(android.animation.ValueAnimator::class.java, "setDuration", object : XC_MethodHook() {
+                    override fun beforeHookedMethod(param: MethodHookParam) {
+                        val a = param.thisObject as? android.animation.ValueAnimator ?: return
+                        val target = ncAnims.firstOrNull { it.first.get() === a }?.second ?: return
+                        param.args[0] = if (target <= 0.5f) 250L else 400L
+                    }
+                })
+            }.onFailure {
+                Log.px("W", "ShadeSwitchFix: 通知面板时长 hook 失败", it, logInRelease = true)
             }
 
             Log.px("I", "ShadeSwitchFix hooked", logInRelease = true)
