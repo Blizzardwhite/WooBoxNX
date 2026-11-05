@@ -583,6 +583,19 @@ object ShadeSwitchFix : HookRegister() {
                     if (!animated) param.args[0] = true
                     // 收起动画期间放行触摸，桌面可以马上操作
                     setNcTouchable(false)
+
+                    // 通知中心 → 快速设置：系统先收通知中心、再开快速设置，
+                    // 快速设置没铺满时通知中心已经没了 → 露壁纸。
+                    // 这里把通知中心的收起延后，等快速设置完全盖住再收。
+                    if (SystemClock.elapsedRealtime() < switchInstantUntil && !deferringCollapse) {
+                        deferringCollapse = true
+                        val inst = param.thisObject
+                        param.result = null
+                        main.postDelayed({
+                            runCatching { XposedHelpers.callMethod(inst, "collapseShade", true) }
+                            deferringCollapse = false
+                        }, 400L)
+                    }
                 }
             })
         }
@@ -604,6 +617,15 @@ object ShadeSwitchFix : HookRegister() {
                     unlockAnimUntil = SystemClock.elapsedRealtime() + 1500L
                 }
             })
+            // 左右切换：标记切换窗口
+            runCatching {
+                val sw = cl.loadClass("com.zte.controlcenter.policy.NCSwitchController")
+                XposedBridge.hookAllMethods(sw, "prepareForNCSwitcher", object : XC_MethodHook() {
+                    override fun beforeHookedMethod(param: MethodHookParam) {
+                        switchInstantUntil = SystemClock.elapsedRealtime() + 1500L
+                    }
+                })
+            }
             // 其它收起路径（back / 点空白 / 甩动）
             XposedBridge.hookAllMethods(npvc, "collapse", object : XC_MethodHook() {
                 override fun beforeHookedMethod(param: MethodHookParam) {
@@ -646,6 +668,8 @@ object ShadeSwitchFix : HookRegister() {
     private var ccTouchToken = 0
     private var ncTouchToken = 0
     private var unlockAnimUntil = 0L
+    private var switchInstantUntil = 0L
+    private var deferringCollapse = false
 
     /** 快速设置窗口是否接收触摸；放行后 260ms 自动恢复，避免切换页面时触摸漏到桌面 */
     private fun setCcTouchable(touchable: Boolean) {
