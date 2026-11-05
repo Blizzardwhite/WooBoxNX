@@ -96,9 +96,104 @@ object ShadeSwitchFix : HookRegister() {
                 }
             })
 
+            // 快速下滑快速设置时，它的模糊半径是一帧跳到目标的（通知面板有弹簧缓动，它没有），
+            // 这里给快速设置窗口的模糊加个步进，让它在约 160ms 内平滑到位。
+            runCatching {
+                val bu = cl.loadClass("com.android.systemui.statusbar.BlurUtils")
+                XposedBridge.hookAllMethods(bu, "applyBlur", object : XC_MethodHook() {
+                    override fun beforeHookedMethod(param: MethodHookParam) {
+                        runCatching { smoothCcBlur(cl, param) }
+                    }
+                })
+            }.onFailure {
+                Log.px("W", "ShadeSwitchFix: applyBlur hook 失败", it, logInRelease = true)
+            }
+
             Log.px("I", "ShadeSwitchFix hooked", logInRelease = true)
         }.onFailure {
             Log.px("E", "ShadeSwitchFix init failed", it, logInRelease = true)
+        }
+    }
+
+    // ---------------------------------------------------------------- 快速设置模糊平滑
+
+    private var ccRoot: Any? = null
+    private var blurUtilsRef: Any? = null
+
+    private var blurApplied = -1
+    private var blurTarget = 0
+    private var blurOpaque = false
+    private var blurTicking = false
+    private var blurLastTs = 0L
+    private var inTicker = false
+
+    private val ticker = object : Runnable {
+        override fun run() {
+            val utils = blurUtilsRef
+            val root = ccRoot
+            if (utils == null || root == null) {
+                blurTicking = false
+                return
+            }
+            val d = blurTarget - blurApplied
+            if (kotlin.math.abs(d) <= 4) {
+                blurApplied = blurTarget
+                blurTicking = false
+                return
+            }
+            blurApplied += if (d > 0) 14 else -14
+            inTicker = true
+            runCatching {
+                XposedHelpers.callMethod(utils, "applyBlur", root, blurApplied, blurOpaque)
+            }
+            inTicker = false
+            handler.postDelayed(this, 16L)
+        }
+    }
+    private val handler = android.os.Handler(android.os.Looper.getMainLooper())
+
+    private fun smoothCcBlur(cl: ClassLoader, param: XC_MethodHook.MethodHookParam) {
+        if (inTicker) return
+        val root = param.args.getOrNull(0) ?: return
+        val radius = param.args.getOrNull(1) as? Int ?: return
+        val opaque = param.args.getOrNull(2) as? Boolean ?: false
+
+        // 判断是不是快速设置窗口：取 ViewRootImpl 的 mView，看类名
+        val isCc = runCatching {
+            val v = XposedHelpers.getObjectField(root, "mView") as? android.view.View
+            v?.javaClass?.name?.contains("ControlPanel") == true
+        }.getOrDefault(false)
+        if (!isCc) return
+
+        if (blurUtilsRef == null) blurUtilsRef = param.thisObject
+        val now = android.os.SystemClock.elapsedRealtime()
+
+        // 归零立即生效，避免残留
+        if (radius == 0) {
+            blurApplied = 0
+            blurTarget = 0
+            blurOpaque = opaque
+            blurLastTs = now
+            return
+        }
+
+        if (blurApplied < 0) blurApplied = radius
+        blurTarget = radius
+        blurOpaque = opaque
+
+        val dt = if (blurLastTs == 0L) 16L else (now - blurLastTs).coerceIn(4L, 64L)
+        blurLastTs = now
+        val step = (800f * dt / 1000f).toInt().coerceAtLeast(4)
+        val d = radius - blurApplied
+        if (kotlin.math.abs(d) <= step) {
+            blurApplied = radius
+        } else {
+            blurApplied += if (d > 0) step else -step
+            param.args[1] = blurApplied
+            if (!blurTicking) {
+                blurTicking = true
+                handler.postDelayed(ticker, 16L)
+            }
         }
     }
 }
