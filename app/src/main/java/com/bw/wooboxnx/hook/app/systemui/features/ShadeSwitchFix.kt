@@ -366,6 +366,19 @@ object ShadeSwitchFix : HookRegister() {
                 Log.px("W", "ShadeSwitchFix: hideControlCenterWindow hook 失败", it, logInRelease = true)
             }
 
+            // 上滑收起时不要执行 startBackAnimOnUp()：它会把已经跟着手指上移的控件
+            // 又滑回原位（就是那个"晚一步往下滑"的动画）。
+            runCatching {
+                val cls = cl.loadClass("com.zte.controlcenter.animation.ControlCenterPanelAnimator")
+                XposedBridge.hookAllMethods(cls, "startBackAnimOnUp", object : XC_MethodHook() {
+                    override fun beforeHookedMethod(param: MethodHookParam) {
+                        if (closingByDrag) param.result = null
+                    }
+                })
+            }.onFailure {
+                Log.px("W", "ShadeSwitchFix: startBackAnimOnUp hook 失败", it, logInRelease = true)
+            }
+
             Log.px("I", "ShadeSwitchFix hooked", logInRelease = true)
         }.onFailure {
             Log.px("E", "ShadeSwitchFix init failed", it, logInRelease = true)
