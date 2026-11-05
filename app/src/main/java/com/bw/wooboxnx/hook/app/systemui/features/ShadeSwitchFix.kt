@@ -237,8 +237,8 @@ object ShadeSwitchFix : HookRegister() {
 
     /** 每秒最多变化多少像素（满值 200px，约 500ms） */
     // 快速设置用更快的淡入，通知中心保持之前"合适"的速度
-    private val rateCc = 700f
-    private val rateNc = 700f
+    private val rateCc = 900f
+    private val rateNc = 400f
 
     private val ticker = object : Runnable {
         override fun run() {
