@@ -288,16 +288,14 @@ object ShadeSwitchFix : HookRegister() {
                         widgetsHidden = true
                         runCatching {
                             val content = XposedHelpers.getObjectField(inst, "mContent")
+                            // 直接走控件的退场动画（animateShowPanel(false)），
+                            // 不用 hideContent()，因为它会先 resetState 把控件 alpha 瞬间清零
                             val panelView = XposedHelpers.getObjectField(content, "mControlCenterPanelView")
-                            // 直接给磁贴做 alpha 淡出（200ms），不依赖系统的 animateShowPanel 状态机
-                            val tiles = mutableListOf<android.view.View>()
-                            runCatching {
-                                (XposedHelpers.callMethod(panelView, "getBigTileViews") as? List<*>)?.forEach { (it as? android.view.View)?.let { v -> tiles.add(v) } }
-                                (XposedHelpers.callMethod(panelView, "getSmallTileViews") as? List<*>)?.forEach { (it as? android.view.View)?.let { v -> tiles.add(v) } }
-                            }
-                            tiles.forEach { v ->
-                                runCatching { v.animate().cancel(); v.animate().alpha(0f).setDuration(200L).start() }
-                            }
+                            val pvc = XposedHelpers.callMethod(panelView, "getPanelViewController")
+                            val anim = XposedHelpers.callMethod(pvc, "getPanelAnimator")
+                            // 强制 showing=true，否则 animateShowPanel(false) 会因守卫直接 return
+                            runCatching { XposedHelpers.setBooleanField(anim, "showing", true) }
+                            XposedHelpers.callMethod(anim, "animateShowPanel", false)
                             XposedHelpers.setBooleanField(inst, "mContentShowing", false)
                         }
                     }
