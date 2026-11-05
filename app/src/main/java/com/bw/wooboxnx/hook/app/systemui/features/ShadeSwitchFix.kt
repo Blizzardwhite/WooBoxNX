@@ -26,9 +26,6 @@ object ShadeSwitchFix : HookRegister() {
     private var animating = false
     private var lastCallTs = 0L
 
-    /** 每块窗口最近一次的模糊半径，切换期间用它把半径冻住 */
-    private val blurRadius = HashMap<Any, Int>()
-
     private fun isSwitching(): Boolean = runCatching {
         XposedHelpers.callMethod(controller, "getNcSwitching") as? Boolean ?: false
     }.getOrDefault(false)
@@ -96,48 +93,14 @@ object ShadeSwitchFix : HookRegister() {
                         }
                         appliedZoom = limited
                         param.args[0] = limited
+                        runCatching {
+                            com.bw.wooboxnx.util.xposed.HookBeat.debug(
+                                "z t=$now target=$target applied=$limited raw=$v"
+                            )
+                        }
                     }
                 }
             })
-
-            // 左右切换时，系统会把其中一页的模糊半径/遮罩透明度改掉（CCDepthController 里会把
-            // 通知页模糊强制设成 0），两页一糊一清、一亮一暗，交叉淡入时就闪、还会「错位」。
-            // 这里在切换期间把两块窗口的模糊半径和遮罩透明度都冻在切换前的值。
-            runCatching {
-                val bu = cl.loadClass("com.android.systemui.statusbar.BlurUtils")
-                XposedBridge.hookAllMethods(bu, "applyBlur", object : XC_MethodHook() {
-                    override fun beforeHookedMethod(param: MethodHookParam) {
-                        val root = param.args.getOrNull(0) ?: return
-                        val radius = param.args.getOrNull(1) as? Int ?: return
-                        if (!isSwitching()) {
-                            if (radius > 0) blurRadius[root] = radius
-                            return
-                        }
-                        val frozen = blurRadius[root]
-                        if (frozen == null) {
-                            blurRadius[root] = radius
-                        } else {
-                            param.args[1] = frozen
-                        }
-                    }
-                })
-            }.onFailure {
-                Log.px("W", "ShadeSwitchFix: applyBlur hook 失败", it, logInRelease = true)
-            }
-
-            // 遮罩透明度同样冻住
-            runCatching {
-                val gb = cl.loadClass("com.zte.utils.GaussBlur")
-                listOf("updateShadePanelBlur", "updateControlPanelBlur").forEach { name ->
-                    XposedBridge.hookAllMethods(gb, name, object : XC_MethodHook() {
-                        override fun beforeHookedMethod(param: MethodHookParam) {
-                            if (isSwitching()) param.result = null
-                        }
-                    })
-                }
-            }.onFailure {
-                Log.px("W", "ShadeSwitchFix: 遮罩 hook 失败", it, logInRelease = true)
-            }
 
             Log.px("I", "ShadeSwitchFix hooked", logInRelease = true)
         }.onFailure {
