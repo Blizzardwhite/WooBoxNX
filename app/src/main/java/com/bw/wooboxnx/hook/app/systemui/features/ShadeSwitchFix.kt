@@ -53,6 +53,7 @@ object ShadeSwitchFix : HookRegister() {
     private var lastExpandHeight = 0f
     private var widgetsHidden = false
     private var hideToken = 0
+    private var ccWindowView: WeakReference<View>? = null
 
     // ---- 模糊平滑
     private class BlurState(val root: Any) {
@@ -109,6 +110,14 @@ object ShadeSwitchFix : HookRegister() {
                 })
             }
 
+            runCatching {
+                val cls = cl.loadClass("com.zte.controlcenter.ControlPanelWindowView")
+                XposedBridge.hookAllConstructors(cls, object : XC_MethodHook() {
+                    override fun afterHookedMethod(param: MethodHookParam) {
+                        (param.thisObject as? View)?.let { ccWindowView = WeakReference(it) }
+                    }
+                })
+            }
             hookWallpaperZoom(cl)
             hookBlurSmoothing(cl)
             hookMaskFade(cl)
@@ -542,6 +551,8 @@ object ShadeSwitchFix : HookRegister() {
                 override fun beforeHookedMethod(param: MethodHookParam) {
                     val animated = param.args.getOrNull(0) as? Boolean ?: return
                     if (!animated) param.args[0] = true
+                    // 收起动画期间放行触摸，桌面可以马上操作
+                    setNcTouchable(false)
                 }
             })
         }
@@ -551,8 +562,44 @@ object ShadeSwitchFix : HookRegister() {
                 override fun beforeHookedMethod(param: MethodHookParam) {
                     param.result = null
                     runCatching { XposedHelpers.callMethod(param.thisObject, "collapse", true, 0f) }
+                    setNcTouchable(false)
+                }
+            })
+            // 面板完全展开时恢复触摸
+            XposedBridge.hookAllMethods(npvc, "onHeightUpdated", object : XC_MethodHook() {
+                override fun afterHookedMethod(param: MethodHookParam) {
+                    runCatching {
+                        val f = XposedHelpers.getFloatField(param.thisObject, "mExpandedFraction")
+                        if (f >= 0.99f) setNcTouchable(true)
+                    }
                 }
             })
         }.onFailure { Log.px("W", "ShadeSwitchFix: 通知中心收起 hook 失败", it, logInRelease = true) }
+    }
+
+    // ---------------------------------------------------------------- 收起时放行触摸
+
+    /** 快速设置窗口是否接收触摸 */
+    private fun setCcTouchable(touchable: Boolean) {
+        runCatching {
+            val inst = ccWindowView?.get() ?: return
+            val wm = XposedHelpers.getObjectField(inst, "mControlPanelWindowManager") ?: return
+            val lp = XposedHelpers.getObjectField(wm, "mLpChanged") as? android.view.WindowManager.LayoutParams ?: return
+            val flag = android.view.WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
+            val flags = if (touchable) lp.flags and flag.inv() else lp.flags or flag
+            if (flags == lp.flags) return
+            lp.flags = flags
+            XposedHelpers.callMethod(wm, "apply")
+        }
+    }
+
+    /** 通知中心窗口是否接收触摸 */
+    private fun setNcTouchable(touchable: Boolean) {
+        runCatching {
+            val ctrlCls = getDefaultCL().loadClass("com.android.systemui.statusbar.NotificationShadeWindowController")
+            val dep = getDefaultCL().loadClass("com.android.systemui.Dependency")
+            val ctrl = XposedHelpers.callStaticMethod(dep, "get", ctrlCls) ?: return
+            XposedHelpers.callMethod(ctrl, "setNotTouchable", !touchable)
+        }
     }
 }
