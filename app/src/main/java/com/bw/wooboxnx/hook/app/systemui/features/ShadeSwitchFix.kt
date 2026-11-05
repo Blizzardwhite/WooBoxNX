@@ -247,37 +247,20 @@ object ShadeSwitchFix : HookRegister() {
             return
         }
 
-        // 快速设置：模糊随展开比例走通知中心同款 scrim 曲线（前段更轻、先看到壁纸放大）。
-        // 但系统里 radius <= border 会把窗口模糊完全关掉（开关式，会闪），
-        // 所以下限托到 border+2，保证模糊始终处于"开启"状态。
-        var targetRadius = radius
-        if (isCc) {
-            runCatching {
-                val r = XposedHelpers.callMethod(state.utils, "ratioOfBlurRadius", radius) as Float
-                val eased = scrimAlpha(r)
-                var nr = (XposedHelpers.callMethod(state.utils, "blurRadiusOfRatio", eased) as Float).toInt()
-                val border = runCatching {
-                    XposedHelpers.callStaticMethod(gaussBlurCls, "getBorderBlurRadius") as Int
-                }.getOrDefault(50)
-                if (nr < border + 2) nr = border + 2
-                targetRadius = nr
-            }
-        }
-
-        if (state.applied < 0) state.applied = targetRadius
-        state.target = targetRadius
+        if (state.applied < 0) state.applied = radius
+        state.target = radius
         state.opaque = opaque
 
         var rate = (if (isCc) rateCc else rateNc) / animScale(view)
         // 收起方向（目标变小）加快，保证模糊在面板消失前淡完
-        if (targetRadius < state.applied) rate *= 2.5f
+        if (radius < state.applied) rate *= 2.5f
 
         val dt = if (state.lastTs == 0L) 16L else (now - state.lastTs).coerceIn(4L, 64L)
         state.lastTs = now
         val step = (rate * dt / 1000f).toInt().coerceAtLeast(2)
-        val d = targetRadius - state.applied
+        val d = radius - state.applied
         if (kotlin.math.abs(d) <= step) {
-            state.applied = targetRadius
+            state.applied = radius
         } else {
             state.applied += if (d > 0) step else -step
             param.args[1] = state.applied
@@ -286,15 +269,6 @@ object ShadeSwitchFix : HookRegister() {
                 main.postDelayed(blurTicker, 16L)
             }
         }
-    }
-
-    /** 系统 ShadeInterpolation.getNotificationScrimAlpha 的等价实现 */
-    private fun scrimAlpha(f: Float): Float {
-        val x = (0.5f * f).coerceIn(0f, 1f)
-        val g = x * 1.2f - 0.2f
-        if (g <= 0f) return 0f
-        val h = 1f - g
-        return (1.0 - 0.5 * (1.0 - kotlin.math.cos(Math.PI * h * h))).toFloat()
     }
 
     private val blurTicker = object : Runnable {
