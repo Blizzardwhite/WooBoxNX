@@ -501,6 +501,8 @@ object ShadeSwitchFix : HookRegister() {
                             blurStates.values.forEach { if (it.isCc) it.applied = -1 }
                             ccApplied = -1f
                             ccActive = false
+                            // 新的一次展开开始：作废上一轮还没执行的延迟隐藏
+                            hideToken++
                         }
                     }
                     lastExpandHeight = h
