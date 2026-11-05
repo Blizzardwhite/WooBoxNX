@@ -276,10 +276,14 @@ object ShadeSwitchFix : HookRegister() {
                         lastExpandHeight = (param.args.getOrNull(0) as? Float) ?: 0f
                     }
                     override fun afterHookedMethod(param: MethodHookParam) {
-                        if (!closingByDrag || lastExpandHeight > 5f) return
+                        if (!closingByDrag) return
+                        val inst = param.thisObject
+                        val th = runCatching {
+                            XposedHelpers.getIntField(inst, "THRESHOLD")
+                        }.getOrDefault(105)
+                        if (lastExpandHeight > th * 0.6f) return
                         closingByDrag = false
                         runCatching {
-                            val inst = param.thisObject
                             val content = XposedHelpers.getObjectField(inst, "mContent")
                             val showing = XposedHelpers.getBooleanField(inst, "mContentShowing")
                             if (showing) {
