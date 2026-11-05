@@ -60,22 +60,19 @@ object ShadeSwitchFix : HookRegister() {
         val outgoing = if (toControlCenter) ncMask else ccMask
         if (incoming == null && outgoing == null) return
 
+        // 只淡出「离开的那一页」的遮罩；进入的那页保持系统给的值（满遮罩），
+        // 否则页面已经显示出来时遮罩被拉到 0，就会白一下。
+        if (outgoing == null) return
+
         maskFade?.cancel()
         val anim = android.animation.ValueAnimator.ofFloat(0f, 1f).apply { duration = 240L }
         anim.addUpdateListener { a ->
             val f = a.animatedValue as Float
-            // 两页的遮罩是叠在一起的，简单的线性交叉淡入会让中间那一下变亮（≈0.75）。
-            // 用 pow<1 的曲线让两个 alpha 都尽快靠近 1，合成后始终接近满暗，避免「暗-亮-暗」。
-            val k = 0.35f
-            val aIn = Math.pow(f.toDouble(), k.toDouble()).toFloat()
-            val aOut = Math.pow((1f - f).toDouble(), k.toDouble()).toFloat()
-            runCatching { incoming?.alpha = (aIn * 255).toInt() }
-            runCatching { outgoing?.alpha = (aOut * 255).toInt() }
+            runCatching { outgoing.alpha = ((1f - f) * 255).toInt() }
         }
         anim.addListener(object : android.animation.AnimatorListenerAdapter() {
             override fun onAnimationEnd(animation: android.animation.Animator) {
-                runCatching { incoming?.alpha = 255 }
-                runCatching { outgoing?.alpha = 0 }
+                runCatching { outgoing.alpha = 0 }
             }
         })
         anim.start()
