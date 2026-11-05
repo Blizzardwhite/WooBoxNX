@@ -227,7 +227,13 @@ object ShadeSwitchFix : HookRegister() {
                         val base = if (target != 0) {
                             // 展开：按拖动速度决定时长（甩得越快开得越快）
                             val v = kotlin.math.abs(dragVel)
-                            (330f - v / 30f).toInt().coerceIn(150, 330).toLong()
+                            if (v < 100f) {
+                                // 完全采不到速度（例如从桌面下拉时手势被提前吃掉一段）：
+                                // 直接用最快档，避免这条路径永远比状态栏慢
+                                150L
+                            } else {
+                                (330f - v / 30f).toInt().coerceIn(150, 330).toLong()
+                            }
                         } else 300L
                         anim.duration = (base * scale).toLong()
                     }
