@@ -292,6 +292,25 @@ object ShadeSwitchFix : HookRegister() {
                 Log.px("W", "ShadeSwitchFix: 拖动收起隐藏 hook 失败", it, logInRelease = true)
             }
 
+            // 快速甩动收起走的是 hideControlCenterWindow()（直接隐藏窗口，无动画）。
+            // 只要面板还有高度，就改成走 300ms 收起动画。
+            runCatching {
+                val cls = cl.loadClass("com.zte.controlcenter.ControlPanelWindowView")
+                XposedBridge.hookAllMethods(cls, "hideControlCenterWindow", object : XC_MethodHook() {
+                    override fun beforeHookedMethod(param: MethodHookParam) {
+                        val inst = param.thisObject
+                        val h = runCatching {
+                            XposedHelpers.getFloatField(inst, "mExpandHeight")
+                        }.getOrDefault(0f)
+                        if (h <= 1f) return
+                        param.result = null
+                        runCatching { XposedHelpers.callMethod(inst, "collapsePanel", true) }
+                    }
+                })
+            }.onFailure {
+                Log.px("W", "ShadeSwitchFix: hideControlCenterWindow hook 失败", it, logInRelease = true)
+            }
+
             Log.px("I", "ShadeSwitchFix hooked", logInRelease = true)
         }.onFailure {
             Log.px("E", "ShadeSwitchFix init failed", it, logInRelease = true)
