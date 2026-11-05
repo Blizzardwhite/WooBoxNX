@@ -197,6 +197,23 @@ object ShadeSwitchFix : HookRegister() {
                 Log.px("W", "ShadeSwitchFix: 上滑手势 hook 失败", it, logInRelease = true)
             }
 
+            // 收起动画时长单独调成 200ms（原厂 250ms）
+            runCatching {
+                val cls = cl.loadClass("com.zte.controlcenter.ControlPanelWindowView")
+                XposedBridge.hookAllMethods(cls, "createHeightChangeAnimator", object : XC_MethodHook() {
+                    override fun afterHookedMethod(param: MethodHookParam) {
+                        val target = param.args.getOrNull(0) as? Int ?: return
+                        if (target != 0) return
+                        val anim = runCatching {
+                            XposedHelpers.getObjectField(param.thisObject, "mHeightChangeAnimator")
+                        }.getOrNull() as? android.animation.ValueAnimator ?: return
+                        anim.duration = 200L
+                    }
+                })
+            }.onFailure {
+                Log.px("W", "ShadeSwitchFix: 收起时长 hook 失败", it, logInRelease = true)
+            }
+
             Log.px("I", "ShadeSwitchFix hooked", logInRelease = true)
         }.onFailure {
             Log.px("E", "ShadeSwitchFix init failed", it, logInRelease = true)
