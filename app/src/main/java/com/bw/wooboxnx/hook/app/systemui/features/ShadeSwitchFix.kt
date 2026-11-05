@@ -1,76 +1,145 @@
 package com.bw.wooboxnx.hook.app.systemui.features
 
+import android.graphics.drawable.Drawable
+import android.os.Handler
+import android.os.Looper
+import android.os.SystemClock
+import android.view.MotionEvent
+import android.view.View
+import android.animation.ValueAnimator
+import android.widget.ImageView
 import com.bw.wooboxnx.util.hasEnable
 import com.bw.wooboxnx.util.xposed.Log
 import com.bw.wooboxnx.util.xposed.base.HookRegister
 import de.robv.android.xposed.XC_MethodHook
 import de.robv.android.xposed.XposedBridge
 import de.robv.android.xposed.XposedHelpers
+import java.lang.ref.WeakReference
 
 /**
- * 左右切换通知中心 / 快速设置时，壁纸缩放会被系统强制改值（右侧快速下滑时一帧从 1.0 跳到 0.0），
- * 表现为壁纸突然放大/缩小一次。这里把变化限制成指数缓动，和左侧通知中心的曲线接近。
+ * 通知面板 / 快速设置面板的动画手感修整。
  *
- * 注意：只做这一件事。换页时的黑闪来自系统「先收起一页、再打开另一页」的两窗口设计，
- * 试过冻结模糊、遮罩淡入淡出、延时收起、黑场过渡、瞬时切换、截图冻结等方案，
- * 都会带来别的问题（白闪 / 模糊残留 / 面板不可用），所以保持系统原样。
+ *  1. 壁纸缩放缓动（右侧快速下滑时系统会把缩放一帧跳到 0）
+ *  2. 模糊半径按速率平滑（快速下拉时系统会一帧设到目标值）
+ *  3. 黑色渐变遮罩做了渐入渐出（系统是直接置 0/1）
+ *  4. 快速设置：收起时不让内容提前隐藏，磁贴在 60% 高度时淡出，
+ *     窗口延迟 200ms 再隐藏，避免"瞬间没掉"或"控件往下滑"
+ *  5. 通知中心：点空白处收起（instantCollapse）改成动画收起
+ *
+ * 左右切换（ncSwitching）期间全部跳过，避免两页互相打架导致闪烁。
  */
 object ShadeSwitchFix : HookRegister() {
 
-    private var upSwipe = false
-    private var sawDown = false
-    private var dragLastY = 0f
-    private var dispLastY = 0f
-    private var dispLastTs = 0L
-    private var dragLastTs = 0L
-    private var dragVel = 0f
-    private var lastExpandHeight = 0f
-    private var closingByDrag = false
-    private var widgetsHidden = false
-    private var bypassHide = false
-    private val panelAnims = ArrayList<java.lang.ref.WeakReference<android.animation.ValueAnimator>>()
+    private val main = Handler(Looper.getMainLooper())
+
     private var controller: Any? = null
+    private var gaussBlurCls: Class<*>? = null
+
+    // ---- 壁纸缩放
     private var lastStableZoom = 1f
     private var zoomAtSwitchStart = -1f
     private var switchEndedAt = 0L
     private var appliedZoom = 1f
-    private var animating = false
-    private var lastCallTs = 0L
+    private var zoomAnimating = false
+    private var lastZoomTs = 0L
+
+    // ---- 触摸追踪
+    private var sawDown = false
+    private var dragLastY = 0f
+    private var dragLastTs = 0L
+    private var dragVel = 0f
+    private var closingByDrag = false
+    private var bypassHide = false
+    private var lastExpandHeight = 0f
+    private var widgetsHidden = false
+
+    // ---- 模糊平滑
+    private class BlurState(val root: Any) {
+        var utils: Any? = null
+        var applied = -1
+        var target = 0
+        var opaque = false
+        var lastTs = 0L
+        var isCc = false
+    }
+
+    private val blurStates = HashMap<Any, BlurState>()
+    private var blurTicking = false
+    private var inBlurTicker = false
+
+    private val rateCc = 900f
+    private val rateNc = 400f
+
+    // ---- 遮罩渐变
+    private var ncApplied = -1f
+    private var ncGoal = 0f
+    private var ccApplied = -1f
+    private var ccGoal = 0f
+    private var ncActive = false
+    private var ccActive = false
+    private var maskLastTs = 0L
+    private var maskTicking = false
+
+    private val maskFadeMs = 260f
 
     private fun isSwitching(): Boolean = runCatching {
         XposedHelpers.callMethod(controller, "getNcSwitching") as? Boolean ?: false
     }.getOrDefault(false)
 
+    /** 系统动画倍速（开发者选项 5x 等），让我们的固定时长也跟着缩放 */
+    private fun animScale(view: View?): Float = runCatching {
+        android.provider.Settings.Global.getFloat(
+            view!!.context.contentResolver,
+            android.provider.Settings.Global.ANIMATOR_DURATION_SCALE, 1f
+        )
+    }.getOrDefault(1f).coerceIn(1f, 10f)
+
     override fun init() = hasEnable("fix_shade_switch") {
         runCatching {
             val cl = getDefaultCL()
 
-            val cc = cl.loadClass("com.zte.controlcenter.CCDepthController")
-            XposedBridge.hookAllConstructors(cc, object : XC_MethodHook() {
-                override fun afterHookedMethod(param: MethodHookParam) {
-                    controller = param.thisObject
-                }
-            })
+            // 切换状态来源
+            runCatching {
+                val cc = cl.loadClass("com.zte.controlcenter.CCDepthController")
+                XposedBridge.hookAllConstructors(cc, object : XC_MethodHook() {
+                    override fun afterHookedMethod(param: MethodHookParam) {
+                        controller = param.thisObject
+                    }
+                })
+            }
 
+            hookWallpaperZoom(cl)
+            hookBlurSmoothing(cl)
+            hookMaskFade(cl)
+            hookQuickSettingsClose(cl)
+            hookNotificationCenter(cl)
+
+            Log.px("I", "ShadeSwitchFix hooked", logInRelease = true)
+        }.onFailure {
+            Log.px("E", "ShadeSwitchFix init failed", it, logInRelease = true)
+        }
+    }
+
+    // ================================================================ 壁纸缩放
+
+    private fun hookWallpaperZoom(cl: ClassLoader) {
+        runCatching {
             val wallpaper = cl.loadClass("com.android.systemui.util.WallpaperController")
             val setZoom = wallpaper.getDeclaredMethod(
-                "setNotificationShadeZoom",
-                Float::class.javaPrimitiveType
+                "setNotificationShadeZoom", Float::class.javaPrimitiveType
             )
             XposedBridge.hookMethod(setZoom, object : XC_MethodHook() {
                 override fun beforeHookedMethod(param: MethodHookParam) {
                     runCatching {
                         val v = param.args.getOrNull(0) as? Float ?: return
-                        val now = android.os.SystemClock.elapsedRealtime()
+                        val now = SystemClock.elapsedRealtime()
                         val sw = isSwitching()
 
-                        // 先算这次真正想要的目标值
                         var target = v
                         if (sw) {
                             if (zoomAtSwitchStart < 0f) zoomAtSwitchStart = lastStableZoom
                             target = zoomAtSwitchStart
                         } else if (zoomAtSwitchStart >= 0f) {
-                            // 切换刚结束：继续压住，避免结束后被改回去
                             switchEndedAt = now
                             target = zoomAtSwitchStart
                             zoomAtSwitchStart = -1f
@@ -80,516 +149,60 @@ object ShadeSwitchFix : HookRegister() {
                             lastStableZoom = v
                         }
 
-                        // ROM 在快速下滑时会一帧把 1.0 直接跳到 0.0，
-                        // 这里限制每帧最大变化量，让它变成可见的动画
                         val delta = target - appliedZoom
-                        // 间隔太久（手势之间）不能按真实时间算，否则一帧就跳完了
-                        val rawDt = (now - lastCallTs) / 1000f
-                        val dt = if (lastCallTs == 0L || rawDt > 0.05f) 0.016f else rawDt
-                        lastCallTs = now
+                        val rawDt = (now - lastZoomTs) / 1000f
+                        val dt = if (lastZoomTs == 0L || rawDt > 0.05f) 0.016f else rawDt
+                        lastZoomTs = now
 
-                        // 检测到“一帧跳变”后，用指数缓动追上目标，曲线和左侧通知中心接近
-                        if (!animating && kotlin.math.abs(delta) > 0.3f) animating = true
-                        val limited = if (animating) {
+                        if (!zoomAnimating && kotlin.math.abs(delta) > 0.3f) zoomAnimating = true
+                        val limited = if (zoomAnimating) {
                             val alpha = 1f - kotlin.math.exp(-dt / 0.10f)
                             val next = appliedZoom + (target - appliedZoom) * alpha
                             if (kotlin.math.abs(target - next) < 0.005f) {
-                                animating = false
+                                zoomAnimating = false
                                 target
-                            } else {
-                                next
-                            }
-                        } else {
-                            target
-                        }
+                            } else next
+                        } else target
                         appliedZoom = limited
                         param.args[0] = limited
                     }
                 }
             })
-
-            // 两块面板的模糊都做速率限制：系统在快速下拉时会把模糊半径一帧设到目标值，
-            // 这里按固定速度推进（约 500ms 从 0 到满），让模糊是渐变的。
-            // 目标为 0 时立即生效，不会残留；补帧逻辑保证一定走到目标值。
-            runCatching {
-                val bu = cl.loadClass("com.android.systemui.statusbar.BlurUtils")
-                XposedBridge.hookAllMethods(bu, "applyBlur", object : XC_MethodHook() {
-                    override fun beforeHookedMethod(param: MethodHookParam) {
-                        runCatching { smoothBlur(param) }
-                    }
-                })
-            }.onFailure {
-                Log.px("W", "ShadeSwitchFix: applyBlur hook 失败", it, logInRelease = true)
-            }
-
-
-            // 快速设置收起时有些路径走的是「立即收起」，所以看不到过渡。
-            // 这里统一改成走 250ms 的收起动画。
-            runCatching {
-                val cls = cl.loadClass("com.zte.controlcenter.ControlPanelWindowView")
-                XposedBridge.hookAllMethods(cls, "collapsePanel", object : XC_MethodHook() {
-                    override fun beforeHookedMethod(param: MethodHookParam) {
-                        val first = param.args.getOrNull(0) as? Boolean ?: return
-                        if (!first) param.args[0] = true
-                    }
-                })
-            }.onFailure {
-                Log.px("W", "ShadeSwitchFix: collapsePanel hook 失败", it, logInRelease = true)
-            }
-
-            // 有些收起路径直接调 collapsePanelImmediately()，看起来就是"啪"一下没了。
-            // 改成走同一套 250ms 收起动画。
-            runCatching {
-                val cls = cl.loadClass("com.zte.controlcenter.ControlPanelWindowView")
-                XposedBridge.hookAllMethods(cls, "collapsePanelImmediately", object : XC_MethodHook() {
-                    override fun beforeHookedMethod(param: MethodHookParam) {
-                        val inst = param.thisObject
-                        val listener = runCatching {
-                            XposedHelpers.getObjectField(inst, "mCollapseListener")
-                        }.getOrNull() ?: return
-                        param.result = null
-                        runCatching {
-                            XposedHelpers.callMethod(inst, "createAndStartAnimator", 0, listener)
-                        }
-                    }
-                })
-            }.onFailure {
-                Log.px("W", "ShadeSwitchFix: 立即收起 hook 失败", it, logInRelease = true)
-            }
-
-            // 上滑拖动交给系统原生处理（面板跟手）；只额外记录速度
-            runCatching {
-                val cls = cl.loadClass("com.zte.controlcenter.ControlPanelWindowView")
-                XposedBridge.hookAllMethods(cls, "handleMotionEvent", object : XC_MethodHook() {
-                    override fun beforeHookedMethod(param: MethodHookParam) {
-                        val e = param.args.getOrNull(0) as? android.view.MotionEvent ?: return
-                        // dispatchTouchEvent 会把 mIsGetSelfEvent 置 true，导致：
-                        //   1. 跟手分支被跳过
-                        //   2. 高度到 0 时立刻触发 onAnimationEnd（瞬间收起）
-                        // 每次事件都置回 false，让跟手逻辑始终生效。
-                        runCatching {
-                            XposedHelpers.setBooleanField(param.thisObject, "mIsGetSelfEvent", false)
-                        }
-                        if (e.actionMasked == android.view.MotionEvent.ACTION_UP) {
-                            // 快速向上甩动时接管（必须是从面板内按下开始的手势，
-                            // 否则 dragVel 可能是上一次手势的残留值）
-                            if (sawDown && dragVel < -800f) {
-                                param.result = true
-                                runCatching { XposedHelpers.callMethod(param.thisObject, "collapsePanel", true) }
-                            }
-                            sawDown = false
-                        }
-                    }
-                })
-            }
-            // 从桌面下拉时，手势不一定经过 handleMotionEvent，速度采不到 → 动画吃最大时长。
-            // 这里在窗口的 dispatchTouchEvent 里也采一次速度，保证两条路径一致。
-            runCatching {
-                val cls = cl.loadClass("com.zte.controlcenter.ControlPanelWindowView")
-                XposedBridge.hookAllMethods(cls, "dispatchTouchEvent", object : XC_MethodHook() {
-                    override fun beforeHookedMethod(param: MethodHookParam) {
-                        val e = param.args.getOrNull(0) as? android.view.MotionEvent ?: return
-                        when (e.actionMasked) {
-                            android.view.MotionEvent.ACTION_DOWN -> {
-                                dispLastY = e.rawY
-                                dispLastTs = 0L
-                                dragVel = 0f
-                                closingByDrag = false
-                                sawDown = true
-                            }
-                            android.view.MotionEvent.ACTION_MOVE -> {
-                                val now = android.os.SystemClock.elapsedRealtime()
-                                if (dispLastTs > 0L) {
-                                    val dt = now - dispLastTs
-                                    if (dt in 2L..80L) dragVel = (e.rawY - dispLastY) / (dt / 1000f)
-                                }
-                                if (e.rawY - dispLastY < -30f) closingByDrag = true
-                                dispLastY = e.rawY
-                                dispLastTs = now
-                            }
-                        }
-                    }
-                })
-            }.onFailure {
-                Log.px("W", "ShadeSwitchFix: dispatchTouchEvent hook 失败", it, logInRelease = true)
-            }
-
-            // 黑色半透明渐变遮罩：系统直接置 0/1，这里做成渐入渐出。
-            // 注意只改 drawable 的 alpha，不改系统方法的入参，避免影响展开状态机。
-            runCatching {
-                val gb = cl.loadClass("com.zte.utils.GaussBlur")
-                gaussBlurCls = gb
-                XposedBridge.hookAllMethods(gb, "updateShadePanelBlur", object : XC_MethodHook() {
-                    override fun afterHookedMethod(param: MethodHookParam) {
-                        runCatching { trackMask(false, param) }
-                    }
-                })
-                XposedBridge.hookAllMethods(gb, "updateControlPanelBlur", object : XC_MethodHook() {
-                    override fun afterHookedMethod(param: MethodHookParam) {
-                        runCatching { trackMask(true, param) }
-                    }
-                })
-            }.onFailure {
-                Log.px("W", "ShadeSwitchFix: 遮罩 hook 失败", it, logInRelease = true)
-            }
-
-            // 点空白处收起时系统走的是「立即收起」，没有动画。改成走动画收起。
-            runCatching {
-                val cls = cl.loadClass("com.android.systemui.shade.ShadeControllerImpl")
-                XposedBridge.hookAllMethods(cls, "collapseShade", object : XC_MethodHook() {
-                    override fun beforeHookedMethod(param: MethodHookParam) {
-                        val animated = param.args.getOrNull(0) as? Boolean ?: return
-                        if (!animated) param.args[0] = true
-                    }
-                })
-                // 点空白处走的是 instantCollapse()，直接消失。改成走动画收起。
-                runCatching {
-                    val npvc = cl.loadClass("com.android.systemui.shade.NotificationPanelViewController")
-                    XposedBridge.hookAllMethods(npvc, "instantCollapse", object : XC_MethodHook() {
-                        override fun beforeHookedMethod(param: MethodHookParam) {
-                            param.result = null
-                            runCatching { XposedHelpers.callMethod(param.thisObject, "collapse", true, 0f) }
-                        }
-                    })
-                }
-            }.onFailure {
-                Log.px("W", "ShadeSwitchFix: 通知中心立即收起 hook 失败", it, logInRelease = true)
-            }
-
-            // 只在上滑拖动收起这条路径上推迟隐藏内容：其他路径（打开、切换、点空白）完全不受影响
-            runCatching {
-                val viewCls = cl.loadClass("com.zte.controlcenter.ControlPanelWindowView")
-                XposedBridge.hookAllMethods(viewCls, "updateExpandHeight", object : XC_MethodHook() {
-                    override fun beforeHookedMethod(param: MethodHookParam) {
-                        lastExpandHeight = (param.args.getOrNull(0) as? Float) ?: 0f
-                    }
-                    override fun afterHookedMethod(param: MethodHookParam) {
-                        if (!closingByDrag) return
-                        val inst = param.thisObject
-                        val th = runCatching {
-                            XposedHelpers.getIntField(inst, "THRESHOLD")
-                        }.getOrDefault(105)
-                        if (lastExpandHeight > th * 0.6f) return
-                        closingByDrag = false
-                        if (widgetsHidden) return
-                        widgetsHidden = true
-                        runCatching {
-                            val content = XposedHelpers.getObjectField(inst, "mContent")
-                            // 直接走控件的退场动画（animateShowPanel(false)），
-                            // 不用 hideContent()，因为它会先 resetState 把控件 alpha 瞬间清零
-                            val panelView = XposedHelpers.getObjectField(content, "mControlCenterPanelView")
-                            val pvc = XposedHelpers.callMethod(panelView, "getPanelViewController")
-                            val anim = XposedHelpers.callMethod(pvc, "getPanelAnimator")
-                            // 强制 showing=true，否则 animateShowPanel(false) 会因守卫直接 return
-                            runCatching { XposedHelpers.setBooleanField(anim, "showing", true) }
-                            XposedHelpers.callMethod(anim, "animateShowPanel", false)
-                            XposedHelpers.setBooleanField(inst, "mContentShowing", false)
-                        }
-                    }
-                })
-                val contentCls = cl.loadClass("com.zte.controlcenter.ControlPanelContentView")
-                XposedBridge.hookAllMethods(contentCls, "hideContent", object : XC_MethodHook() {
-                    override fun beforeHookedMethod(param: MethodHookParam) {
-                        if (closingByDrag) param.result = null
-                    }
-                })
-            }.onFailure {
-                Log.px("W", "ShadeSwitchFix: 拖动收起隐藏 hook 失败", it, logInRelease = true)
-            }
-
-            // 快速甩动收起走的是 hideControlCenterWindow()（直接隐藏窗口，无动画）。
-            // 只要面板还有高度，就改成走 300ms 收起动画。
-            runCatching {
-                val cls = cl.loadClass("com.zte.controlcenter.ControlPanelWindowView")
-                XposedBridge.hookAllMethods(cls, "hideControlCenterWindow", object : XC_MethodHook() {
-                    override fun beforeHookedMethod(param: MethodHookParam) {
-                        val inst = param.thisObject
-                        val h = runCatching {
-                            XposedHelpers.getFloatField(inst, "mExpandHeight")
-                        }.getOrDefault(0f)
-                        if (h <= 1f) return
-                        param.result = null
-                        runCatching { XposedHelpers.callMethod(inst, "collapsePanel", true) }
-                    }
-                })
-            }.onFailure {
-                Log.px("W", "ShadeSwitchFix: hideControlCenterWindow hook 失败", it, logInRelease = true)
-            }
-
-            // 收起时窗口保持满屏，先让内容淡出 200ms，再真正隐藏窗口。
-            // （之前改窗口高度会让内容跟着"下滑"，所以改成纯淡出 + 延迟隐藏）
-            runCatching {
-                val cls = cl.loadClass("com.zte.controlcenter.ControlPanelWindowView")
-                XposedBridge.hookAllMethods(cls, "hideControlCenterWindow", object : XC_MethodHook() {
-                    override fun beforeHookedMethod(param: MethodHookParam) {
-                        if (bypassHide) return
-                        val inst = param.thisObject as? android.view.View ?: return
-                        param.result = null
-                        runCatching {
-                            val content = XposedHelpers.getObjectField(inst, "mContent") as? android.view.View
-                            content?.animate()?.cancel()
-                            content?.animate()?.alpha(0f)?.setDuration(200L)?.start()
-                        }
-                        handler.postDelayed({
-                            bypassHide = true
-                            runCatching { XposedHelpers.callMethod(inst, "hideControlCenterWindow") }
-                            bypassHide = false
-                            runCatching {
-                                val content = XposedHelpers.getObjectField(inst, "mContent") as? android.view.View
-                                content?.alpha = 1f
-                            }
-                        }, 210L)
-                    }
-                })
-            }.onFailure {
-                Log.px("W", "ShadeSwitchFix: hideControlCenterWindow hook 失败", it, logInRelease = true)
-            }
-            // 黑色半透明渐变遮罩：系统直接置 0/1，这里做成渐入渐出。
-            // 注意只改 drawable 的 alpha，不改系统方法的入参，避免影响展开状态机。
-            runCatching {
-                val gb = cl.loadClass("com.zte.utils.GaussBlur")
-                gaussBlurCls = gb
-                XposedBridge.hookAllMethods(gb, "updateShadePanelBlur", object : XC_MethodHook() {
-                    override fun afterHookedMethod(param: MethodHookParam) {
-                        runCatching { trackMask(false, param) }
-                    }
-                })
-                XposedBridge.hookAllMethods(gb, "updateControlPanelBlur", object : XC_MethodHook() {
-                    override fun afterHookedMethod(param: MethodHookParam) {
-                        runCatching { trackMask(true, param) }
-                    }
-                })
-            }.onFailure {
-                Log.px("W", "ShadeSwitchFix: 遮罩 hook 失败", it, logInRelease = true)
-            }
-
-            // 点空白处收起时系统走的是「立即收起」，没有动画。改成走动画收起。
-            runCatching {
-                val cls = cl.loadClass("com.android.systemui.shade.ShadeControllerImpl")
-                XposedBridge.hookAllMethods(cls, "collapseShade", object : XC_MethodHook() {
-                    override fun beforeHookedMethod(param: MethodHookParam) {
-                        val animated = param.args.getOrNull(0) as? Boolean ?: return
-                        if (!animated) param.args[0] = true
-                    }
-                })
-                // 点空白处走的是 instantCollapse()，直接消失。改成走动画收起。
-                runCatching {
-                    val npvc = cl.loadClass("com.android.systemui.shade.NotificationPanelViewController")
-                    XposedBridge.hookAllMethods(npvc, "instantCollapse", object : XC_MethodHook() {
-                        override fun beforeHookedMethod(param: MethodHookParam) {
-                            param.result = null
-                            runCatching { XposedHelpers.callMethod(param.thisObject, "collapse", true, 0f) }
-                        }
-                    })
-                }
-            }.onFailure {
-                Log.px("W", "ShadeSwitchFix: 通知中心立即收起 hook 失败", it, logInRelease = true)
-            }
-
-            // 只在上滑拖动收起这条路径上推迟隐藏内容：其他路径（打开、切换、点空白）完全不受影响
-            runCatching {
-                val viewCls = cl.loadClass("com.zte.controlcenter.ControlPanelWindowView")
-                XposedBridge.hookAllMethods(viewCls, "updateExpandHeight", object : XC_MethodHook() {
-                    override fun beforeHookedMethod(param: MethodHookParam) {
-                        lastExpandHeight = (param.args.getOrNull(0) as? Float) ?: 0f
-                    }
-                    override fun afterHookedMethod(param: MethodHookParam) {
-                        if (!closingByDrag) return
-                        val inst = param.thisObject
-                        val th = runCatching {
-                            XposedHelpers.getIntField(inst, "THRESHOLD")
-                        }.getOrDefault(105)
-                        if (lastExpandHeight > th * 0.6f) return
-                        closingByDrag = false
-                        if (widgetsHidden) return
-                        widgetsHidden = true
-                        runCatching {
-                            val content = XposedHelpers.getObjectField(inst, "mContent")
-                            // 直接走控件的退场动画（animateShowPanel(false)），
-                            // 不用 hideContent()，因为它会先 resetState 把控件 alpha 瞬间清零
-                            val panelView = XposedHelpers.getObjectField(content, "mControlCenterPanelView")
-                            val pvc = XposedHelpers.callMethod(panelView, "getPanelViewController")
-                            val anim = XposedHelpers.callMethod(pvc, "getPanelAnimator")
-                            // 强制 showing=true，否则 animateShowPanel(false) 会因守卫直接 return
-                            runCatching { XposedHelpers.setBooleanField(anim, "showing", true) }
-                            XposedHelpers.callMethod(anim, "animateShowPanel", false)
-                            XposedHelpers.setBooleanField(inst, "mContentShowing", false)
-                        }
-                    }
-                })
-                val contentCls = cl.loadClass("com.zte.controlcenter.ControlPanelContentView")
-                XposedBridge.hookAllMethods(contentCls, "hideContent", object : XC_MethodHook() {
-                    override fun beforeHookedMethod(param: MethodHookParam) {
-                        if (closingByDrag) param.result = null
-                    }
-                })
-            }.onFailure {
-                Log.px("W", "ShadeSwitchFix: 拖动收起隐藏 hook 失败", it, logInRelease = true)
-            }
-
-            // 快速甩动收起走的是 hideControlCenterWindow()（直接隐藏窗口，无动画）。
-            // 只要面板还有高度，就改成走 300ms 收起动画。
-            runCatching {
-                val cls = cl.loadClass("com.zte.controlcenter.ControlPanelWindowView")
-                XposedBridge.hookAllMethods(cls, "hideControlCenterWindow", object : XC_MethodHook() {
-                    override fun beforeHookedMethod(param: MethodHookParam) {
-                        val inst = param.thisObject
-                        val h = runCatching {
-                            XposedHelpers.getFloatField(inst, "mExpandHeight")
-                        }.getOrDefault(0f)
-                        if (h <= 1f) return
-                        param.result = null
-                        runCatching { XposedHelpers.callMethod(inst, "collapsePanel", true) }
-                    }
-                })
-            }.onFailure {
-                Log.px("W", "ShadeSwitchFix: hideControlCenterWindow hook 失败", it, logInRelease = true)
-            }
-
-            // 让窗口在收起时不是瞬间高度归零，而是 250ms 缩到 0：
-            // 这样磁贴的 200ms 淡出能在窗口还可见时播完。
-            runCatching {
-                val cls = cl.loadClass("com.zte.controlcenter.ControlPanelWindowView")
-                XposedBridge.hookAllMethods(cls, "hideControlCenterWindow", object : XC_MethodHook() {
-                    override fun beforeHookedMethod(param: MethodHookParam) {
-                        if (bypassHide) return
-                        val inst = param.thisObject as? android.view.View ?: return
-                        val wm = runCatching { XposedHelpers.getObjectField(inst, "mControlPanelWindowManager") }.getOrNull() ?: return
-                        val lp = runCatching { XposedHelpers.getObjectField(wm, "mLpChanged") }.getOrNull() ?: return
-                        val fullH = inst.resources.displayMetrics.heightPixels
-                        param.result = null
-                        val anim = android.animation.ValueAnimator.ofFloat(1f, 0f).apply {
-                            duration = (250f * animScale(inst)).toLong()
-                        }
-                        anim.addUpdateListener { a ->
-                            runCatching {
-                                val f = a.animatedValue as Float
-                                XposedHelpers.setIntField(lp, "height", Math.round(fullH * f))
-                                XposedHelpers.callMethod(wm, "apply")
-                            }
-                        }
-                        anim.addListener(object : android.animation.AnimatorListenerAdapter() {
-                            override fun onAnimationEnd(animation: android.animation.Animator) {
-                                bypassHide = true
-                                runCatching { XposedHelpers.callMethod(inst, "hideControlCenterWindow") }
-                                bypassHide = false
-                            }
-                        })
-                        anim.start()
-                    }
-                })
-            }.onFailure {
-                Log.px("W", "ShadeSwitchFix: hideControlCenterWindow hook 失败", it, logInRelease = true)
-            }
-
-            // 上滑收起时不要执行 startBackAnimOnUp()：它会把已经跟着手指上移的控件
-            // 又滑回原位（就是那个"晚一步往下滑"的动画）。
-            runCatching {
-                val cls = cl.loadClass("com.zte.controlcenter.animation.ControlCenterPanelAnimator")
-                XposedBridge.hookAllMethods(cls, "startBackAnimOnUp", object : XC_MethodHook() {
-                    override fun beforeHookedMethod(param: MethodHookParam) {
-                        if (closingByDrag) param.result = null
-                    }
-                })
-            }.onFailure {
-                Log.px("W", "ShadeSwitchFix: startBackAnimOnUp hook 失败", it, logInRelease = true)
-            }
-
-            // 收起过程中不要让控件的 translationY 被重置（updateOverExpandHeight），
-            // 那会产生"控件往下滑回去"的动画。
-            runCatching {
-                val cls = cl.loadClass("com.zte.controlcenter.animation.ControlCenterPanelAnimator")
-                XposedBridge.hookAllMethods(cls, "updateOverExpandHeight", object : XC_MethodHook() {
-                    override fun beforeHookedMethod(param: MethodHookParam) {
-                        if (closingByDrag || bypassHide) param.result = null
-                    }
-                })
-            }.onFailure {
-                Log.px("W", "ShadeSwitchFix: updateOverExpandHeight hook 失败", it, logInRelease = true)
-            }
-
-            Log.px("I", "ShadeSwitchFix hooked", logInRelease = true)
-        }.onFailure {
-            Log.px("E", "ShadeSwitchFix init failed", it, logInRelease = true)
-        }
+        }.onFailure { Log.px("W", "ShadeSwitchFix: 壁纸缩放 hook 失败", it, logInRelease = true) }
     }
 
-    // ---------------------------------------------------------------- 模糊平滑
+    // ================================================================ 模糊平滑
 
-    private class BlurState(val root: Any) {
-        var utils: Any? = null
-        var applied = -1
-        var target = 0
-        var opaque = false
-        var lastTs = 0L
-    }
-
-    private val blurStates = HashMap<Any, BlurState>()
-    private var ticking = false
-    private var inTicker = false
-    private val handler = android.os.Handler(android.os.Looper.getMainLooper())
-
-    /** 每秒最多变化多少像素（满值 200px，约 500ms） */
-    // 快速设置用更快的淡入，通知中心保持之前"合适"的速度
-    private val rateCc = 900f
-    private val rateNc = 400f
-
-    private val ticker = object : Runnable {
-        override fun run() {
-            var pending = false
-            for (s in blurStates.values.toList()) {
-
-                val d = s.target - s.applied
-                if (kotlin.math.abs(d) <= 3) {
-                    s.applied = s.target
-                    continue
+    private fun hookBlurSmoothing(cl: ClassLoader) {
+        runCatching {
+            val bu = cl.loadClass("com.android.systemui.statusbar.BlurUtils")
+            XposedBridge.hookAllMethods(bu, "applyBlur", object : XC_MethodHook() {
+                override fun beforeHookedMethod(param: MethodHookParam) {
+                    runCatching { smoothBlur(param) }
                 }
-                val rate = if (isCcRoot(s.root)) rateCc else rateNc
-                val step = (rate * 0.016f).toInt().coerceAtLeast(2)
-                s.applied += if (d > 0) step else -step
-                inTicker = true
-                runCatching {
-                    val u = s.utils
-                    if (u != null) XposedHelpers.callMethod(u, "applyBlur", s.root, s.applied, s.opaque)
-                }
-                inTicker = false
-                pending = true
-            }
-            ticking = pending
-            if (pending) handler.postDelayed(this, 16L)
-        }
+            })
+        }.onFailure { Log.px("W", "ShadeSwitchFix: applyBlur hook 失败", it, logInRelease = true) }
     }
-
-    /** 系统动画倍速（开发者选项里的 5x 等），用来让我们的固定时长也跟着缩放 */
-    private fun animScale(view: android.view.View?): Float = runCatching {
-        android.provider.Settings.Global.getFloat(
-            view!!.context.contentResolver,
-            android.provider.Settings.Global.ANIMATOR_DURATION_SCALE, 1f
-        )
-    }.getOrDefault(1f).coerceIn(1f, 10f)
-
-    private fun isCcRoot(root: Any): Boolean = runCatching {
-        (XposedHelpers.getObjectField(root, "mView") as? android.view.View)?.javaClass?.name?.contains("ControlPanel") == true
-    }.getOrDefault(false)
 
     private fun smoothBlur(param: XC_MethodHook.MethodHookParam) {
-        if (inTicker) return
+        if (inBlurTicker) return
         val root = param.args.getOrNull(0) ?: return
         val radius = param.args.getOrNull(1) as? Int ?: return
         val opaque = param.args.getOrNull(2) as? Boolean ?: false
 
-        // 只处理通知面板 / 快速设置这两个窗口
-        val name = runCatching {
-            (XposedHelpers.getObjectField(root, "mView") as? android.view.View)?.javaClass?.name
+        val view = runCatching {
+            XposedHelpers.getObjectField(root, "mView") as? View
         }.getOrNull() ?: return
-        if (!name.contains("NotificationShadeWindowView") && !name.contains("ControlPanelWindowView")) return
+        val name = view.javaClass.name
+        val isCc = name.contains("ControlPanel")
+        if (!isCc && !name.contains("NotificationShadeWindowView")) return
 
         val state = blurStates.getOrPut(root) { BlurState(root) }
         state.utils = param.thisObject
-        val now = android.os.SystemClock.elapsedRealtime()
+        state.isCc = isCc
+        val now = SystemClock.elapsedRealtime()
 
-        // 左右切换期间不做平滑：那段时间两页会互相交接模糊，
-        // 再按速率推进就会看到背景模糊在慢慢变化。
+        // 左右切换期间不干预
         if (isSwitching()) {
             state.applied = radius
             state.target = radius
@@ -602,12 +215,12 @@ object ShadeSwitchFix : HookRegister() {
         state.target = radius
         state.opaque = opaque
 
-        val dt = if (state.lastTs == 0L) 16L else (now - state.lastTs).coerceIn(4L, 64L)
-        state.lastTs = now
-        val base = if (name.contains("ControlPanel")) rateCc else rateNc
-        var rate = base / animScale(runCatching { XposedHelpers.getObjectField(root, "mView") as? android.view.View }.getOrNull())
+        var rate = (if (isCc) rateCc else rateNc) / animScale(view)
         // 收起方向（目标变小）加快，保证模糊在面板消失前淡完
         if (radius < state.applied) rate *= 2.5f
+
+        val dt = if (state.lastTs == 0L) 16L else (now - state.lastTs).coerceIn(4L, 64L)
+        state.lastTs = now
         val step = (rate * dt / 1000f).toInt().coerceAtLeast(2)
         val d = radius - state.applied
         if (kotlin.math.abs(d) <= step) {
@@ -615,25 +228,94 @@ object ShadeSwitchFix : HookRegister() {
         } else {
             state.applied += if (d > 0) step else -step
             param.args[1] = state.applied
-            if (!ticking) {
-                ticking = true
-                handler.postDelayed(ticker, 16L)
+            if (!blurTicking) {
+                blurTicking = true
+                main.postDelayed(blurTicker, 16L)
             }
         }
     }
-    // ---------------------------------------------------------------- 遮罩渐入渐出
 
-    private var gaussBlurCls: Class<*>? = null
-    private var ncApplied = -1f
-    private var ncGoal = 0f
-    private var ccApplied = -1f
-    private var ccGoal = 0f
-    private var ncActive = false
-    private var ccActive = false
-    private var maskLastTs = 0L
-    private var masking = false
+    private val blurTicker = object : Runnable {
+        override fun run() {
+            var pending = false
+            for (s in blurStates.values.toList()) {
+                val d = s.target - s.applied
+                if (kotlin.math.abs(d) <= 3) {
+                    s.applied = s.target
+                    continue
+                }
+                var rate = (if (s.isCc) rateCc else rateNc)
+                if (d < 0) rate *= 2.5f
+                val step = (rate * 0.016f).toInt().coerceAtLeast(2)
+                s.applied += if (d > 0) step else -step
+                inBlurTicker = true
+                runCatching {
+                    val u = s.utils
+                    if (u != null) XposedHelpers.callMethod(u, "applyBlur", s.root, s.applied, s.opaque)
+                }
+                inBlurTicker = false
+                pending = true
+            }
+            blurTicking = pending
+            if (pending) main.postDelayed(this, 16L)
+        }
+    }
 
-    private val maskFadeMs = 260f
+    // ================================================================ 遮罩渐变
+
+    private fun hookMaskFade(cl: ClassLoader) {
+        runCatching {
+            val gb = cl.loadClass("com.zte.utils.GaussBlur")
+            gaussBlurCls = gb
+            XposedBridge.hookAllMethods(gb, "updateShadePanelBlur", object : XC_MethodHook() {
+                override fun afterHookedMethod(param: MethodHookParam) {
+                    runCatching { trackMask(false, param) }
+                }
+            })
+            XposedBridge.hookAllMethods(gb, "updateControlPanelBlur", object : XC_MethodHook() {
+                override fun afterHookedMethod(param: MethodHookParam) {
+                    runCatching { trackMask(true, param) }
+                }
+            })
+        }.onFailure { Log.px("W", "ShadeSwitchFix: 遮罩 hook 失败", it, logInRelease = true) }
+    }
+
+    private fun trackMask(isCc: Boolean, param: XC_MethodHook.MethodHookParam) {
+        val f = param.args.getOrNull(1) as? Float ?: return
+        val goal = f.coerceIn(0f, 1f)
+        val now = SystemClock.elapsedRealtime()
+
+        if (isSwitching()) {
+            if (isCc) { ccApplied = goal; ccGoal = goal; ccActive = false } else { ncApplied = goal; ncGoal = goal; ncActive = false }
+            pushMask(isCc)
+            return
+        }
+
+        val dt = if (maskLastTs == 0L) 16L else (now - maskLastTs).coerceIn(4L, 64L)
+        maskLastTs = now
+        val step = (dt / maskFadeMs).coerceAtLeast(0.005f)
+
+        if (isCc) {
+            if (ccApplied < 0f) ccApplied = goal
+            ccGoal = goal
+            val d = ccGoal - ccApplied
+            ccApplied = if (kotlin.math.abs(d) <= step) ccGoal else ccApplied + if (d > 0) step else -step
+            ccActive = kotlin.math.abs(ccGoal - ccApplied) > 0.01f
+            pushMask(true)
+        } else {
+            if (ncApplied < 0f) ncApplied = goal
+            ncGoal = goal
+            val d = ncGoal - ncApplied
+            ncApplied = if (kotlin.math.abs(d) <= step) ncGoal else ncApplied + if (d > 0) step else -step
+            ncActive = kotlin.math.abs(ncGoal - ncApplied) > 0.01f
+            pushMask(false)
+        }
+
+        if (!maskTicking && (ncActive || ccActive)) {
+            maskTicking = true
+            main.postDelayed(maskTicker, 16L)
+        }
+    }
 
     private val maskTicker = object : Runnable {
         override fun run() {
@@ -661,56 +343,203 @@ object ShadeSwitchFix : HookRegister() {
                 }
                 pushMask(true)
             }
-            masking = busy
-            if (busy) handler.postDelayed(this, 16L)
+            maskTicking = busy
+            if (busy) main.postDelayed(this, 16L)
         }
     }
 
-    private fun trackMask(isCc: Boolean, param: XC_MethodHook.MethodHookParam) {
-        val f = param.args.getOrNull(1) as? Float ?: return
-        val goal = f.coerceIn(0f, 1f)
-        val now = android.os.SystemClock.elapsedRealtime()
-        val dt = if (maskLastTs == 0L) 16L else (now - maskLastTs).coerceIn(4L, 64L)
-        maskLastTs = now
-        val step = (dt / maskFadeMs).coerceAtLeast(0.005f)
-
-        if (isSwitching()) {
-            if (isCc) { ccApplied = goal; ccGoal = goal; ccActive = false } else { ncApplied = goal; ncGoal = goal; ncActive = false }
-            pushMask(isCc)
-            return
-        }
-
-        if (isCc) {
-            if (ccApplied < 0f) ccApplied = goal
-            ccGoal = goal
-            val d = ccGoal - ccApplied
-            ccApplied = if (kotlin.math.abs(d) <= step) ccGoal else ccApplied + if (d > 0) step else -step
-            ccActive = kotlin.math.abs(ccGoal - ccApplied) > 0.01f
-            pushMask(true)
-        } else {
-            if (ncApplied < 0f) ncApplied = goal
-            ncGoal = goal
-            val d = ncGoal - ncApplied
-            ncApplied = if (kotlin.math.abs(d) <= step) ncGoal else ncApplied + if (d > 0) step else -step
-            ncActive = kotlin.math.abs(ncGoal - ncApplied) > 0.01f
-            pushMask(false)
-        }
-
-        if (!masking && (ncActive || ccActive)) {
-            masking = true
-            handler.postDelayed(maskTicker, 16L)
-        }
-    }
-
-    /** 只改对应那一层遮罩，绝不同时动两块，避免两层叠加 */
+    /** 只改对应那一层遮罩，绝不同时动两块 */
     private fun pushMask(isCc: Boolean) {
         val cls = gaussBlurCls ?: return
         val v = if (isCc) ccApplied else ncApplied
         if (v < 0f) return
         val field = if (isCc) "mCCGaussMaskDrawable" else "mNCGaussMaskDrawable"
         runCatching {
-            val d = XposedHelpers.getStaticObjectField(cls, field) as? android.graphics.drawable.Drawable ?: return
+            val d = XposedHelpers.getStaticObjectField(cls, field) as? Drawable ?: return
             d.alpha = (v.coerceIn(0f, 1f) * 255).toInt()
         }
+    }
+
+    // ================================================================ 快速设置收起
+
+    private fun hookQuickSettingsClose(cl: ClassLoader) {
+        // 高度动画时长：展开按速度、收起固定 300ms（跟随动画倍速）
+        runCatching {
+            val cls = cl.loadClass("com.zte.controlcenter.ControlPanelWindowView")
+            XposedBridge.hookAllMethods(cls, "createHeightChangeAnimator", object : XC_MethodHook() {
+                override fun afterHookedMethod(param: MethodHookParam) {
+                    val target = param.args.getOrNull(0) as? Int ?: 0
+                    val anim = XposedHelpers.getObjectField(param.thisObject, "mHeightChangeAnimator")
+                        as? ValueAnimator ?: return
+                    val scale = animScale(param.thisObject as? View)
+                    val base = if (target != 0) {
+                        val v = kotlin.math.abs(dragVel)
+                        if (v < 100f) 150L else (330f - v / 30f).toInt().coerceIn(150, 330).toLong()
+                    } else 300L
+                    anim.duration = (base * scale).toLong()
+                }
+            })
+        }
+
+        // 所有"立即收起"都改成动画收起
+        runCatching {
+            val cls = cl.loadClass("com.zte.controlcenter.ControlPanelWindowView")
+            XposedBridge.hookAllMethods(cls, "collapsePanel", object : XC_MethodHook() {
+                override fun beforeHookedMethod(param: MethodHookParam) {
+                    val first = param.args.getOrNull(0) as? Boolean ?: return
+                    if (!first) param.args[0] = true
+                }
+            })
+            XposedBridge.hookAllMethods(cls, "collapsePanelImmediately", object : XC_MethodHook() {
+                override fun beforeHookedMethod(param: MethodHookParam) {
+                    val inst = param.thisObject
+                    val listener = runCatching {
+                        XposedHelpers.getObjectField(inst, "mCollapseListener")
+                    }.getOrNull() ?: return
+                    param.result = null
+                    runCatching { XposedHelpers.callMethod(inst, "createAndStartAnimator", 0, listener) }
+                }
+            })
+            // 真正隐藏窗口时：内容先淡出 200ms，再隐藏（窗口保持满屏，避免内容被带着下滑）
+            XposedBridge.hookAllMethods(cls, "hideControlCenterWindow", object : XC_MethodHook() {
+                override fun beforeHookedMethod(param: MethodHookParam) {
+                    if (bypassHide) return
+                    val inst = param.thisObject as? View ?: return
+                    param.result = null
+                    runCatching {
+                        val content = XposedHelpers.getObjectField(inst, "mContent") as? View
+                        content?.animate()?.cancel()
+                        content?.animate()?.alpha(0f)?.setDuration(200L)?.start()
+                    }
+                    main.postDelayed({
+                        bypassHide = true
+                        runCatching { XposedHelpers.callMethod(inst, "hideControlCenterWindow") }
+                        bypassHide = false
+                        runCatching {
+                            val content = XposedHelpers.getObjectField(inst, "mContent") as? View
+                            content?.alpha = 1f
+                        }
+                    }, 210L)
+                }
+            })
+        }.onFailure { Log.px("W", "ShadeSwitchFix: 收起 hook 失败", it, logInRelease = true) }
+
+        // 触摸事件：速度追踪 + 快速甩动接管
+        runCatching {
+            val cls = cl.loadClass("com.zte.controlcenter.ControlPanelWindowView")
+            XposedBridge.hookAllMethods(cls, "dispatchTouchEvent", object : XC_MethodHook() {
+                override fun beforeHookedMethod(param: MethodHookParam) {
+                    val e = param.args.getOrNull(0) as? MotionEvent ?: return
+                    when (e.actionMasked) {
+                        MotionEvent.ACTION_DOWN -> {
+                            dragLastY = e.rawY
+                            dragLastTs = 0L
+                            dragVel = 0f
+                            closingByDrag = false
+                            sawDown = true
+                        }
+                        MotionEvent.ACTION_MOVE -> {
+                            val now = SystemClock.elapsedRealtime()
+                            if (dragLastTs > 0L) {
+                                val dt = now - dragLastTs
+                                if (dt in 2L..80L) dragVel = (e.rawY - dragLastY) / (dt / 1000f)
+                            }
+                            if (e.rawY - dragLastY < -30f) closingByDrag = true
+                            dragLastY = e.rawY
+                            dragLastTs = now
+                        }
+                    }
+                }
+            })
+            XposedBridge.hookAllMethods(cls, "handleMotionEvent", object : XC_MethodHook() {
+                override fun beforeHookedMethod(param: MethodHookParam) {
+                    val e = param.args.getOrNull(0) as? MotionEvent ?: return
+                    // 让原生跟手分支始终生效
+                    runCatching {
+                        XposedHelpers.setBooleanField(param.thisObject, "mIsGetSelfEvent", false)
+                    }
+                    if (e.actionMasked == MotionEvent.ACTION_UP) {
+                        if (sawDown && dragVel < -800f) {
+                            param.result = true
+                            runCatching { XposedHelpers.callMethod(param.thisObject, "collapsePanel", true) }
+                        }
+                        sawDown = false
+                    }
+                }
+            })
+        }.onFailure { Log.px("W", "ShadeSwitchFix: 触摸 hook 失败", it, logInRelease = true) }
+
+        // 拖动收起：内容延迟隐藏 + 60% 时触发磁贴淡出
+        runCatching {
+            val viewCls = cl.loadClass("com.zte.controlcenter.ControlPanelWindowView")
+            val contentCls = cl.loadClass("com.zte.controlcenter.ControlPanelContentView")
+            XposedBridge.hookAllMethods(viewCls, "updateExpandHeight", object : XC_MethodHook() {
+                override fun beforeHookedMethod(param: MethodHookParam) {
+                    lastExpandHeight = (param.args.getOrNull(0) as? Float) ?: 0f
+                }
+
+                override fun afterHookedMethod(param: MethodHookParam) {
+                    if (!closingByDrag) return
+                    val inst = param.thisObject
+                    val th = runCatching { XposedHelpers.getIntField(inst, "THRESHOLD") }.getOrDefault(105)
+                    if (lastExpandHeight > th * 0.6f) return
+                    closingByDrag = false
+                    if (widgetsHidden) return
+                    widgetsHidden = true
+                    runCatching {
+                        val content = XposedHelpers.getObjectField(inst, "mContent")
+                        val panelView = XposedHelpers.getObjectField(content, "mControlCenterPanelView")
+                        val pvc = XposedHelpers.callMethod(panelView, "getPanelViewController")
+                        val anim = XposedHelpers.callMethod(pvc, "getPanelAnimator")
+                        runCatching { XposedHelpers.setBooleanField(anim, "showing", true) }
+                        XposedHelpers.callMethod(anim, "animateShowPanel", false)
+                        XposedHelpers.setBooleanField(inst, "mContentShowing", false)
+                    }
+                }
+            })
+            XposedBridge.hookAllMethods(contentCls, "hideContent", object : XC_MethodHook() {
+                override fun beforeHookedMethod(param: MethodHookParam) {
+                    if (closingByDrag) param.result = null
+                }
+            })
+        }.onFailure { Log.px("W", "ShadeSwitchFix: 内容隐藏 hook 失败", it, logInRelease = true) }
+
+        // 收起时不要复位控件位移（会产生"往下滑"的动画）
+        runCatching {
+            val animCls = cl.loadClass("com.zte.controlcenter.animation.ControlCenterPanelAnimator")
+            XposedBridge.hookAllMethods(animCls, "startBackAnimOnUp", object : XC_MethodHook() {
+                override fun beforeHookedMethod(param: MethodHookParam) {
+                    if (closingByDrag || bypassHide) param.result = null
+                }
+            })
+            XposedBridge.hookAllMethods(animCls, "updateOverExpandHeight", object : XC_MethodHook() {
+                override fun beforeHookedMethod(param: MethodHookParam) {
+                    if (closingByDrag || bypassHide) param.result = null
+                }
+            })
+        }.onFailure { Log.px("W", "ShadeSwitchFix: 控件位移 hook 失败", it, logInRelease = true) }
+    }
+
+    // ================================================================ 通知中心
+
+    private fun hookNotificationCenter(cl: ClassLoader) {
+        runCatching {
+            val cls = cl.loadClass("com.android.systemui.shade.ShadeControllerImpl")
+            XposedBridge.hookAllMethods(cls, "collapseShade", object : XC_MethodHook() {
+                override fun beforeHookedMethod(param: MethodHookParam) {
+                    val animated = param.args.getOrNull(0) as? Boolean ?: return
+                    if (!animated) param.args[0] = true
+                }
+            })
+        }
+        runCatching {
+            val npvc = cl.loadClass("com.android.systemui.shade.NotificationPanelViewController")
+            XposedBridge.hookAllMethods(npvc, "instantCollapse", object : XC_MethodHook() {
+                override fun beforeHookedMethod(param: MethodHookParam) {
+                    param.result = null
+                    runCatching { XposedHelpers.callMethod(param.thisObject, "collapse", true, 0f) }
+                }
+            })
+        }.onFailure { Log.px("W", "ShadeSwitchFix: 通知中心收起 hook 失败", it, logInRelease = true) }
     }
 }
