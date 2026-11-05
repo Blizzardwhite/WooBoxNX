@@ -207,7 +207,7 @@ object ShadeSwitchFix : HookRegister() {
                         val anim = runCatching {
                             XposedHelpers.getObjectField(param.thisObject, "mHeightChangeAnimator")
                         }.getOrNull() as? android.animation.ValueAnimator ?: return
-                        anim.duration = 250L
+                        anim.duration = 300L
                     }
                 })
             }.onFailure {
