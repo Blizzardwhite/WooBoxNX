@@ -410,8 +410,8 @@ object SettingsModel {
 
     private val qs = Category("qs", "快速设置面板", "行列自定义、运营商、搜索按钮", 3, listOf(
         Group(null, listOf(
-            Row(key = "fix_shade_switch", title = "修复切换闪烁（实验）",
-                summary = "固定壁纸缩放，并在切换时保持通知页模糊（重启系统界面生效）"),
+            Row(key = "fix_shade_switch", title = "面板动效优化",
+                summary = "统一通知中心与快速设置的模糊、遮罩渐变和收起时长，收起时立刻放行触摸（重启系统界面生效）"),
             Row(key = "shade_blur_off", title = "去掉面板模糊",
                 summary = "排查用：强制关闭通知中心与快速设置的背景模糊（重启系统界面生效）"),
             Row(key = "qs_header_shortcut_redirect_calendar", title = "点击日期跳转第三方日历"),
