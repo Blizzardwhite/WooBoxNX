@@ -475,15 +475,7 @@ object ShadeSwitchFix : HookRegister() {
             val contentCls = cl.loadClass("com.zte.controlcenter.ControlPanelContentView")
             XposedBridge.hookAllMethods(viewCls, "updateExpandHeight", object : XC_MethodHook() {
                 override fun beforeHookedMethod(param: MethodHookParam) {
-                    val h = (param.args.getOrNull(0) as? Float) ?: 0f
-                    // 高度在变大 = 正在展开：清掉收起状态的标记，
-                    // 否则从状态栏下拉时（CC 窗口收不到 DOWN）会残留上一轮的收起状态，
-                    // 导致打开后内容不显示。
-                    if (h > lastExpandHeight) {
-                        closingByDrag = false
-                        widgetsHidden = false
-                    }
-                    lastExpandHeight = h
+                    lastExpandHeight = (param.args.getOrNull(0) as? Float) ?: 0f
                 }
 
                 override fun afterHookedMethod(param: MethodHookParam) {
