@@ -1,23 +1,32 @@
 package com.bw.wooboxnx.hook.app.systemui.features
 
+import android.os.Handler
+import android.os.Looper
+import android.view.View
+import android.view.ViewGroup
+import android.view.animation.DecelerateInterpolator
+import android.view.animation.AccelerateInterpolator
 import com.bw.wooboxnx.util.hasEnable
 import com.bw.wooboxnx.util.xposed.Log
 import com.bw.wooboxnx.util.xposed.base.HookRegister
 import de.robv.android.xposed.XC_MethodHook
 import de.robv.android.xposed.XposedBridge
 import de.robv.android.xposed.XposedHelpers
+import java.lang.ref.WeakReference
 
 /**
- * 左右切换通知中心 / 快速设置时的两个问题：
+ * 通知中心 / 快速设置左右切换时的处理：
  *
- *   1. 壁纸缩放被强制改值 → 壁纸突然放大/缩小一次（已用缓动修正）
- *   2. `NCSwitchController.switchBlur()` 会把「即将离开的那一页」的模糊设成 0，
- *      收起过程中那一页的背景会瞬间变清晰 → 看起来就是闪一下
+ *  1. 壁纸缩放会被系统强制改值 → 用缓动补回来（原来就有的逻辑）
+ *  2. 换页时前页内容已消失、后页内容还没出现，中间会露出空背景（看起来就是闪一下）
+ *     → 系统开始切换时铺一层黑场，切换结束再淡出，做成「淡入淡出黑场」过渡
  *
- * 第 2 点处理：switchBlur 执行完后，把两页的模糊比例都恢复成 1。
- * 只改这一瞬间的数值，不干预模糊状态机；页面真正收起后系统会自己把半径归零。
+ * 黑场只是两块窗口里各加一个不拦截触摸的 View，带强制超时兜底，
+ * 不会碰模糊 / 面板状态，最坏情况也只是黑一下后自动消失。
  */
 object ShadeSwitchFix : HookRegister() {
+
+    private const val VEIL_TAG = "woobox_switch_veil"
 
     private var controller: Any? = null
     private var lastStableZoom = 1f
@@ -27,57 +36,14 @@ object ShadeSwitchFix : HookRegister() {
     private var animating = false
     private var lastCallTs = 0L
 
+    private val main = Handler(Looper.getMainLooper())
+    private val veils = ArrayList<WeakReference<View>>()
+    private var veilVisible = false
+    private var safety: Runnable? = null
+
     private fun isSwitching(): Boolean = runCatching {
         XposedHelpers.callMethod(controller, "getNcSwitching") as? Boolean ?: false
     }.getOrDefault(false)
-
-    private var maskFade: android.animation.ValueAnimator? = null
-
-    /**
-     * 进入的那一页照旧设满模糊（模糊半径、底色都由系统自己算），
-     * 只把两页渐变遮罩的 alpha 做成淡入淡出，消掉「啪一下全黑」。
-     */
-    private fun crossFadeMask(cl: ClassLoader, toControlCenter: Boolean) {
-        val dep = cl.loadClass("com.android.systemui.Dependency")
-        val cwmCls = cl.loadClass("com.zte.controlcenter.ControlPanelWindowManager")
-        val cc = XposedHelpers.callStaticMethod(dep, "get", cwmCls)
-        val csCls = cl.loadClass("com.android.systemui.statusbar.phone.CentralSurfaces")
-        val cs = XposedHelpers.callStaticMethod(dep, "get", csCls)
-        val nc = XposedHelpers.callMethod(cs, "getNotificationPanelViewController")
-
-        // 先让进入页拿到满模糊（这一步和系统原逻辑一致）
-        if (toControlCenter) XposedHelpers.callMethod(cc, "setBlurRatio", 1.0f)
-        else XposedHelpers.callMethod(nc, "setBlurRatio", 1.0f)
-
-        val gb = cl.loadClass("com.zte.utils.GaussBlur")
-        val ccMask = runCatching {
-            XposedHelpers.getStaticObjectField(gb, "mCCGaussMaskDrawable") as? android.graphics.drawable.Drawable
-        }.getOrNull()
-        val ncMask = runCatching {
-            XposedHelpers.getStaticObjectField(gb, "mNCGaussMaskDrawable") as? android.graphics.drawable.Drawable
-        }.getOrNull()
-        val incoming = if (toControlCenter) ccMask else ncMask
-        val outgoing = if (toControlCenter) ncMask else ccMask
-        if (incoming == null && outgoing == null) return
-
-        // 只淡出「离开的那一页」的遮罩；进入的那页保持系统给的值（满遮罩），
-        // 否则页面已经显示出来时遮罩被拉到 0，就会白一下。
-        if (outgoing == null) return
-
-        maskFade?.cancel()
-        val anim = android.animation.ValueAnimator.ofFloat(0f, 1f).apply { duration = 240L }
-        anim.addUpdateListener { a ->
-            val f = a.animatedValue as Float
-            runCatching { outgoing.alpha = ((1f - f) * 255).toInt() }
-        }
-        anim.addListener(object : android.animation.AnimatorListenerAdapter() {
-            override fun onAnimationEnd(animation: android.animation.Animator) {
-                runCatching { outgoing.alpha = 0 }
-            }
-        })
-        anim.start()
-        maskFade = anim
-    }
 
     override fun init() = hasEnable("fix_shade_switch") {
         runCatching {
@@ -90,6 +56,31 @@ object ShadeSwitchFix : HookRegister() {
                 }
             })
 
+            // 切换开始 / 结束的信号
+            XposedBridge.hookAllMethods(cc, "setNcSwitching", object : XC_MethodHook() {
+                override fun afterHookedMethod(param: MethodHookParam) {
+                    val on = param.args.getOrNull(0) as? Boolean ?: return
+                    if (on) showVeil() else hideVeil(0L)
+                }
+            })
+
+            // 给两块窗口各挂一层黑场
+            listOf(
+                "com.android.systemui.shade.NotificationShadeWindowView",
+                "com.zte.controlcenter.ControlPanelWindowView"
+            ).forEach { name ->
+                runCatching {
+                    val cls = cl.loadClass(name)
+                    XposedBridge.hookAllConstructors(cls, object : XC_MethodHook() {
+                        override fun afterHookedMethod(param: MethodHookParam) {
+                            val root = param.thisObject as? ViewGroup ?: return
+                            runCatching { attachVeil(root) }
+                        }
+                    })
+                }
+            }
+
+            // 壁纸缩放缓动
             val wallpaper = cl.loadClass("com.android.systemui.util.WallpaperController")
             val setZoom = wallpaper.getDeclaredMethod(
                 "setNotificationShadeZoom",
@@ -102,13 +93,11 @@ object ShadeSwitchFix : HookRegister() {
                         val now = android.os.SystemClock.elapsedRealtime()
                         val sw = isSwitching()
 
-                        // 先算这次真正想要的目标值
                         var target = v
                         if (sw) {
                             if (zoomAtSwitchStart < 0f) zoomAtSwitchStart = lastStableZoom
                             target = zoomAtSwitchStart
                         } else if (zoomAtSwitchStart >= 0f) {
-                            // 切换刚结束：继续压住，避免结束后被改回去
                             switchEndedAt = now
                             target = zoomAtSwitchStart
                             zoomAtSwitchStart = -1f
@@ -118,15 +107,11 @@ object ShadeSwitchFix : HookRegister() {
                             lastStableZoom = v
                         }
 
-                        // ROM 在快速下滑时会一帧把 1.0 直接跳到 0.0，
-                        // 这里限制每帧最大变化量，让它变成可见的动画
                         val delta = target - appliedZoom
-                        // 间隔太久（手势之间）不能按真实时间算，否则一帧就跳完了
                         val rawDt = (now - lastCallTs) / 1000f
                         val dt = if (lastCallTs == 0L || rawDt > 0.05f) 0.016f else rawDt
                         lastCallTs = now
 
-                        // 检测到“一帧跳变”后，用指数缓动追上目标，曲线和左侧通知中心接近
                         if (!animating && kotlin.math.abs(delta) > 0.3f) animating = true
                         val limited = if (animating) {
                             val alpha = 1f - kotlin.math.exp(-dt / 0.10f)
@@ -146,38 +131,86 @@ object ShadeSwitchFix : HookRegister() {
                 }
             })
 
-            // 切换越过阈值时，ROM 会一次性把两页的「模糊 + 遮罩透明度」改掉（switchBlur），
-            // 进入的那页瞬间变成全黑 —— 就是你看到的那段没有任何过渡的突兀黑。
-            // 这里跳过原方法：模糊照旧设满，但把两页渐变遮罩的透明度做成 220ms 交叉淡入淡出。
+            // 两页交接之间的 100ms 等待去掉，减少黑场时间
             runCatching {
-                val cls = cl.loadClass("com.zte.controlcenter.policy.NCSwitchController")
-                XposedBridge.hookAllMethods(cls, "switchBlur", object : XC_MethodHook() {
-                    override fun beforeHookedMethod(param: MethodHookParam) {
-                        param.result = null
-                        val toControlCenter = param.args.getOrNull(0) as? Boolean ?: return
-                        runCatching { crossFadeMask(cl, toControlCenter) }
-                    }
-                })
-            }.onFailure {
-                Log.px("W", "ShadeSwitchFix: switchBlur hook 失败", it, logInRelease = true)
-            }
-
-            // 通知页切到快速设置时，系统是「先收起通知页，100ms 后再打开快速设置」，
-            // 中间会露出一段桌面/黑底。把延迟去掉，让两页重叠，过渡更连续。
-            runCatching {
-                val cls = cl.loadClass("com.zte.controlcenter.ControlPanelController")
-                XposedBridge.hookAllMethods(cls, "openPanelDelayed", object : XC_MethodHook() {
+                val cpc = cl.loadClass("com.zte.controlcenter.ControlPanelController")
+                XposedBridge.hookAllMethods(cpc, "openPanelDelayed", object : XC_MethodHook() {
                     override fun beforeHookedMethod(param: MethodHookParam) {
                         if ((param.args.getOrNull(0) as? Long ?: 0L) > 0L) param.args[0] = 0L
                     }
                 })
-            }.onFailure {
-                Log.px("W", "ShadeSwitchFix: openPanelDelayed hook 失败", it, logInRelease = true)
             }
 
             Log.px("I", "ShadeSwitchFix hooked", logInRelease = true)
         }.onFailure {
             Log.px("E", "ShadeSwitchFix init failed", it, logInRelease = true)
         }
+    }
+
+    // ---------------------------------------------------------------- 黑场
+
+    private fun attachVeil(root: ViewGroup) {
+        if (root.findViewWithTag<View>(VEIL_TAG) != null) return
+        val v = View(root.context).apply {
+            tag = VEIL_TAG
+            setBackgroundColor(0xFF000000.toInt())
+            isClickable = false
+            isFocusable = false
+            alpha = 0f
+            visibility = View.GONE
+        }
+        runCatching { root.addView(v, ViewGroup.LayoutParams(-1, -1)) }
+        veils.add(WeakReference(v))
+    }
+
+    private fun liveVeils(): List<View> {
+        veils.removeAll { it.get() == null }
+        return veils.mapNotNull { it.get() }
+    }
+
+    private fun animScale(): Float = runCatching {
+        val ctx = liveVeils().firstOrNull()?.context ?: return@runCatching 1f
+        android.provider.Settings.Global.getFloat(
+            ctx.contentResolver,
+            android.provider.Settings.Global.ANIMATOR_DURATION_SCALE, 1f
+        )
+    }.getOrDefault(1f).coerceIn(0.5f, 10f)
+
+    private fun showVeil() {
+        val views = liveVeils()
+        if (views.isEmpty()) return
+        veilVisible = true
+        safety?.let { main.removeCallbacks(it) }
+        val tIn = (110f * animScale()).toLong()
+        views.forEach { v ->
+            v.animate().cancel()
+            v.visibility = View.VISIBLE
+            v.animate().alpha(1f).setDuration(tIn).setInterpolator(DecelerateInterpolator()).start()
+        }
+        // 兜底：8 秒内没收到结束信号也强制撤掉
+        safety = Runnable { hideVeil(0L) }.also { main.postDelayed(it, 8000L) }
+    }
+
+    private fun hideVeil(delay: Long) {
+        safety?.let { main.removeCallbacks(it) }
+        safety = null
+        if (!veilVisible) {
+            // 就算没显示过，也保证状态是隐藏的
+            liveVeils().forEach { v -> v.animate().cancel(); v.alpha = 0f; v.visibility = View.GONE }
+            return
+        }
+        veilVisible = false
+        val tOut = (180f * animScale()).toLong()
+        val action = Runnable {
+            liveVeils().forEach { v ->
+                v.animate().cancel()
+                v.animate().alpha(0f).setDuration(tOut).setInterpolator(AccelerateInterpolator())
+                    .withEndAction {
+                        v.alpha = 0f
+                        v.visibility = View.GONE
+                    }.start()
+            }
+        }
+        if (delay > 0) main.postDelayed(action, delay) else action.run()
     }
 }
