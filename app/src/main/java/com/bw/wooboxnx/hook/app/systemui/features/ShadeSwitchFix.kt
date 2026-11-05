@@ -83,7 +83,7 @@ object ShadeSwitchFix : HookRegister() {
     private var maskLastTs = 0L
     private var maskTicking = false
 
-    private val maskFadeMs = 150f
+    private val maskFadeMs = 50f
 
     private fun isSwitching(): Boolean = runCatching {
         XposedHelpers.callMethod(controller, "getNcSwitching") as? Boolean ?: false
@@ -411,7 +411,7 @@ object ShadeSwitchFix : HookRegister() {
                     val base = if (target != 0) {
                         val v = kotlin.math.abs(dragVel)
                         if (v < 100f) 150L else (330f - v / 30f).toInt().coerceIn(150, 330).toLong()
-                    } else 220L
+                    } else 200L
                     anim.duration = (base * scale).toLong()
                 }
             })
@@ -616,7 +616,7 @@ object ShadeSwitchFix : HookRegister() {
                         val anim = XposedHelpers.getObjectField(param.thisObject, "mHeightAnimator")
                             as? android.animation.ValueAnimator ?: return@runCatching
                         val scale = animScale(param.thisObject as? View)
-                        anim.duration = (220f * scale).toLong()
+                        anim.duration = (200f * scale).toLong()
                     }
                 }
             })
@@ -657,7 +657,7 @@ object ShadeSwitchFix : HookRegister() {
             runCatching { setNcTouchable(false) }
             main.postDelayed({
                 if (token == ccTouchToken) setCcTouchable(true)
-            }, 70L)
+            }, 50L)
         }
     }
 
@@ -674,7 +674,7 @@ object ShadeSwitchFix : HookRegister() {
         if (!touchable) {
             main.postDelayed({
                 if (token == ncTouchToken) setNcTouchable(true)
-            }, 70L)
+            }, 50L)
         }
     }
 }
