@@ -223,11 +223,13 @@ object ShadeSwitchFix : HookRegister() {
                             XposedHelpers.getObjectField(param.thisObject, "mHeightChangeAnimator")
                         }.getOrNull() as? android.animation.ValueAnimator ?: return
                         val target = param.args.getOrNull(0) as? Int ?: 0
-                        anim.duration = if (target != 0) {
-                            // 展开：按拖动速度决定时长（甩得越快开得越快），400ms → 150ms
+                        val scale = animScale(param.thisObject as? android.view.View)
+                        val base = if (target != 0) {
+                            // 展开：按拖动速度决定时长（甩得越快开得越快）
                             val v = kotlin.math.abs(dragVel)
                             (330f - v / 30f).toInt().coerceIn(150, 330).toLong()
                         } else 300L
+                        anim.duration = (base * scale).toLong()
                     }
                 })
             }.onFailure {
@@ -286,6 +288,14 @@ object ShadeSwitchFix : HookRegister() {
         }
     }
 
+    /** 系统动画倍速（开发者选项里的 5x 等），用来让我们的固定时长也跟着缩放 */
+    private fun animScale(view: android.view.View?): Float = runCatching {
+        android.provider.Settings.Global.getFloat(
+            view!!.context.contentResolver,
+            android.provider.Settings.Global.ANIMATOR_DURATION_SCALE, 1f
+        )
+    }.getOrDefault(1f).coerceIn(1f, 10f)
+
     private fun isCcRoot(root: Any): Boolean = runCatching {
         (XposedHelpers.getObjectField(root, "mView") as? android.view.View)?.javaClass?.name?.contains("ControlPanel") == true
     }.getOrDefault(false)
@@ -322,7 +332,8 @@ object ShadeSwitchFix : HookRegister() {
 
         val dt = if (state.lastTs == 0L) 16L else (now - state.lastTs).coerceIn(4L, 64L)
         state.lastTs = now
-        val rate = if (name.contains("ControlPanel")) rateCc else rateNc
+        val base = if (name.contains("ControlPanel")) rateCc else rateNc
+        val rate = base / animScale(runCatching { XposedHelpers.getObjectField(root, "mView") as? android.view.View }.getOrNull())
         val step = (rate * dt / 1000f).toInt().coerceAtLeast(2)
         val d = radius - state.applied
         if (kotlin.math.abs(d) <= step) {
