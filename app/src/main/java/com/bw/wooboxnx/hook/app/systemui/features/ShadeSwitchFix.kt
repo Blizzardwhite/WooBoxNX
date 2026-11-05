@@ -64,6 +64,7 @@ object ShadeSwitchFix : HookRegister() {
         var opaque = false
         var lastTs = 0L
         var isCc = false
+        var switchFloor = -1
     }
 
     private val blurStates = HashMap<Any, BlurState>()
@@ -228,14 +229,19 @@ object ShadeSwitchFix : HookRegister() {
         state.isCc = isCc
         val now = SystemClock.elapsedRealtime()
 
-        // 左右切换期间不干预
+        // 左右切换期间：模糊只升不降（用切换前的值兜底）
+        // 否则收起的那一页模糊会先被清零，露出一瞬间的清晰桌面
         if (isSwitching()) {
-            state.applied = radius
-            state.target = radius
+            if (state.switchFloor < 0) state.switchFloor = state.applied.coerceAtLeast(0)
+            val v = kotlin.math.max(radius, state.switchFloor)
+            state.applied = v
+            state.target = v
             state.opaque = opaque
             state.lastTs = now
+            param.args[1] = v
             return
         }
+        state.switchFloor = -1
 
         // 目标为 0（已完全收起/隐藏）：同步把平滑状态归零，
         // 这样下一次展开一定从 0 开始渐变，也不会在拖动收起时被误清零
