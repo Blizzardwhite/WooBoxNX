@@ -640,11 +640,18 @@ object ShadeSwitchFix : HookRegister() {
                     // 这里如果改成动画收起，就会闪出"没有通知"，所以解锁期间不拦截
                     if (SystemClock.elapsedRealtime() < unlockAnimUntil) return
                     param.result = null
-                    // 这里第二个参数是"收起加速系数"，原来传 0f，
-                    // 会让 flingToHeight 里 duration / 0 变成异常值、动画走不成正常帧，
-                    // 结果就变成"裁剪式"收起。用 1.0f 才是正常动画。
+                    // 这里第二个参数是"收起加速系数"，用 1.0f 才是正常动画
                     runCatching { XposedHelpers.callMethod(param.thisObject, "collapse", true, 1.0f) }
                     setNcTouchable(false)
+                    // 点空白收起时系统只在最后一帧把列表 alpha 归零，
+                    // 中间靠裁剪，看起来就是"最后一下突然没"。
+                    // 这里自己补一条淡出，和收起动画同时结束。
+                    runCatching {
+                        val c = XposedHelpers.getObjectField(param.thisObject, "mNotificationStackScrollLayoutController")
+                        val v = XposedHelpers.callMethod(c, "getView") as? View ?: return@runCatching
+                        v.animate().cancel()
+                        v.animate().alpha(0f).setDuration(280L).start()
+                    }
                 }
             })
             // 记录解锁动画窗口（结尾的 instantCollapse 就在这段时间内）
