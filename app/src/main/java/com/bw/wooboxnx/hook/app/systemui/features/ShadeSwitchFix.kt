@@ -379,6 +379,19 @@ object ShadeSwitchFix : HookRegister() {
                 Log.px("W", "ShadeSwitchFix: startBackAnimOnUp hook 失败", it, logInRelease = true)
             }
 
+            // 收起过程中不要让控件的 translationY 被重置（updateOverExpandHeight），
+            // 那会产生"控件往下滑回去"的动画。
+            runCatching {
+                val cls = cl.loadClass("com.zte.controlcenter.animation.ControlCenterPanelAnimator")
+                XposedBridge.hookAllMethods(cls, "updateOverExpandHeight", object : XC_MethodHook() {
+                    override fun beforeHookedMethod(param: MethodHookParam) {
+                        if (closingByDrag || bypassHide) param.result = null
+                    }
+                })
+            }.onFailure {
+                Log.px("W", "ShadeSwitchFix: updateOverExpandHeight hook 失败", it, logInRelease = true)
+            }
+
             Log.px("I", "ShadeSwitchFix hooked", logInRelease = true)
         }.onFailure {
             Log.px("E", "ShadeSwitchFix init failed", it, logInRelease = true)
