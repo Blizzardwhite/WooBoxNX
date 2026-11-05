@@ -565,6 +565,18 @@ object ShadeSwitchFix : HookRegister() {
                     setNcTouchable(false)
                 }
             })
+            // 其它收起路径（back / 点空白 / 甩动）
+            XposedBridge.hookAllMethods(npvc, "collapse", object : XC_MethodHook() {
+                override fun beforeHookedMethod(param: MethodHookParam) {
+                    setNcTouchable(false)
+                }
+            })
+            XposedBridge.hookAllMethods(npvc, "fling", object : XC_MethodHook() {
+                override fun beforeHookedMethod(param: MethodHookParam) {
+                    val expand = param.args.getOrNull(1) as? Boolean ?: return
+                    if (!expand) setNcTouchable(false)
+                }
+            })
             // 面板完全展开时恢复触摸
             XposedBridge.hookAllMethods(npvc, "onHeightUpdated", object : XC_MethodHook() {
                 override fun afterHookedMethod(param: MethodHookParam) {
