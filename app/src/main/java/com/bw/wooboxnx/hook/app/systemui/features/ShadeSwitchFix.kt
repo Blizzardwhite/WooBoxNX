@@ -385,7 +385,7 @@ object ShadeSwitchFix : HookRegister() {
                     val base = if (target != 0) {
                         val v = kotlin.math.abs(dragVel)
                         if (v < 100f) 150L else (330f - v / 30f).toInt().coerceIn(150, 330).toLong()
-                    } else 300L
+                    } else 220L
                     anim.duration = (base * scale).toLong()
                 }
             })
