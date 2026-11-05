@@ -99,13 +99,27 @@ object ShadeSwitchFix : HookRegister() {
             })
 
             // 切换动画越过阈值时，ROM 会把「离开的那一页」模糊直接关掉（switchBlur），
-            // 收起过程中背景从模糊变成清晰，看起来就是闪。这里直接跳过这次切换，
-            // 两页各自保持当前模糊；之后正常收起/展开时系统会自己更新。
+            // 收起过程中背景从模糊变成清晰，看起来就是闪。
+            // 这里跳过原方法，只给「即将进入的那一页」设满模糊，离开的那页不动。
             runCatching {
                 val cls = cl.loadClass("com.zte.controlcenter.policy.NCSwitchController")
                 XposedBridge.hookAllMethods(cls, "switchBlur", object : XC_MethodHook() {
                     override fun beforeHookedMethod(param: MethodHookParam) {
                         param.result = null
+                        val toControlCenter = param.args.getOrNull(0) as? Boolean ?: return
+                        runCatching {
+                            val dep = cl.loadClass("com.android.systemui.Dependency")
+                            if (toControlCenter) {
+                                val cwmCls = cl.loadClass("com.zte.controlcenter.ControlPanelWindowManager")
+                                val cwm = XposedHelpers.callStaticMethod(dep, "get", cwmCls)
+                                XposedHelpers.callMethod(cwm, "setBlurRatio", 1.0f)
+                            } else {
+                                val csCls = cl.loadClass("com.android.systemui.statusbar.phone.CentralSurfaces")
+                                val cs = XposedHelpers.callStaticMethod(dep, "get", csCls)
+                                val npvc = XposedHelpers.callMethod(cs, "getNotificationPanelViewController")
+                                XposedHelpers.callMethod(npvc, "setBlurRatio", 1.0f)
+                            }
+                        }
                     }
                 })
             }.onFailure {
