@@ -401,49 +401,18 @@ object ShadeSwitchFix : HookRegister() {
                     runCatching { XposedHelpers.callMethod(inst, "createAndStartAnimator", 0, listener) }
                 }
             })
-            // 真正隐藏窗口时：内容先淡出 200ms，再隐藏（窗口保持满屏，避免内容被带着下滑）
+            // 窗口隐藏后立刻把内容 alpha 恢复，避免下次打开空白。
+            // 不做延迟隐藏：那样窗口会残留一小段时间，挡住桌面触摸。
             XposedBridge.hookAllMethods(cls, "hideControlCenterWindow", object : XC_MethodHook() {
-                override fun beforeHookedMethod(param: MethodHookParam) {
-                    if (bypassHide) return
-                    val inst = param.thisObject as? View ?: return
-                    param.result = null
-                    val content = runCatching {
-                        XposedHelpers.getObjectField(inst, "mContent") as? View
-                    }.getOrNull()
-                    hideToken++
-                    val token = hideToken
-                    val finish = Runnable {
-                        // 期间又开始新的手势 → 放弃这次延迟隐藏，交给新手势处理
-                        if (token != hideToken) {
-                            runCatching { content?.alpha = 1f }
-                            return@Runnable
-                        }
-                        bypassHide = true
-                        runCatching { XposedHelpers.callMethod(inst, "hideControlCenterWindow") }
-                        bypassHide = false
-                        runCatching { content?.alpha = 1f }
+                override fun afterHookedMethod(param: MethodHookParam) {
+                    runCatching {
+                        val inst = param.thisObject
+                        val content = XposedHelpers.getObjectField(inst, "mContent") as? View
+                        content?.animate()?.cancel()
+                        content?.alpha = 1f
                     }
-                    if (content == null) {
-                        main.post(finish)
-                    } else {
-                        content.animate().cancel()
-                        content.animate().alpha(0f).setDuration(200L)
-                            .withEndAction(finish)
-                            .start()
-                    }
-                    // 兜底看门狗：600ms 后如果面板其实已经收起（高度≈0）但窗口还留着，
-                    // 强制隐藏，避免窗口挡住桌面触摸
-                    main.postDelayed({
-                        if (lastExpandHeight <= 0.5f) {
-                            bypassHide = true
-                            runCatching { XposedHelpers.callMethod(inst, "hideControlCenterWindow") }
-                            bypassHide = false
-                            runCatching { content?.alpha = 1f }
-                        }
-                    }, 260L)
                 }
-            })
-        }.onFailure { Log.px("W", "ShadeSwitchFix: 收起 hook 失败", it, logInRelease = true) }
+            })        }.onFailure { Log.px("W", "ShadeSwitchFix: 收起 hook 失败", it, logInRelease = true) }
 
         // 触摸事件：速度追踪 + 快速甩动接管
         runCatching {
