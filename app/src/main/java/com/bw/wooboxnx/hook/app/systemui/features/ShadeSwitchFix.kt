@@ -80,7 +80,7 @@ object ShadeSwitchFix : HookRegister() {
     // ---- 遮罩渐变
     private var ncApplied = -1f
     private var ncGoal = 0f
-    private var ccApplied = -1f
+    private var ccApplied = 0f
     private var ccGoal = 0f
     private var ncActive = false
     private var ccActive = false
@@ -341,7 +341,7 @@ object ShadeSwitchFix : HookRegister() {
         val step = (dt / maskFadeMs).coerceAtLeast(0.005f)
 
         if (isCc) {
-            if (ccApplied < 0f) ccApplied = goal
+            // 从 0 开始渐变（原来直接跳到 goal，导致遮罩没有渐入）
             ccGoal = goal
             val d = ccGoal - ccApplied
             ccApplied = if (kotlin.math.abs(d) <= step) ccGoal else ccApplied + if (d > 0) step else -step
@@ -479,7 +479,7 @@ object ShadeSwitchFix : HookRegister() {
                             // 如果取消待执行的隐藏，窗口就会一直挡着桌面。
                             // 模糊状态也不能在这里清零：面板已经打开时按下是要"收起"，
                             // 清零会让画面先突然变清晰（变实）再重新变糊。
-                            ccApplied = -1f
+                            ccApplied = 0f
                             ccActive = false
                         }
                         MotionEvent.ACTION_MOVE -> {
@@ -530,7 +530,7 @@ object ShadeSwitchFix : HookRegister() {
                         // 避免上一次收起残留的 0 值导致"下拉没有模糊/遮罩"
                         if (lastExpandHeight <= 0.5f) {
                             blurStates.values.forEach { if (it.isCc) it.applied = 0 }
-                            ccApplied = -1f
+                            ccApplied = 0f
                             ccActive = false
                             // 新的一次展开开始：作废上一轮还没执行的延迟隐藏
                             hideToken++
