@@ -214,6 +214,23 @@ object ShadeSwitchFix : HookRegister() {
                 Log.px("W", "ShadeSwitchFix: 收起时长 hook 失败", it, logInRelease = true)
             }
 
+            // 黑色渐变遮罩的透明度也做渐入渐出：系统是直接置 0/1 的
+            runCatching {
+                val gb = cl.loadClass("com.zte.utils.GaussBlur")
+                XposedBridge.hookAllMethods(gb, "updateShadePanelBlur", object : XC_MethodHook() {
+                    override fun beforeHookedMethod(param: MethodHookParam) {
+                        runCatching { smoothMask(gb, "updateShadePanelBlur", false, param) }
+                    }
+                })
+                XposedBridge.hookAllMethods(gb, "updateControlPanelBlur", object : XC_MethodHook() {
+                    override fun beforeHookedMethod(param: MethodHookParam) {
+                        runCatching { smoothMask(gb, "updateControlPanelBlur", true, param) }
+                    }
+                })
+            }.onFailure {
+                Log.px("W", "ShadeSwitchFix: 遮罩平滑 hook 失败", it, logInRelease = true)
+            }
+
             Log.px("I", "ShadeSwitchFix hooked", logInRelease = true)
         }.onFailure {
             Log.px("E", "ShadeSwitchFix init failed", it, logInRelease = true)
@@ -313,6 +330,69 @@ object ShadeSwitchFix : HookRegister() {
             if (!ticking) {
                 ticking = true
                 handler.postDelayed(ticker, 16L)
+            }
+        }
+    }
+
+    // ---------------------------------------------------------------- 遮罩渐变
+
+    private class MaskState(val method: String, val cls: Class<*>, val rate: Float) {
+        var owner: Any? = null
+        var applied = -1f
+        var goal = 0f
+        var lastTs = 0L
+    }
+
+    private val maskStates = HashMap<String, MaskState>()
+    private var masking = false
+    private var inMaskTicker = false
+
+    private val maskTicker = object : Runnable {
+        override fun run() {
+            var pending = false
+            for (s in maskStates.values.toList()) {
+                val d = s.goal - s.applied
+                if (kotlin.math.abs(d) <= 0.01f) {
+                    s.applied = s.goal
+                    continue
+                }
+                val step = s.rate * 0.016f
+                s.applied += if (d > 0) step else -step
+                s.applied = s.applied.coerceIn(0f, 1f)
+                inMaskTicker = true
+                runCatching { XposedHelpers.callStaticMethod(s.cls, s.method, s.owner, s.applied) }
+                inMaskTicker = false
+                pending = true
+            }
+            masking = pending
+            if (pending) handler.postDelayed(this, 16L)
+        }
+    }
+
+    private fun smoothMask(cls: Class<*>, method: String, isCc: Boolean, param: XC_MethodHook.MethodHookParam) {
+        if (inMaskTicker) return
+        if (isSwitching()) return
+        val owner = param.args.getOrNull(0) ?: return
+        val f = param.args.getOrNull(1) as? Float ?: return
+
+        val s = maskStates.getOrPut(method) { MaskState(method, cls, if (isCc) 4.5f else 2.0f) }
+        s.owner = owner
+        val now = android.os.SystemClock.elapsedRealtime()
+        if (s.applied < 0f) s.applied = f
+        s.goal = f.coerceIn(0f, 1f)
+
+        val dt = if (s.lastTs == 0L) 16L else (now - s.lastTs).coerceIn(4L, 64L)
+        s.lastTs = now
+        val step = (s.rate * dt / 1000f).coerceAtLeast(0.004f)
+        val d = s.goal - s.applied
+        if (kotlin.math.abs(d) <= step) {
+            s.applied = s.goal
+        } else {
+            s.applied += if (d > 0) step else -step
+            param.args[1] = s.applied
+            if (!masking) {
+                masking = true
+                handler.postDelayed(maskTicker, 16L)
             }
         }
     }
