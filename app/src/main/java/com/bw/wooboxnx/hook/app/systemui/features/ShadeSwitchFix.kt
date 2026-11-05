@@ -610,9 +610,11 @@ object ShadeSwitchFix : HookRegister() {
             }
         }
         if (!touchable) {
+            // 通知中心窗口在下面一层，也会吃掉触摸，一起放行
+            runCatching { setNcTouchable(false) }
             main.postDelayed({
                 if (token == ccTouchToken) setCcTouchable(true)
-            }, 260L)
+            }, 160L)
         }
     }
 
@@ -629,7 +631,7 @@ object ShadeSwitchFix : HookRegister() {
         if (!touchable) {
             main.postDelayed({
                 if (token == ncTouchToken) setNcTouchable(true)
-            }, 260L)
+            }, 160L)
         }
     }
 }
