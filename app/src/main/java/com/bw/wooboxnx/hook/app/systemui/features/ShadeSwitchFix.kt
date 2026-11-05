@@ -82,7 +82,7 @@ object ShadeSwitchFix : HookRegister() {
     private var maskLastTs = 0L
     private var maskTicking = false
 
-    private val maskFadeMs = 260f
+    private val maskFadeMs = 150f
 
     private fun isSwitching(): Boolean = runCatching {
         XposedHelpers.callMethod(controller, "getNcSwitching") as? Boolean ?: false
