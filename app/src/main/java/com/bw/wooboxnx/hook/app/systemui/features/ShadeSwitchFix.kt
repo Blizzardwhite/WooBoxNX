@@ -52,6 +52,7 @@ object ShadeSwitchFix : HookRegister() {
     private var bypassHide = false
     private var lastExpandHeight = 0f
     private var widgetsHidden = false
+    private var hideToken = 0
 
     // ---- 模糊平滑
     private class BlurState(val root: Any) {
