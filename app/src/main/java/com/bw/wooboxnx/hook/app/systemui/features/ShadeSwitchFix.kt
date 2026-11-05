@@ -214,26 +214,6 @@ object ShadeSwitchFix : HookRegister() {
                 Log.px("W", "ShadeSwitchFix: 收起时长 hook 失败", it, logInRelease = true)
             }
 
-            // 通知面板的收起动画时长也压到 200ms（系统原本是 200~300ms 之间）
-            runCatching {
-                val npvc = cl.loadClass("com.android.systemui.shade.NotificationPanelViewController")
-                XposedBridge.hookAllMethods(npvc, "createHeightAnimator", object : XC_MethodHook() {
-                    override fun afterHookedMethod(param: MethodHookParam) {
-                        val anim = param.result as? android.animation.ValueAnimator ?: return
-                        panelAnims.add(java.lang.ref.WeakReference(anim))
-                        if (panelAnims.size > 8) panelAnims.removeAt(0)
-                    }
-                })
-                XposedBridge.hookAllMethods(android.animation.ValueAnimator::class.java, "setDuration", object : XC_MethodHook() {
-                    override fun beforeHookedMethod(param: MethodHookParam) {
-                        val a = param.thisObject as? android.animation.ValueAnimator ?: return
-                        if (panelAnims.any { it.get() === a }) param.args[0] = 200L
-                    }
-                })
-            }.onFailure {
-                Log.px("W", "ShadeSwitchFix: 通知面板时长 hook 失败", it, logInRelease = true)
-            }
-
             Log.px("I", "ShadeSwitchFix hooked", logInRelease = true)
         }.onFailure {
             Log.px("E", "ShadeSwitchFix init failed", it, logInRelease = true)
