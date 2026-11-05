@@ -271,6 +271,25 @@ object ShadeSwitchFix : HookRegister() {
                 Log.px("W", "ShadeSwitchFix: dispatchTouchEvent hook 失败", it, logInRelease = true)
             }
 
+            // 黑色半透明渐变遮罩：系统直接置 0/1，这里做成渐入渐出。
+            // 注意只改 drawable 的 alpha，不改系统方法的入参，避免影响展开状态机。
+            runCatching {
+                val gb = cl.loadClass("com.zte.utils.GaussBlur")
+                gaussBlurCls = gb
+                XposedBridge.hookAllMethods(gb, "updateShadePanelBlur", object : XC_MethodHook() {
+                    override fun beforeHookedMethod(param: MethodHookParam) {
+                        runCatching { trackMask(false, param) }
+                    }
+                })
+                XposedBridge.hookAllMethods(gb, "updateControlPanelBlur", object : XC_MethodHook() {
+                    override fun beforeHookedMethod(param: MethodHookParam) {
+                        runCatching { trackMask(true, param) }
+                    }
+                })
+            }.onFailure {
+                Log.px("W", "ShadeSwitchFix: 遮罩 hook 失败", it, logInRelease = true)
+            }
+
             Log.px("I", "ShadeSwitchFix hooked", logInRelease = true)
         }.onFailure {
             Log.px("E", "ShadeSwitchFix init failed", it, logInRelease = true)
@@ -379,6 +398,85 @@ object ShadeSwitchFix : HookRegister() {
             if (!ticking) {
                 ticking = true
                 handler.postDelayed(ticker, 16L)
+            }
+        }
+    }
+
+    // ---------------------------------------------------------------- 遮罩渐入渐出
+
+    private var gaussBlurCls: Class<*>? = null
+    private var maskNcApplied = -1f
+    private var maskNcGoal = 0f
+    private var maskCcApplied = -1f
+    private var maskCcGoal = 0f
+    private var maskLastTs = 0L
+    private var masking = false
+
+    /** 淡入用时（毫秒） */
+    private val maskFadeMs = 260f
+
+    private val maskTicker = object : Runnable {
+        override fun run() {
+            val dN = maskNcGoal - maskNcApplied
+            val dC = maskCcGoal - maskCcApplied
+            if (kotlin.math.abs(dN) <= 0.01f && kotlin.math.abs(dC) <= 0.01f) {
+                maskNcApplied = maskNcGoal
+                maskCcApplied = maskCcGoal
+                pushMasks()
+                masking = false
+                return
+            }
+            val step = 16f / maskFadeMs
+            if (kotlin.math.abs(dN) > 0.01f) maskNcApplied = (maskNcApplied + if (dN > 0) step else -step).coerceIn(0f, 1f)
+            if (kotlin.math.abs(dC) > 0.01f) maskCcApplied = (maskCcApplied + if (dC > 0) step else -step).coerceIn(0f, 1f)
+            pushMasks()
+            handler.postDelayed(this, 16L)
+        }
+    }
+
+    private fun trackMask(isCc: Boolean, param: XC_MethodHook.MethodHookParam) {
+        val f = param.args.getOrNull(1) as? Float ?: return
+        val goal = f.coerceIn(0f, 1f)
+        val now = android.os.SystemClock.elapsedRealtime()
+        val dt = if (maskLastTs == 0L) 16L else (now - maskLastTs).coerceIn(4L, 64L)
+        maskLastTs = now
+        val step = (dt / maskFadeMs).coerceAtLeast(0.005f)
+
+        if (isSwitching()) {
+            if (isCc) { maskCcApplied = goal; maskCcGoal = goal } else { maskNcApplied = goal; maskNcGoal = goal }
+            pushMasks()
+            return
+        }
+
+        if (isCc) {
+            if (maskCcApplied < 0f) maskCcApplied = goal
+            maskCcGoal = goal
+            val d = maskCcGoal - maskCcApplied
+            maskCcApplied = if (kotlin.math.abs(d) <= step) maskCcGoal else maskCcApplied + if (d > 0) step else -step
+        } else {
+            if (maskNcApplied < 0f) maskNcApplied = goal
+            maskNcGoal = goal
+            val d = maskNcGoal - maskNcApplied
+            maskNcApplied = if (kotlin.math.abs(d) <= step) maskNcGoal else maskNcApplied + if (d > 0) step else -step
+        }
+
+        pushMasks()
+        if (!masking) {
+            masking = true
+            handler.postDelayed(maskTicker, 16L)
+        }
+    }
+
+    private fun pushMasks() {
+        val cls = gaussBlurCls ?: return
+        runCatching {
+            if (maskNcApplied >= 0f) {
+                val d = XposedHelpers.getStaticObjectField(cls, "mNCGaussMaskDrawable") as? android.graphics.drawable.Drawable
+                d?.alpha = (maskNcApplied.coerceIn(0f, 1f) * 255).toInt()
+            }
+            if (maskCcApplied >= 0f) {
+                val d = XposedHelpers.getStaticObjectField(cls, "mCCGaussMaskDrawable") as? android.graphics.drawable.Drawable
+                d?.alpha = (maskCcApplied.coerceIn(0f, 1f) * 255).toInt()
             }
         }
     }
