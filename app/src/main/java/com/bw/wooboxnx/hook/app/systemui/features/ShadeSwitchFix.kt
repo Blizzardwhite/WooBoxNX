@@ -406,20 +406,23 @@ object ShadeSwitchFix : HookRegister() {
                     if (bypassHide) return
                     val inst = param.thisObject as? View ?: return
                     param.result = null
-                    runCatching {
-                        val content = XposedHelpers.getObjectField(inst, "mContent") as? View
-                        content?.animate()?.cancel()
-                        content?.animate()?.alpha(0f)?.setDuration(200L)?.start()
-                    }
-                    main.postDelayed({
+                    val content = runCatching {
+                        XposedHelpers.getObjectField(inst, "mContent") as? View
+                    }.getOrNull()
+                    val finish = Runnable {
                         bypassHide = true
                         runCatching { XposedHelpers.callMethod(inst, "hideControlCenterWindow") }
                         bypassHide = false
-                        runCatching {
-                            val content = XposedHelpers.getObjectField(inst, "mContent") as? View
-                            content?.alpha = 1f
-                        }
-                    }, 210L)
+                        runCatching { content?.alpha = 1f }
+                    }
+                    if (content == null) {
+                        main.post(finish)
+                    } else {
+                        content.animate().cancel()
+                        content.animate().alpha(0f).setDuration(200L)
+                            .withEndAction(finish)
+                            .start()
+                    }
                 }
             })
         }.onFailure { Log.px("W", "ShadeSwitchFix: 收起 hook 失败", it, logInRelease = true) }
