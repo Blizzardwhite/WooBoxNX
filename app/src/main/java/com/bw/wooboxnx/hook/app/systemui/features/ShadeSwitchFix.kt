@@ -271,23 +271,6 @@ object ShadeSwitchFix : HookRegister() {
                 Log.px("W", "ShadeSwitchFix: dispatchTouchEvent hook 失败", it, logInRelease = true)
             }
 
-            // 黑色半透明渐变遮罩：系统是直接置 0/1 的，这里加上渐入渐出
-            runCatching {
-                val gb = cl.loadClass("com.zte.utils.GaussBlur")
-                XposedBridge.hookAllMethods(gb, "updateShadePanelBlur", object : XC_MethodHook() {
-                    override fun beforeHookedMethod(param: MethodHookParam) {
-                        runCatching { smoothMask(gb, "updateShadePanelBlur", param) }
-                    }
-                })
-                XposedBridge.hookAllMethods(gb, "updateControlPanelBlur", object : XC_MethodHook() {
-                    override fun beforeHookedMethod(param: MethodHookParam) {
-                        runCatching { smoothMask(gb, "updateControlPanelBlur", param) }
-                    }
-                })
-            }.onFailure {
-                Log.px("W", "ShadeSwitchFix: 遮罩 hook 失败", it, logInRelease = true)
-            }
-
             Log.px("I", "ShadeSwitchFix hooked", logInRelease = true)
         }.onFailure {
             Log.px("E", "ShadeSwitchFix init failed", it, logInRelease = true)
@@ -396,78 +379,6 @@ object ShadeSwitchFix : HookRegister() {
             if (!ticking) {
                 ticking = true
                 handler.postDelayed(ticker, 16L)
-            }
-        }
-    }
-
-    // ---------------------------------------------------------------- 遮罩渐入渐出
-
-    private class MaskState(val method: String, val cls: Class<*>) {
-        var owner: Any? = null
-        var applied = -1f
-        var goal = 0f
-        var lastTs = 0L
-    }
-
-    private val maskStates = HashMap<String, MaskState>()
-    private var masking = false
-    private var inMaskTicker = false
-
-    /** 遮罩淡入用时（毫秒） */
-    private val maskFadeMs = 260f
-
-    private val maskTicker = object : Runnable {
-        override fun run() {
-            var pending = false
-            for (s in maskStates.values.toList()) {
-                val d = s.goal - s.applied
-                if (kotlin.math.abs(d) <= 0.01f) {
-                    s.applied = s.goal
-                    continue
-                }
-                val scale = animScale(s.owner as? android.view.View)
-                // 淡出快一些，避免面板已经消失而遮罩还在
-                val ms = if (d > 0) maskFadeMs else maskFadeMs * 0.6f
-                val step = (0.016f * scale * 1000f / ms).coerceAtLeast(0.004f)
-                s.applied += if (d > 0) step else -step
-                s.applied = s.applied.coerceIn(0f, 1f)
-                inMaskTicker = true
-                runCatching { XposedHelpers.callStaticMethod(s.cls, s.method, s.owner, s.applied) }
-                inMaskTicker = false
-                pending = true
-            }
-            masking = pending
-            if (pending) handler.postDelayed(this, 16L)
-        }
-    }
-
-    private fun smoothMask(cls: Class<*>, method: String, param: XC_MethodHook.MethodHookParam) {
-        if (inMaskTicker) return
-        if (isSwitching()) return
-        val owner = param.args.getOrNull(0) ?: return
-        val f = param.args.getOrNull(1) as? Float ?: return
-
-        val s = maskStates.getOrPut(method) { MaskState(method, cls) }
-        s.owner = owner
-        val now = android.os.SystemClock.elapsedRealtime()
-        if (s.applied < 0f) s.applied = f
-        s.goal = f.coerceIn(0f, 1f)
-
-        val view = s.owner as? android.view.View
-        val scale = animScale(view)
-        val dt = if (s.lastTs == 0L) 16L else (now - s.lastTs).coerceIn(4L, 64L)
-        s.lastTs = now
-        val ms = if (s.goal > s.applied) maskFadeMs else maskFadeMs * 0.6f
-        val step = (dt * scale / ms).coerceAtLeast(0.004f)
-        val d = s.goal - s.applied
-        if (kotlin.math.abs(d) <= step) {
-            s.applied = s.goal
-        } else {
-            s.applied += if (d > 0) step else -step
-            param.args[1] = s.applied
-            if (!masking) {
-                masking = true
-                handler.postDelayed(maskTicker, 16L)
             }
         }
     }
