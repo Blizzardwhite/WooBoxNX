@@ -258,7 +258,7 @@ object ShadeSwitchFix : HookRegister() {
     private val handler = android.os.Handler(android.os.Looper.getMainLooper())
 
     /** 每秒最多变化多少像素（满值 200px，约 500ms） */
-    private val ratePxPerSec = 400f
+    private val ratePxPerSec = 900f
 
     private val ticker = object : Runnable {
         override fun run() {
