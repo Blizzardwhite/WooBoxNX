@@ -236,6 +236,35 @@ object ShadeSwitchFix : HookRegister() {
                 Log.px("W", "ShadeSwitchFix: 收起时长 hook 失败", it, logInRelease = true)
             }
 
+            // 从桌面下拉时，手势不一定经过 handleMotionEvent，速度采不到 → 动画吃最大时长。
+            // 这里在窗口的 dispatchTouchEvent 里也采一次速度，保证两条路径一致。
+            runCatching {
+                val cls = cl.loadClass("com.zte.controlcenter.ControlPanelWindowView")
+                XposedBridge.hookAllMethods(cls, "dispatchTouchEvent", object : XC_MethodHook() {
+                    override fun beforeHookedMethod(param: MethodHookParam) {
+                        val e = param.args.getOrNull(0) as? android.view.MotionEvent ?: return
+                        when (e.actionMasked) {
+                            android.view.MotionEvent.ACTION_DOWN -> {
+                                dragLastY = e.rawY
+                                dragLastTs = 0L
+                                dragVel = 0f
+                            }
+                            android.view.MotionEvent.ACTION_MOVE -> {
+                                val now = android.os.SystemClock.elapsedRealtime()
+                                if (dragLastTs > 0L) {
+                                    val dt = now - dragLastTs
+                                    if (dt in 2L..80L) dragVel = (e.rawY - dragLastY) / (dt / 1000f)
+                                }
+                                dragLastY = e.rawY
+                                dragLastTs = now
+                            }
+                        }
+                    }
+                })
+            }.onFailure {
+                Log.px("W", "ShadeSwitchFix: dispatchTouchEvent hook 失败", it, logInRelease = true)
+            }
+
             Log.px("I", "ShadeSwitchFix hooked", logInRelease = true)
         }.onFailure {
             Log.px("E", "ShadeSwitchFix init failed", it, logInRelease = true)
