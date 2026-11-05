@@ -72,7 +72,10 @@ object ShadeSwitchFix : HookRegister() {
     private var inBlurTicker = false
 
     private val rateCc = 400f
-    private val rateNc = 400f
+    // 通知中心：原版模糊由系统弹簧驱动（刚度 1500，约 120ms 到位），
+    // 我们原来限速 400px/s 等于慢了 4 倍，才会出现"先变暗、后变糊"。
+    // 这里提高到接近系统弹簧的速度，同时仍能挡住单帧跳变。
+    private val rateNc = 1600f
 
     // ---- 遮罩渐变
     private var ncApplied = -1f
