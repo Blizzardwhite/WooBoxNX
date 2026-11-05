@@ -158,6 +158,13 @@ object ShadeSwitchFix : HookRegister() {
                 XposedBridge.hookAllMethods(cls, "handleMotionEvent", object : XC_MethodHook() {
                     override fun beforeHookedMethod(param: MethodHookParam) {
                         val e = param.args.getOrNull(0) as? android.view.MotionEvent ?: return
+                        // dispatchTouchEvent 会把 mIsGetSelfEvent 置 true，导致：
+                        //   1. 跟手分支被跳过
+                        //   2. 高度到 0 时立刻触发 onAnimationEnd（瞬间收起）
+                        // 每次事件都置回 false，让跟手逻辑始终生效。
+                        runCatching {
+                            XposedHelpers.setBooleanField(param.thisObject, "mIsGetSelfEvent", false)
+                        }
                         when (e.actionMasked) {
                             android.view.MotionEvent.ACTION_DOWN -> {
                                 dragLastY = e.rawY
