@@ -293,6 +293,8 @@ object ShadeSwitchFix : HookRegister() {
                             val panelView = XposedHelpers.getObjectField(content, "mControlCenterPanelView")
                             val pvc = XposedHelpers.callMethod(panelView, "getPanelViewController")
                             val anim = XposedHelpers.callMethod(pvc, "getPanelAnimator")
+                            // 强制 showing=true，否则 animateShowPanel(false) 会因守卫直接 return
+                            runCatching { XposedHelpers.setBooleanField(anim, "showing", true) }
                             XposedHelpers.callMethod(anim, "animateShowPanel", false)
                             XposedHelpers.setBooleanField(inst, "mContentShowing", false)
                         }
