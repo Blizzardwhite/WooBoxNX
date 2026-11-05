@@ -212,9 +212,11 @@ object ShadeSwitchFix : HookRegister() {
         state.isCc = isCc
         val now = SystemClock.elapsedRealtime()
 
-        // 左右切换期间冻结当前模糊，不跟随系统的 0（否则会闪白/闪亮）
+        // 左右切换期间不干预
         if (isSwitching()) {
-            state.target = state.applied
+            state.applied = radius
+            state.target = radius
+            state.opaque = opaque
             state.lastTs = now
             return
         }
@@ -293,9 +295,9 @@ object ShadeSwitchFix : HookRegister() {
         val goal = f.coerceIn(0f, 1f)
         val now = SystemClock.elapsedRealtime()
 
-        // 左右切换期间冻结遮罩，不跟随系统的 0（否则会露出亮壁纸）
         if (isSwitching()) {
-            if (isCc) { ccGoal = ccApplied } else { ncGoal = ncApplied }
+            if (isCc) { ccApplied = goal; ccGoal = goal; ccActive = false } else { ncApplied = goal; ncGoal = goal; ncActive = false }
+            pushMask(isCc)
             return
         }
 
