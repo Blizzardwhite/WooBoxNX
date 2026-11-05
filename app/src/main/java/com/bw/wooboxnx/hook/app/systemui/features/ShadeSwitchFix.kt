@@ -88,6 +88,8 @@ object ShadeSwitchFix : HookRegister() {
     private var maskTicking = false
 
     private val maskFadeMs = 50f
+    // 收起时遮罩淡出单独放慢（50ms 太快，基本等于瞬间消失）
+    private val maskFadeOutMs = 200f
 
     private fun isSwitching(): Boolean = runCatching {
         XposedHelpers.callMethod(controller, "getNcSwitching") as? Boolean ?: false
@@ -338,7 +340,8 @@ object ShadeSwitchFix : HookRegister() {
 
         val dt = if (maskLastTs == 0L) 16L else (now - maskLastTs).coerceIn(4L, 64L)
         maskLastTs = now
-        val step = (dt / maskFadeMs).coerceAtLeast(0.005f)
+        val fadingOut = if (isCc) goal < ccApplied else goal < ncApplied
+        val step = (dt / (if (fadingOut) maskFadeOutMs else maskFadeMs)).coerceAtLeast(0.005f)
 
         if (isCc) {
             // 从 0 开始渐变（原来直接跳到 goal，导致遮罩没有渐入）
@@ -365,14 +368,16 @@ object ShadeSwitchFix : HookRegister() {
     private val maskTicker = object : Runnable {
         override fun run() {
             var busy = false
-            val step = 16f / maskFadeMs
+            val inStep = 16f / maskFadeMs
+            val outStep = 16f / maskFadeOutMs
             if (ncActive) {
                 val d = ncGoal - ncApplied
                 if (kotlin.math.abs(d) <= 0.01f) {
                     ncApplied = ncGoal
                     ncActive = false
                 } else {
-                    ncApplied = (ncApplied + if (d > 0) step else -step).coerceIn(0f, 1f)
+                    val s = if (d > 0) inStep else outStep
+                    ncApplied = (ncApplied + if (d > 0) s else -s).coerceIn(0f, 1f)
                     busy = true
                 }
                 pushMask(false)
@@ -383,7 +388,8 @@ object ShadeSwitchFix : HookRegister() {
                     ccApplied = ccGoal
                     ccActive = false
                 } else {
-                    ccApplied = (ccApplied + if (d > 0) step else -step).coerceIn(0f, 1f)
+                    val s = if (d > 0) inStep else outStep
+                    ccApplied = (ccApplied + if (d > 0) s else -s).coerceIn(0f, 1f)
                     busy = true
                 }
                 pushMask(true)
