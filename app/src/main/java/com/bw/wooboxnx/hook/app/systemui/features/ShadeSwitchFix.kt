@@ -413,8 +413,8 @@ object ShadeSwitchFix : HookRegister() {
                     hideToken++
                     val token = hideToken
                     val finish = Runnable {
-                        // 期间又开始新的手势，或者面板已经在重新展开 → 放弃这次延迟隐藏
-                        if (token != hideToken || lastExpandHeight > 0.5f) {
+                        // 期间又开始新的手势 → 放弃这次延迟隐藏，交给新手势处理
+                        if (token != hideToken) {
                             runCatching { content?.alpha = 1f }
                             return@Runnable
                         }
@@ -431,6 +431,16 @@ object ShadeSwitchFix : HookRegister() {
                             .withEndAction(finish)
                             .start()
                     }
+                    // 兜底看门狗：600ms 后如果面板其实已经收起（高度≈0）但窗口还留着，
+                    // 强制隐藏，避免窗口挡住桌面触摸
+                    main.postDelayed({
+                        if (lastExpandHeight <= 0.5f) {
+                            bypassHide = true
+                            runCatching { XposedHelpers.callMethod(inst, "hideControlCenterWindow") }
+                            bypassHide = false
+                            runCatching { content?.alpha = 1f }
+                        }
+                    }, 600L)
                 }
             })
         }.onFailure { Log.px("W", "ShadeSwitchFix: 收起 hook 失败", it, logInRelease = true) }
