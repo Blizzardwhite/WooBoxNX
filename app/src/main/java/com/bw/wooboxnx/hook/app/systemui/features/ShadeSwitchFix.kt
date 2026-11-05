@@ -709,14 +709,6 @@ object ShadeSwitchFix : HookRegister() {
     private var unlockAnimUntil = 0L
     private var switchInstantUntil = 0L
     private var deferringCollapse = false
-    private var dbgCtx: android.content.Context? = null
-
-    private fun dbg(msg: String) {
-        runCatching {
-            val dir = dbgCtx?.getExternalFilesDir(null) ?: return
-            java.io.File(dir, "woo.log").appendText("${SystemClock.elapsedRealtime()} $msg\n")
-        }
-    }
 
     /** 快速设置窗口是否接收触摸；放行后 260ms 自动恢复，避免切换页面时触摸漏到桌面 */
     private fun setCcTouchable(touchable: Boolean) {
