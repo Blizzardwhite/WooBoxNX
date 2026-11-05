@@ -138,20 +138,6 @@ object ShadeSwitchFix : HookRegister() {
         override fun run() {
             var pending = false
             for (s in blurStates.values.toList()) {
-                // 窗口已经不可见：直接归零，避免残留
-                val visible = runCatching {
-                    val v = XposedHelpers.getObjectField(s.root, "mView") as? android.view.View
-                    v?.visibility == android.view.View.VISIBLE
-                }.getOrDefault(true)
-                if (!visible) {
-                    s.applied = 0
-                    s.target = 0
-                    runCatching {
-                        val u = s.utils
-                        if (u != null) XposedHelpers.callMethod(u, "applyBlur", s.root, 0, s.opaque)
-                    }
-                    continue
-                }
 
                 val d = s.target - s.applied
                 if (kotlin.math.abs(d) <= 3) {
