@@ -640,7 +640,10 @@ object ShadeSwitchFix : HookRegister() {
                     // 这里如果改成动画收起，就会闪出"没有通知"，所以解锁期间不拦截
                     if (SystemClock.elapsedRealtime() < unlockAnimUntil) return
                     param.result = null
-                    runCatching { XposedHelpers.callMethod(param.thisObject, "collapse", true, 0f) }
+                    // 这里第二个参数是"收起加速系数"，原来传 0f，
+                    // 会让 flingToHeight 里 duration / 0 变成异常值、动画走不成正常帧，
+                    // 结果就变成"裁剪式"收起。用 1.0f 才是正常动画。
+                    runCatching { XposedHelpers.callMethod(param.thisObject, "collapse", true, 1.0f) }
                     setNcTouchable(false)
                 }
             })
