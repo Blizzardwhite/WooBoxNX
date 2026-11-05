@@ -356,7 +356,9 @@ object ShadeSwitchFix : HookRegister() {
                     s.applied = s.goal
                     continue
                 }
-                val step = s.rate * 0.016f
+                // 变暗用正常速度；变亮（收起时）要跟上窗口消失的节奏，快一些
+                val rate = if (d > 0) s.rate else s.rate * 2.5f
+                val step = rate * 0.016f
                 s.applied += if (d > 0) step else -step
                 s.applied = s.applied.coerceIn(0f, 1f)
                 inMaskTicker = true
@@ -383,7 +385,8 @@ object ShadeSwitchFix : HookRegister() {
 
         val dt = if (s.lastTs == 0L) 16L else (now - s.lastTs).coerceIn(4L, 64L)
         s.lastTs = now
-        val step = (s.rate * dt / 1000f).coerceAtLeast(0.004f)
+        val rate = if (s.goal > s.applied) s.rate else s.rate * 2.5f
+        val step = (rate * dt / 1000f).coerceAtLeast(0.004f)
         val d = s.goal - s.applied
         if (kotlin.math.abs(d) <= step) {
             s.applied = s.goal
