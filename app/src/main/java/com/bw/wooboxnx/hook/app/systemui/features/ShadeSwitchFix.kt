@@ -18,6 +18,7 @@ import de.robv.android.xposed.XposedHelpers
 object ShadeSwitchFix : HookRegister() {
 
     private var upSwipe = false
+    private var lastExpandHeight = 0f
     private var dragLastY = 0f
     private var dragLastTs = 0L
     private var dragVel = 0f
@@ -245,6 +246,37 @@ object ShadeSwitchFix : HookRegister() {
                 }
             }.onFailure {
                 Log.px("W", "ShadeSwitchFix: 通知中心立即收起 hook 失败", it, logInRelease = true)
+            }
+
+            // 拖动收起时，系统一过阈值就把内容隐藏，导致松手后看不见收尾动画。
+            // 这里把隐藏推迟到高度接近 0 时再做。
+            runCatching {
+                val viewCls = cl.loadClass("com.zte.controlcenter.ControlPanelWindowView")
+                XposedBridge.hookAllMethods(viewCls, "updateExpandHeight", object : XC_MethodHook() {
+                    override fun beforeHookedMethod(param: MethodHookParam) {
+                        lastExpandHeight = (param.args.getOrNull(0) as? Float) ?: 0f
+                    }
+                    override fun afterHookedMethod(param: MethodHookParam) {
+                        if (lastExpandHeight > 5f) return
+                        runCatching {
+                            val inst = param.thisObject
+                            val content = XposedHelpers.getObjectField(inst, "mContent")
+                            val showing = XposedHelpers.getBooleanField(inst, "mContentShowing")
+                            if (showing) {
+                                XposedHelpers.callMethod(content, "hideContent")
+                                XposedHelpers.setBooleanField(inst, "mContentShowing", false)
+                            }
+                        }
+                    }
+                })
+                val contentCls = cl.loadClass("com.zte.controlcenter.ControlPanelContentView")
+                XposedBridge.hookAllMethods(contentCls, "hideContent", object : XC_MethodHook() {
+                    override fun beforeHookedMethod(param: MethodHookParam) {
+                        if (lastExpandHeight > 5f) param.result = null
+                    }
+                })
+            }.onFailure {
+                Log.px("W", "ShadeSwitchFix: 收起内容延迟隐藏 hook 失败", it, logInRelease = true)
             }
 
             Log.px("I", "ShadeSwitchFix hooked", logInRelease = true)
