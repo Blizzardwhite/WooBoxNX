@@ -316,6 +316,136 @@ object ShadeSwitchFix : HookRegister() {
                 Log.px("W", "ShadeSwitchFix: hideControlCenterWindow hook 失败", it, logInRelease = true)
             }
 
+            // 收起时窗口保持满屏，先让内容淡出 200ms，再真正隐藏窗口。
+            // （之前改窗口高度会让内容跟着"下滑"，所以改成纯淡出 + 延迟隐藏）
+            runCatching {
+                val cls = cl.loadClass("com.zte.controlcenter.ControlPanelWindowView")
+                XposedBridge.hookAllMethods(cls, "hideControlCenterWindow", object : XC_MethodHook() {
+                    override fun beforeHookedMethod(param: MethodHookParam) {
+                        if (bypassHide) return
+                        val inst = param.thisObject as? android.view.View ?: return
+                        param.result = null
+                        runCatching {
+                            val content = XposedHelpers.getObjectField(inst, "mContent") as? android.view.View
+                            content?.animate()?.cancel()
+                            content?.animate()?.alpha(0f)?.setDuration(200L)?.start()
+                        }
+                        handler.postDelayed({
+                            bypassHide = true
+                            runCatching { XposedHelpers.callMethod(inst, "hideControlCenterWindow") }
+                            bypassHide = false
+                            runCatching {
+                                val content = XposedHelpers.getObjectField(inst, "mContent") as? android.view.View
+                                content?.alpha = 1f
+                            }
+                        }, 210L)
+                    }
+                })
+            }.onFailure {
+                Log.px("W", "ShadeSwitchFix: hideControlCenterWindow hook 失败", it, logInRelease = true)
+            }
+            // 黑色半透明渐变遮罩：系统直接置 0/1，这里做成渐入渐出。
+            // 注意只改 drawable 的 alpha，不改系统方法的入参，避免影响展开状态机。
+            runCatching {
+                val gb = cl.loadClass("com.zte.utils.GaussBlur")
+                gaussBlurCls = gb
+                XposedBridge.hookAllMethods(gb, "updateShadePanelBlur", object : XC_MethodHook() {
+                    override fun afterHookedMethod(param: MethodHookParam) {
+                        runCatching { trackMask(false, param) }
+                    }
+                })
+                XposedBridge.hookAllMethods(gb, "updateControlPanelBlur", object : XC_MethodHook() {
+                    override fun afterHookedMethod(param: MethodHookParam) {
+                        runCatching { trackMask(true, param) }
+                    }
+                })
+            }.onFailure {
+                Log.px("W", "ShadeSwitchFix: 遮罩 hook 失败", it, logInRelease = true)
+            }
+
+            // 点空白处收起时系统走的是「立即收起」，没有动画。改成走动画收起。
+            runCatching {
+                val cls = cl.loadClass("com.android.systemui.shade.ShadeControllerImpl")
+                XposedBridge.hookAllMethods(cls, "collapseShade", object : XC_MethodHook() {
+                    override fun beforeHookedMethod(param: MethodHookParam) {
+                        val animated = param.args.getOrNull(0) as? Boolean ?: return
+                        if (!animated) param.args[0] = true
+                    }
+                })
+                // 点空白处走的是 instantCollapse()，直接消失。改成走动画收起。
+                runCatching {
+                    val npvc = cl.loadClass("com.android.systemui.shade.NotificationPanelViewController")
+                    XposedBridge.hookAllMethods(npvc, "instantCollapse", object : XC_MethodHook() {
+                        override fun beforeHookedMethod(param: MethodHookParam) {
+                            param.result = null
+                            runCatching { XposedHelpers.callMethod(param.thisObject, "collapse", true, 0f) }
+                        }
+                    })
+                }
+            }.onFailure {
+                Log.px("W", "ShadeSwitchFix: 通知中心立即收起 hook 失败", it, logInRelease = true)
+            }
+
+            // 只在上滑拖动收起这条路径上推迟隐藏内容：其他路径（打开、切换、点空白）完全不受影响
+            runCatching {
+                val viewCls = cl.loadClass("com.zte.controlcenter.ControlPanelWindowView")
+                XposedBridge.hookAllMethods(viewCls, "updateExpandHeight", object : XC_MethodHook() {
+                    override fun beforeHookedMethod(param: MethodHookParam) {
+                        lastExpandHeight = (param.args.getOrNull(0) as? Float) ?: 0f
+                    }
+                    override fun afterHookedMethod(param: MethodHookParam) {
+                        if (!closingByDrag) return
+                        val inst = param.thisObject
+                        val th = runCatching {
+                            XposedHelpers.getIntField(inst, "THRESHOLD")
+                        }.getOrDefault(105)
+                        if (lastExpandHeight > th * 0.6f) return
+                        closingByDrag = false
+                        if (widgetsHidden) return
+                        widgetsHidden = true
+                        runCatching {
+                            val content = XposedHelpers.getObjectField(inst, "mContent")
+                            // 直接走控件的退场动画（animateShowPanel(false)），
+                            // 不用 hideContent()，因为它会先 resetState 把控件 alpha 瞬间清零
+                            val panelView = XposedHelpers.getObjectField(content, "mControlCenterPanelView")
+                            val pvc = XposedHelpers.callMethod(panelView, "getPanelViewController")
+                            val anim = XposedHelpers.callMethod(pvc, "getPanelAnimator")
+                            // 强制 showing=true，否则 animateShowPanel(false) 会因守卫直接 return
+                            runCatching { XposedHelpers.setBooleanField(anim, "showing", true) }
+                            XposedHelpers.callMethod(anim, "animateShowPanel", false)
+                            XposedHelpers.setBooleanField(inst, "mContentShowing", false)
+                        }
+                    }
+                })
+                val contentCls = cl.loadClass("com.zte.controlcenter.ControlPanelContentView")
+                XposedBridge.hookAllMethods(contentCls, "hideContent", object : XC_MethodHook() {
+                    override fun beforeHookedMethod(param: MethodHookParam) {
+                        if (closingByDrag) param.result = null
+                    }
+                })
+            }.onFailure {
+                Log.px("W", "ShadeSwitchFix: 拖动收起隐藏 hook 失败", it, logInRelease = true)
+            }
+
+            // 快速甩动收起走的是 hideControlCenterWindow()（直接隐藏窗口，无动画）。
+            // 只要面板还有高度，就改成走 300ms 收起动画。
+            runCatching {
+                val cls = cl.loadClass("com.zte.controlcenter.ControlPanelWindowView")
+                XposedBridge.hookAllMethods(cls, "hideControlCenterWindow", object : XC_MethodHook() {
+                    override fun beforeHookedMethod(param: MethodHookParam) {
+                        val inst = param.thisObject
+                        val h = runCatching {
+                            XposedHelpers.getFloatField(inst, "mExpandHeight")
+                        }.getOrDefault(0f)
+                        if (h <= 1f) return
+                        param.result = null
+                        runCatching { XposedHelpers.callMethod(inst, "collapsePanel", true) }
+                    }
+                })
+            }.onFailure {
+                Log.px("W", "ShadeSwitchFix: hideControlCenterWindow hook 失败", it, logInRelease = true)
+            }
+
             // 让窗口在收起时不是瞬间高度归零，而是 250ms 缩到 0：
             // 这样磁贴的 200ms 淡出能在窗口还可见时播完。
             runCatching {
