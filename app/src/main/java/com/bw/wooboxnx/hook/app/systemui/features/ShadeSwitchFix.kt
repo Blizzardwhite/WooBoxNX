@@ -96,13 +96,14 @@ object ShadeSwitchFix : HookRegister() {
                 }
             })
 
-            // 快速下滑快速设置时，它的模糊半径是一帧跳到目标的（通知面板有弹簧缓动，它没有），
-            // 这里给快速设置窗口的模糊加个步进，让它在约 160ms 内平滑到位。
+            // 两块面板的模糊都做速率限制：系统在快速下拉时会把模糊半径一帧设到目标值，
+            // 这里按固定速度推进（约 500ms 从 0 到满），让模糊是渐变的。
+            // 目标为 0 时立即生效，不会残留；补帧逻辑保证一定走到目标值。
             runCatching {
                 val bu = cl.loadClass("com.android.systemui.statusbar.BlurUtils")
                 XposedBridge.hookAllMethods(bu, "applyBlur", object : XC_MethodHook() {
                     override fun beforeHookedMethod(param: MethodHookParam) {
-                        runCatching { smoothCcBlur(cl, param) }
+                        runCatching { smoothBlur(param) }
                     }
                 })
             }.onFailure {
@@ -115,83 +116,88 @@ object ShadeSwitchFix : HookRegister() {
         }
     }
 
-    // ---------------------------------------------------------------- 快速设置模糊平滑
+    // ---------------------------------------------------------------- 模糊平滑
 
-    private var ccRoot: Any? = null
-    private var blurUtilsRef: Any? = null
+    private class BlurState(val root: Any) {
+        var utils: Any? = null
+        var applied = -1
+        var target = 0
+        var opaque = false
+        var lastTs = 0L
+    }
 
-    private var blurApplied = -1
-    private var blurTarget = 0
-    private var blurOpaque = false
-    private var blurTicking = false
-    private var blurLastTs = 0L
+    private val blurStates = HashMap<Any, BlurState>()
+    private var ticking = false
     private var inTicker = false
+    private val handler = android.os.Handler(android.os.Looper.getMainLooper())
+
+    /** 每秒最多变化多少像素（满值 200px，约 500ms） */
+    private val ratePxPerSec = 400f
 
     private val ticker = object : Runnable {
         override fun run() {
-            val utils = blurUtilsRef
-            val root = ccRoot
-            if (utils == null || root == null) {
-                blurTicking = false
-                return
+            var pending = false
+            for (s in blurStates.values.toList()) {
+                val d = s.target - s.applied
+                if (kotlin.math.abs(d) <= 3) {
+                    s.applied = s.target
+                    continue
+                }
+                val step = (ratePxPerSec * 0.016f).toInt().coerceAtLeast(2)
+                s.applied += if (d > 0) step else -step
+                inTicker = true
+                runCatching {
+                    val u = s.utils
+                    if (u != null) XposedHelpers.callMethod(u, "applyBlur", s.root, s.applied, s.opaque)
+                }
+                inTicker = false
+                pending = true
             }
-            val d = blurTarget - blurApplied
-            if (kotlin.math.abs(d) <= 4) {
-                blurApplied = blurTarget
-                blurTicking = false
-                return
-            }
-            blurApplied += if (d > 0) 14 else -14
-            inTicker = true
-            runCatching {
-                XposedHelpers.callMethod(utils, "applyBlur", root, blurApplied, blurOpaque)
-            }
-            inTicker = false
-            handler.postDelayed(this, 16L)
+            ticking = pending
+            if (pending) handler.postDelayed(this, 16L)
         }
     }
-    private val handler = android.os.Handler(android.os.Looper.getMainLooper())
 
-    private fun smoothCcBlur(cl: ClassLoader, param: XC_MethodHook.MethodHookParam) {
+    private fun smoothBlur(param: XC_MethodHook.MethodHookParam) {
         if (inTicker) return
         val root = param.args.getOrNull(0) ?: return
         val radius = param.args.getOrNull(1) as? Int ?: return
         val opaque = param.args.getOrNull(2) as? Boolean ?: false
 
-        // 判断是不是快速设置窗口：取 ViewRootImpl 的 mView，看类名
-        val isCc = runCatching {
-            val v = XposedHelpers.getObjectField(root, "mView") as? android.view.View
-            v?.javaClass?.name?.contains("ControlPanel") == true
-        }.getOrDefault(false)
-        if (!isCc) return
+        // 只处理通知面板 / 快速设置这两个窗口
+        val name = runCatching {
+            (XposedHelpers.getObjectField(root, "mView") as? android.view.View)?.javaClass?.name
+        }.getOrNull() ?: return
+        if (!name.contains("NotificationShadeWindowView") && !name.contains("ControlPanelWindowView")) return
 
-        if (blurUtilsRef == null) blurUtilsRef = param.thisObject
+        val state = blurStates.getOrPut(root) { BlurState(root) }
+        state.utils = param.thisObject
         val now = android.os.SystemClock.elapsedRealtime()
 
         // 归零立即生效，避免残留
         if (radius == 0) {
-            blurApplied = 0
-            blurTarget = 0
-            blurOpaque = opaque
-            blurLastTs = now
+            state.applied = 0
+            state.target = 0
+            state.opaque = opaque
+            state.lastTs = now
             return
         }
 
-        if (blurApplied < 0) blurApplied = radius
-        blurTarget = radius
-        blurOpaque = opaque
+        if (state.applied < 0) state.applied = radius
+        state.target = radius
+        state.opaque = opaque
 
-        val dt = if (blurLastTs == 0L) 16L else (now - blurLastTs).coerceIn(4L, 64L)
-        blurLastTs = now
-        val step = (800f * dt / 1000f).toInt().coerceAtLeast(4)
-        val d = radius - blurApplied
+        val dt = if (state.lastTs == 0L) 16L else (now - state.lastTs).coerceIn(4L, 64L)
+        state.lastTs = now
+        val step = (ratePxPerSec * dt / 1000f).toInt().coerceAtLeast(2)
+        val d = radius - state.applied
         if (kotlin.math.abs(d) <= step) {
-            blurApplied = radius
+            state.applied = radius
         } else {
-            blurApplied += if (d > 0) step else -step
-            param.args[1] = blurApplied
-            if (!blurTicking) {
-                blurTicking = true
+            state.applied += if (d > 0) step else -step
+            param.args[1] = state.applied
+            if (!ticking) {
+                ticking = true
                 handler.postDelayed(ticker, 16L)
             }
         }
