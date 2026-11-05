@@ -577,6 +577,19 @@ object ShadeSwitchFix : HookRegister() {
                     if (!expand) setNcTouchable(false)
                 }
             })
+            // 通知中心收起动画固定 220ms（与快速设置一致）
+            XposedBridge.hookAllMethods(npvc, "flingToHeight", object : XC_MethodHook() {
+                override fun afterHookedMethod(param: MethodHookParam) {
+                    runCatching {
+                        val expand = param.args.getOrNull(1) as? Boolean ?: return@runCatching
+                        if (expand) return@runCatching
+                        val anim = XposedHelpers.getObjectField(param.thisObject, "mHeightAnimator")
+                            as? android.animation.ValueAnimator ?: return@runCatching
+                        val scale = animScale(param.thisObject as? View)
+                        anim.duration = (220f * scale).toLong()
+                    }
+                }
+            })
             // 面板完全展开时恢复触摸
             XposedBridge.hookAllMethods(npvc, "onHeightUpdated", object : XC_MethodHook() {
                 override fun afterHookedMethod(param: MethodHookParam) {
