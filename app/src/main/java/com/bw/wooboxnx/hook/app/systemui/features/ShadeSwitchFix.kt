@@ -656,6 +656,21 @@ object ShadeSwitchFix : HookRegister() {
                     setNcTouchable(false)
                 }
             })
+            // 快速甩动收起时，ZTE 的拉伸逻辑会把高度直接写 0，卡片一帧消失。
+            // 面板还开着的时候拦掉这次归零，让正常的收起动画去收。
+            runCatching {
+                val mfv = cl.loadClass("com.zte.controlcenter.policy.MfvNotificationPanelViewController")
+                XposedBridge.hookAllMethods(mfv, "setMStretchLength", object : XC_MethodHook() {
+                    override fun beforeHookedMethod(param: MethodHookParam) {
+                        val v = param.args.getOrNull(0) as? Float ?: return
+                        if (v != 0f) return
+                        val frac = runCatching {
+                            XposedHelpers.getFloatField(param.thisObject, "mExpandedFraction") as Float
+                        }.getOrDefault(0f)
+                        if (frac > 0.1f) param.result = null
+                    }
+                })
+            }
             XposedBridge.hookAllMethods(npvc, "fling", object : XC_MethodHook() {
                 override fun beforeHookedMethod(param: MethodHookParam) {
                     val expand = param.args.getOrNull(1) as? Boolean ?: return
@@ -694,6 +709,14 @@ object ShadeSwitchFix : HookRegister() {
     private var unlockAnimUntil = 0L
     private var switchInstantUntil = 0L
     private var deferringCollapse = false
+    private var dbgCtx: android.content.Context? = null
+
+    private fun dbg(msg: String) {
+        runCatching {
+            val dir = dbgCtx?.getExternalFilesDir(null) ?: return
+            java.io.File(dir, "woo.log").appendText("${SystemClock.elapsedRealtime()} $msg\n")
+        }
+    }
 
     /** 快速设置窗口是否接收触摸；放行后 260ms 自动恢复，避免切换页面时触摸漏到桌面 */
     private fun setCcTouchable(touchable: Boolean) {
