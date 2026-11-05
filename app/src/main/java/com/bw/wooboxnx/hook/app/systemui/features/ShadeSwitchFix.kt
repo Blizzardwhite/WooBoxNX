@@ -18,6 +18,9 @@ import de.robv.android.xposed.XposedHelpers
 object ShadeSwitchFix : HookRegister() {
 
     private var upSwipe = false
+    private var dragLastY = 0f
+    private var dragLastTs = 0L
+    private var dragVel = 0f
     private val panelAnims = ArrayList<java.lang.ref.WeakReference<android.animation.ValueAnimator>>()
     private var controller: Any? = null
     private var lastStableZoom = 1f
@@ -166,8 +169,20 @@ object ShadeSwitchFix : HookRegister() {
                         when (e.actionMasked) {
                             android.view.MotionEvent.ACTION_DOWN -> {
                                 upSwipe = false
+                                dragLastY = e.rawY
+                                dragLastTs = 0L
+                                dragVel = 0f
                             }
                             android.view.MotionEvent.ACTION_MOVE -> {
+                                val now = android.os.SystemClock.elapsedRealtime()
+                                if (dragLastTs > 0L) {
+                                    val dt = now - dragLastTs
+                                    if (dt in 2L..80L) {
+                                        dragVel = (e.rawY - dragLastY) / (dt / 1000f)
+                                    }
+                                }
+                                dragLastY = e.rawY
+                                dragLastTs = now
                                 val downY = runCatching {
                                     XposedHelpers.getFloatField(inst, "mDownY")
                                 }.getOrDefault(e.rawY)
@@ -207,7 +222,12 @@ object ShadeSwitchFix : HookRegister() {
                         val anim = runCatching {
                             XposedHelpers.getObjectField(param.thisObject, "mHeightChangeAnimator")
                         }.getOrNull() as? android.animation.ValueAnimator ?: return
-                        anim.duration = 300L
+                        val target = param.args.getOrNull(0) as? Int ?: 0
+                        anim.duration = if (target != 0) {
+                            // 展开：按拖动速度决定时长（甩得越快开得越快），400ms → 150ms
+                            val v = kotlin.math.abs(dragVel)
+                            (420f - v / 30f).toInt().coerceIn(150, 420).toLong()
+                        } else 300L
                     }
                 })
             }.onFailure {
