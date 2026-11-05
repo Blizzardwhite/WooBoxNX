@@ -591,27 +591,45 @@ object ShadeSwitchFix : HookRegister() {
 
     // ---------------------------------------------------------------- 收起时放行触摸
 
-    /** 快速设置窗口是否接收触摸 */
+    private var ccTouchToken = 0
+    private var ncTouchToken = 0
+
+    /** 快速设置窗口是否接收触摸；放行后 260ms 自动恢复，避免切换页面时触摸漏到桌面 */
     private fun setCcTouchable(touchable: Boolean) {
+        ccTouchToken++
+        val token = ccTouchToken
         runCatching {
-            val inst = ccWindowView?.get() ?: return
-            val wm = XposedHelpers.getObjectField(inst, "mControlPanelWindowManager") ?: return
-            val lp = XposedHelpers.getObjectField(wm, "mLpChanged") as? android.view.WindowManager.LayoutParams ?: return
+            val inst = ccWindowView?.get() ?: return@runCatching
+            val wm = XposedHelpers.getObjectField(inst, "mControlPanelWindowManager") ?: return@runCatching
+            val lp = XposedHelpers.getObjectField(wm, "mLpChanged") as? android.view.WindowManager.LayoutParams ?: return@runCatching
             val flag = android.view.WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
             val flags = if (touchable) lp.flags and flag.inv() else lp.flags or flag
-            if (flags == lp.flags) return
-            lp.flags = flags
-            XposedHelpers.callMethod(wm, "apply")
+            if (flags != lp.flags) {
+                lp.flags = flags
+                XposedHelpers.callMethod(wm, "apply")
+            }
+        }
+        if (!touchable) {
+            main.postDelayed({
+                if (token == ccTouchToken) setCcTouchable(true)
+            }, 260L)
         }
     }
 
-    /** 通知中心窗口是否接收触摸 */
+    /** 通知中心窗口是否接收触摸；放行后 260ms 自动恢复 */
     private fun setNcTouchable(touchable: Boolean) {
+        ncTouchToken++
+        val token = ncTouchToken
         runCatching {
             val ctrlCls = getDefaultCL().loadClass("com.android.systemui.statusbar.NotificationShadeWindowController")
             val dep = getDefaultCL().loadClass("com.android.systemui.Dependency")
-            val ctrl = XposedHelpers.callStaticMethod(dep, "get", ctrlCls) ?: return
+            val ctrl = XposedHelpers.callStaticMethod(dep, "get", ctrlCls) ?: return@runCatching
             XposedHelpers.callMethod(ctrl, "setNotTouchable", !touchable)
+        }
+        if (!touchable) {
+            main.postDelayed({
+                if (token == ncTouchToken) setNcTouchable(true)
+            }, 260L)
         }
     }
 }
