@@ -458,8 +458,9 @@ object ShadeSwitchFix : HookRegister() {
                             dragVel = 0f
                             closingByDrag = false
                             sawDown = true
-                            // 新手势开始：作废上一次收起遗留的延迟隐藏，并复位平滑状态
-                            hideToken++
+                            // 注意：这里不能动 hideToken。
+                            // 收起后窗口还会存在一小会儿，此时在桌面上的滑动也会走到这里，
+                            // 如果取消待执行的隐藏，窗口就会一直挡着桌面。
                             blurStates.values.forEach { if (it.isCc) it.applied = -1 }
                             ccApplied = -1f
                             ccActive = false
