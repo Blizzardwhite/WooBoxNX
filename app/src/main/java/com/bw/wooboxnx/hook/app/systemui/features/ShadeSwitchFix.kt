@@ -277,12 +277,12 @@ object ShadeSwitchFix : HookRegister() {
                 val gb = cl.loadClass("com.zte.utils.GaussBlur")
                 gaussBlurCls = gb
                 XposedBridge.hookAllMethods(gb, "updateShadePanelBlur", object : XC_MethodHook() {
-                    override fun beforeHookedMethod(param: MethodHookParam) {
+                    override fun afterHookedMethod(param: MethodHookParam) {
                         runCatching { trackMask(false, param) }
                     }
                 })
                 XposedBridge.hookAllMethods(gb, "updateControlPanelBlur", object : XC_MethodHook() {
-                    override fun beforeHookedMethod(param: MethodHookParam) {
+                    override fun afterHookedMethod(param: MethodHookParam) {
                         runCatching { trackMask(true, param) }
                     }
                 })
