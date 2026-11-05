@@ -1,7 +1,5 @@
 package com.bw.wooboxnx.hook.app.systemui.features
 
-import android.graphics.Canvas
-import android.view.View
 import com.bw.wooboxnx.util.hasEnable
 import com.bw.wooboxnx.util.xposed.Log
 import com.bw.wooboxnx.util.xposed.base.HookRegister
@@ -10,11 +8,14 @@ import de.robv.android.xposed.XposedBridge
 import de.robv.android.xposed.XposedHelpers
 
 /**
- * 左右切换通知中心 / 快速设置时的两个已知问题：
- *   1. 壁纸缩放被强制改值 → 壁纸放大/缩小一次
- *   2. 两页各自的黑色遮罩同时存在 → 叠在一起瞬间变黑
+ * 左右切换通知中心 / 快速设置时的两个问题：
  *
- * 处理：切换期间固定壁纸缩放，并让通知页的 ScrimView 暂停绘制（只留一层遮罩）。
+ *   1. 壁纸缩放被强制改值 → 壁纸突然放大/缩小一次（已用缓动修正）
+ *   2. `NCSwitchController.switchBlur()` 会把「即将离开的那一页」的模糊设成 0，
+ *      收起过程中那一页的背景会瞬间变清晰 → 看起来就是闪一下
+ *
+ * 第 2 点处理：switchBlur 执行完后，把两页的模糊比例都恢复成 1。
+ * 只改这一瞬间的数值，不干预模糊状态机；页面真正收起后系统会自己把半径归零。
  */
 object ShadeSwitchFix : HookRegister() {
 
@@ -93,14 +94,31 @@ object ShadeSwitchFix : HookRegister() {
                         }
                         appliedZoom = limited
                         param.args[0] = limited
-                        runCatching {
-                            com.bw.wooboxnx.util.xposed.HookBeat.debug(
-                                "z t=$now target=$target applied=$limited raw=$v"
-                            )
-                        }
                     }
                 }
             })
+
+            // 切换时不要把「离开的那一页」的模糊关掉
+            runCatching {
+                val cls = cl.loadClass("com.zte.controlcenter.policy.NCSwitchController")
+                XposedBridge.hookAllMethods(cls, "switchBlur", object : XC_MethodHook() {
+                    override fun afterHookedMethod(param: MethodHookParam) {
+                        runCatching {
+                            val dep = cl.loadClass("com.android.systemui.Dependency")
+                            val csCls = cl.loadClass("com.android.systemui.statusbar.phone.CentralSurfaces")
+                            val cs = XposedHelpers.callStaticMethod(dep, "get", csCls)
+                            val npvc = XposedHelpers.callMethod(cs, "getNotificationPanelViewController")
+                            XposedHelpers.callMethod(npvc, "setBlurRatio", 1.0f)
+
+                            val cwmCls = cl.loadClass("com.zte.controlcenter.ControlPanelWindowManager")
+                            val cwm = XposedHelpers.callStaticMethod(dep, "get", cwmCls)
+                            XposedHelpers.callMethod(cwm, "setBlurRatio", 1.0f)
+                        }
+                    }
+                })
+            }.onFailure {
+                Log.px("W", "ShadeSwitchFix: switchBlur hook 失败", it, logInRelease = true)
+            }
 
             Log.px("I", "ShadeSwitchFix hooked", logInRelease = true)
         }.onFailure {
