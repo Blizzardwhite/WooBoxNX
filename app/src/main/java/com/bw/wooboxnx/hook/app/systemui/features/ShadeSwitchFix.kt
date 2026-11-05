@@ -21,6 +21,8 @@ object ShadeSwitchFix : HookRegister() {
     private var dragLastY = 0f
     private var dragLastTs = 0L
     private var dragVel = 0f
+    private var lastExpandHeight = 0f
+    private var closingByDrag = false
     private val panelAnims = ArrayList<java.lang.ref.WeakReference<android.animation.ValueAnimator>>()
     private var controller: Any? = null
     private var lastStableZoom = 1f
@@ -161,6 +163,7 @@ object ShadeSwitchFix : HookRegister() {
                                 dragLastY = e.rawY
                                 dragLastTs = 0L
                                 dragVel = 0f
+                                closingByDrag = false
                             }
                             android.view.MotionEvent.ACTION_MOVE -> {
                                 val now = android.os.SystemClock.elapsedRealtime()
@@ -168,6 +171,7 @@ object ShadeSwitchFix : HookRegister() {
                                     val dt = now - dragLastTs
                                     if (dt in 2L..80L) dragVel = (e.rawY - dragLastY) / (dt / 1000f)
                                 }
+                                if (e.rawY - dragLastY < -30f) closingByDrag = true
                                 dragLastY = e.rawY
                                 dragLastTs = now
 
@@ -245,6 +249,37 @@ object ShadeSwitchFix : HookRegister() {
                 }
             }.onFailure {
                 Log.px("W", "ShadeSwitchFix: 通知中心立即收起 hook 失败", it, logInRelease = true)
+            }
+
+            // 只在上滑拖动收起这条路径上推迟隐藏内容：其他路径（打开、切换、点空白）完全不受影响
+            runCatching {
+                val viewCls = cl.loadClass("com.zte.controlcenter.ControlPanelWindowView")
+                XposedBridge.hookAllMethods(viewCls, "updateExpandHeight", object : XC_MethodHook() {
+                    override fun beforeHookedMethod(param: MethodHookParam) {
+                        lastExpandHeight = (param.args.getOrNull(0) as? Float) ?: 0f
+                    }
+                    override fun afterHookedMethod(param: MethodHookParam) {
+                        if (!closingByDrag || lastExpandHeight > 5f) return
+                        closingByDrag = false
+                        runCatching {
+                            val inst = param.thisObject
+                            val content = XposedHelpers.getObjectField(inst, "mContent")
+                            val showing = XposedHelpers.getBooleanField(inst, "mContentShowing")
+                            if (showing) {
+                                XposedHelpers.callMethod(content, "hideContent")
+                                XposedHelpers.setBooleanField(inst, "mContentShowing", false)
+                            }
+                        }
+                    }
+                })
+                val contentCls = cl.loadClass("com.zte.controlcenter.ControlPanelContentView")
+                XposedBridge.hookAllMethods(contentCls, "hideContent", object : XC_MethodHook() {
+                    override fun beforeHookedMethod(param: MethodHookParam) {
+                        if (closingByDrag) param.result = null
+                    }
+                })
+            }.onFailure {
+                Log.px("W", "ShadeSwitchFix: 拖动收起隐藏 hook 失败", it, logInRelease = true)
             }
 
             Log.px("I", "ShadeSwitchFix hooked", logInRelease = true)
