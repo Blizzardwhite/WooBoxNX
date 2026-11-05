@@ -590,9 +590,18 @@ object ShadeSwitchFix : HookRegister() {
             val npvc = cl.loadClass("com.android.systemui.shade.NotificationPanelViewController")
             XposedBridge.hookAllMethods(npvc, "instantCollapse", object : XC_MethodHook() {
                 override fun beforeHookedMethod(param: MethodHookParam) {
+                    // 解锁进桌面的动画结尾会调 instantCollapse()，随后马上把面板设回可见；
+                    // 这里如果改成动画收起，就会闪出"没有通知"，所以解锁期间不拦截
+                    if (SystemClock.elapsedRealtime() < unlockAnimUntil) return
                     param.result = null
                     runCatching { XposedHelpers.callMethod(param.thisObject, "collapse", true, 0f) }
                     setNcTouchable(false)
+                }
+            })
+            // 记录解锁动画窗口（结尾的 instantCollapse 就在这段时间内）
+            XposedBridge.hookAllMethods(npvc, "unlockAnimationStarted", object : XC_MethodHook() {
+                override fun beforeHookedMethod(param: MethodHookParam) {
+                    unlockAnimUntil = SystemClock.elapsedRealtime() + 1500L
                 }
             })
             // 其它收起路径（back / 点空白 / 甩动）
@@ -636,6 +645,7 @@ object ShadeSwitchFix : HookRegister() {
 
     private var ccTouchToken = 0
     private var ncTouchToken = 0
+    private var unlockAnimUntil = 0L
 
     /** 快速设置窗口是否接收触摸；放行后 260ms 自动恢复，避免切换页面时触摸漏到桌面 */
     private fun setCcTouchable(touchable: Boolean) {
