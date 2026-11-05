@@ -34,6 +34,7 @@ object ShadeSwitchFix : HookRegister() {
 
     private var controller: Any? = null
     private var gaussBlurCls: Class<*>? = null
+    private var ccZoomCall = false
 
     // ---- 壁纸缩放
     private var lastStableZoom = 1f
@@ -108,6 +109,12 @@ object ShadeSwitchFix : HookRegister() {
                         controller = param.thisObject
                     }
                 })
+                // 标记：下一次 setNotificationShadeZoom 是快速设置发起的
+                XposedBridge.hookAllMethods(cc, "updateBlurCallback", object : XC_MethodHook() {
+                    override fun beforeHookedMethod(param: MethodHookParam) {
+                        ccZoomCall = true
+                    }
+                })
             }
 
             runCatching {
@@ -141,7 +148,16 @@ object ShadeSwitchFix : HookRegister() {
             XposedBridge.hookMethod(setZoom, object : XC_MethodHook() {
                 override fun beforeHookedMethod(param: MethodHookParam) {
                     runCatching {
-                        val v = param.args.getOrNull(0) as? Float ?: return
+                        var v = param.args.getOrNull(0) as? Float ?: return
+                        if (ccZoomCall) {
+                            ccZoomCall = false
+                            // 套用通知中心的做法：缩放由展开比例决定（zoom = 1 - 展开比），
+                            // 不再使用快速设置按原始半径算出的值
+                            runCatching {
+                                val exp = XposedHelpers.getFloatField(controller, "shadeExpansion") as Float
+                                v = 1f - exp.coerceIn(0f, 1f)
+                            }
+                        }
                         val now = SystemClock.elapsedRealtime()
                         val sw = isSwitching()
 
