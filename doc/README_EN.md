@@ -14,7 +14,7 @@
 - Only supports **MyOS14 / RedMagicOS 9 (Android 14)**
 - Package: `com.bw.wooboxnx`
 - Module name: WooBox NX
-- Version: 1.1.0
+- Version: 1.1.3
 
 This repository is a community fork of [WooBox For RedmagicOS](https://github.com/u9521/WooBoxForRedmagicOS).
 The package name differs from upstream, so settings and backups are **not interchangeable**.
@@ -51,7 +51,7 @@ Original developer: [CoolApk@乌堆小透明](http://www.coolapk.com/u/883441)
 ### Download Links
 
 - Repository: [Blizzardwhite/WooBoxNX](https://github.com/Blizzardwhite/WooBoxNX)
-- APK: [v1.1.1](https://github.com/Blizzardwhite/WooBoxNX/releases/tag/v1.1.1)
+- APK: [v1.1.3](https://github.com/Blizzardwhite/WooBoxNX/releases/tag/v1.1.3)
 
 ---
 

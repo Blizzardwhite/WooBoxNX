@@ -14,7 +14,7 @@
 - 仅适配 **MyOS14 / RedMagicOS 9（Android 14）**，其余版本不保证可用
 - 包名：`com.bw.wooboxnx`
 - 模块名：WooBox NX
-- 当前版本：1.1.0
+- 当前版本：1.1.3
 
 本仓库是基于 [WooBox For RedmagicOS](https://github.com/u9521/WooBoxForRedmagicOS) 的二次开发分支，
 包名与上游不同，两者**配置与备份互不通用**，安装前请先卸载上游版本。
@@ -50,7 +50,7 @@
 ### 下载地址
 
 - 本仓库：[Blizzardwhite/WooBoxNX](https://github.com/Blizzardwhite/WooBoxNX)
-- APK 下载：[v1.1.1](https://github.com/Blizzardwhite/WooBoxNX/releases/tag/v1.1.1)
+- APK 下载：[v1.1.3](https://github.com/Blizzardwhite/WooBoxNX/releases/tag/v1.1.3)
 
 ---
 
