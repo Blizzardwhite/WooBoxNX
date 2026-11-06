@@ -106,15 +106,15 @@ android {
     }
     applicationVariants.all {
         outputs.forEach { output ->
-            var outPrefix = "WooBox4RMOS-${buildType.name}-${versionName}(${versionCode})"
-            val abi = buildTypes.getByName(buildType.name).ndk.abiFilters
-            if (abi.isNotEmpty()) {
-                abi.forEach {
-                    outPrefix += "-$it"
-                }
+            val fileName = if (buildType.name == "release") {
+                // 发布包固定命名：WooBoxNX-<版本>-arm64.apk
+                "WooBoxNX-${versionName}-arm64.apk"
+            } else {
+                var s = "WooBox4RMOS-${buildType.name}-${versionName}(${versionCode})"
+                buildTypes.getByName(buildType.name).ndk.abiFilters.forEach { s += "-$it" }
+                "$s.apk"
             }
-            outPrefix += ".apk"
-            (output as BaseVariantOutputImpl).outputFileName = outPrefix
+            (output as BaseVariantOutputImpl).outputFileName = fileName
         }
         this.assembleProvider?.configure {
             doLast {
