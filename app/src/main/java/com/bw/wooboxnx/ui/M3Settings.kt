@@ -476,13 +476,17 @@ object SettingsModel {
     ))
 
     /** 按键与手势 */
-    private val keys = Category("keys", "按键与手势", "手势助理、音量键、长按电源键", 9, listOf(
+    private val keys = Category("keys", "按键与手势", "手势助理、语音唤醒、音量键", 9, listOf(
         Group("手势与交互", listOf(
             Row(key = "gesture_use_default_digital_assist", title = "手势打开默认数字助理"),
             Row(key = "no_vibrate_volKey_Long_press", title = "禁用长按调节音量的振动"),
             Row(key = "unhide_clipboard_overlay", title = "恢复剪贴板浮窗"),
             Row(key = "aosp_singlehandmode_offest", title = "单手模式偏移", summary = "正数向上，负数向下",
                 kind = Row.SWITCH_SLIDER, switchKey = "aosp_singlehandmode_adjust", min = 0, max = 200, def = 0)
+        )),
+        Group("语音唤醒", listOf(
+            Row(key = "voice_wakeup_default_assist", title = "唤醒词打开默认数字助理",
+                summary = "替代内置智慧语音，直接进语音界面；需勾选「语音唤醒服务」作用域并重启手机")
         )),
         Group("长按电源键", listOf(
             Row(key = "long_power_key_wakeup_assist", title = "启动默认数字助理",
@@ -1523,7 +1527,8 @@ class SettingsHomeActivity : AppCompatActivity() {
         "com.android.nfc" to "NFC",
         "com.zte.cn.doubleapp" to "应用双开",
         "cn.nubia.filebrowser" to "文件管理",
-        "com.zte.zdm" to "系统更新"
+        "com.zte.zdm" to "系统更新",
+        "com.zte.voiceassist.wakeup" to "语音唤醒"
     )
 
     /** 常驻作用域：开机后一定会启动，所以「有没有心跳」能真实反映是否注入 */

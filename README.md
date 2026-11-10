@@ -1,4 +1,4 @@
-<div align="center">
+﻿<div align="center">
    <img width="160" src="./doc/img/ic_launcher.png" alt="logo">
    <h1>WooBox NX</h1>
    <p>
@@ -14,13 +14,13 @@
 - 仅适配 **MyOS14 / RedMagicOS 9（Android 14）**，其余版本不保证可用
 - 包名：`com.bw.wooboxnx`
 - 模块名：WooBox NX
-- 当前版本：1.1.3
+- 当前版本：1.1.4
 
 本仓库是基于 [WooBox For RedmagicOS](https://github.com/u9521/WooBoxForRedmagicOS) 的二次开发分支，
 包名与上游不同，两者**配置与备份互不通用**，安装前请先卸载上游版本。
 
 与原版的差异：重做了 MD3 设置界面（单页分类 + 搜索 + 待生效清单）、
-屏下区域支持弯月/图标/剪影/纯黑与电量显示、指纹圆环、应用名单页，
+屏下区域支持弯月/图标/剪影/纯黑与电量显示、指纹圆环、应用名单页，语音唤醒与长按电源键直接进默认数字助理（锁屏可用），
 并移除了旧版界面依赖。
 
 上游开发者：[@u9521](https://github.com/u9521)
@@ -30,7 +30,7 @@
 
 ### 使用说明
 
-1. 安装 APK 后，在 LSPosed 管理器中启用「WooBox NX」并勾选作用域（共 11 个）
+1. 安装 APK 后，在 LSPosed 管理器中启用「WooBox NX」并勾选作用域（共 12 个）
 2. 首次启用或模块更新后，需要**重启手机**才能让系统框架作用域生效
 3. 修改设置后点右上角「应用修改」，按提示重启作用域或手机
 4. 主页状态胶囊：绿色「运行中」表示常驻作用域均已注入
@@ -50,7 +50,7 @@
 ### 下载地址
 
 - 本仓库：[Blizzardwhite/WooBoxNX](https://github.com/Blizzardwhite/WooBoxNX)
-- APK 下载：[v1.1.3](https://github.com/Blizzardwhite/WooBoxNX/releases/tag/v1.1.3)
+- APK 下载：[v1.1.4](https://github.com/Blizzardwhite/WooBoxNX/releases/tag/v1.1.4)
 
 ---
 

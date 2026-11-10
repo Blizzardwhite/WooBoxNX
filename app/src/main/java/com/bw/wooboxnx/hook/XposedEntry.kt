@@ -26,6 +26,7 @@ class XposedEntry : EasyXposedInit() {
         FingerprintSensorUI, //指纹图标（com.fingerprint.serverservice）
         MiBoard, //负一屏（解除小部件白名单）
         SystemUpdater,//系统更新
+        Wakeup,//语音唤醒（com.zte.voiceassist.wakeup）
     )
 
     override fun handleLoadPackage(lpparam: XC_LoadPackage.LoadPackageParam?) {

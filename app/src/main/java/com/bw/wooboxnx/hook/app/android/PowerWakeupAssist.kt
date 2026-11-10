@@ -144,8 +144,21 @@ object PowerWakeupAssist : HookRegister() {
         return null
     }
 
-    /** 先试 SearchManager.launchAssist（真正拉起助理浮层），失败再退到应用本身 */
+    /**
+     * 先直接拉起助理的语音界面：VOICE_COMMAND 才是"进语音"的入口，
+     * ASSIST / 启动 Intent 会停在助理主页。失败再逐级退回原来的方式。
+     */
     private fun launchAssist(ctx: Context, pkg: String): Boolean {
+        val voice = runCatching {
+            ctx.startActivity(
+                Intent(Intent.ACTION_VOICE_COMMAND)
+                    .setPackage(pkg)
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            )
+            true
+        }.getOrDefault(false)
+        if (voice) return true
+
         val first = runCatching {
             val sm = ctx.getSystemService(Context.SEARCH_SERVICE) as SearchManager
             sm.javaClass.getMethod("launchAssist", Bundle::class.java).invoke(sm, Bundle())

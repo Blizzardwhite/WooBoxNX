@@ -13,5 +13,6 @@
         <item>com.zte.zdm</item>
         <item>com.fingerprint.sensorservice</item>
         <item>com.zte.mifavor.miboard</item>
+        <item>com.zte.voiceassist.wakeup</item>
     </string-array>
 </resources>
